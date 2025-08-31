@@ -20,6 +20,7 @@ interface NoteContextType {
   updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   getNote: (id: string) => Promise<Note | undefined>;
+  fetchNotes: () => Promise<void>;
 }
 
 export const NoteContext = createContext<NoteContextType | null>(null);
@@ -130,7 +131,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <NoteContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, getNote }}>
+    <NoteContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, getNote, fetchNotes }}>
       {children}
     </NoteContext.Provider>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,9 @@ import { Settings, BrainCircuit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
-import { syncNotesToS3 } from '@/lib/s3';
-import { getNotesDB } from '@/lib/db';
+import { uploadNoteToS3, listNotesInS3, downloadNoteFromS3 } from '@/lib/s3';
+import { getNotesDB, addNoteDB } from '@/lib/db';
+import { NoteContext } from '@/contexts/NoteContext';
 
 export function SettingsDialog() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,6 +30,7 @@ export function SettingsDialog() {
   const [secretAccessKey, setSecretAccessKey] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
+  const noteContext = useContext(NoteContext);
 
   useEffect(() => {
     if (isOpen) {
@@ -56,15 +58,15 @@ export function SettingsDialog() {
   const handleSync = async () => {
     setIsSyncing(true);
     const credentials = {
-      bucket: localStorage.getItem('s3Bucket'),
-      region: localStorage.getItem('s3Region'),
-      endpoint: localStorage.getItem('s3Endpoint'),
-      accessKeyId: localStorage.getItem('accessKeyId'),
-      secretAccessKey: localStorage.getItem('secretAccessKey'),
-    }
-
+      bucket: localStorage.getItem('s3Bucket') || '',
+      region: localStorage.getItem('s3Region') || undefined,
+      endpoint: localStorage.getItem('s3Endpoint') || undefined,
+      accessKeyId: localStorage.getItem('accessKeyId') || '',
+      secretAccessKey: localStorage.getItem('secretAccessKey') || '',
+    };
+  
     if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey || (!credentials.endpoint && !credentials.region)) {
-       toast({
+      toast({
         variant: 'destructive',
         title: 'Missing Credentials',
         description: 'Please configure all required S3 settings. Region is optional only when a custom endpoint is used.',
@@ -72,35 +74,49 @@ export function SettingsDialog() {
       setIsSyncing(false);
       return;
     }
-
+  
     try {
-      const db = await getNotesDB();
-      const allNotes = await db;
-      const result = await syncNotesToS3(allNotes, {
-          bucket: credentials.bucket,
-          region: credentials.region || undefined,
-          endpoint: credentials.endpoint || undefined,
-          accessKeyId: credentials.accessKeyId,
-          secretAccessKey: credentials.secretAccessKey,
-      });
+      const localNotes = await getNotesDB();
+      const localNoteIds = new Set(localNotes.map(n => n.id));
+      
+      // Upload local notes
+      await Promise.all(localNotes.map(note => uploadNoteToS3(note, credentials)));
+  
+      // List remote notes
+      const remoteNoteIds = await listNotesInS3(credentials);
+  
+      // Download notes from S3 that are not present locally
+      const missingNoteIds = remoteNoteIds.filter(id => !localNoteIds.has(id));
+      let downloadedCount = 0;
+      for (const noteId of missingNoteIds) {
+        try {
+          const note = await downloadNoteFromS3(noteId, credentials);
+          await addNoteDB(note);
+          downloadedCount++;
+        } catch (downloadError) {
+          console.error(`Failed to download or add note ${noteId}:`, downloadError);
+        }
+      }
 
+      await noteContext?.fetchNotes(); // Refresh notes in context
+  
       toast({
         title: 'Sync Successful',
-        description: `Notes successfully uploaded to S3 bucket "${credentials.bucket}".`,
+        description: `${localNotes.length} notes uploaded, ${downloadedCount} notes downloaded.`,
       });
-
-    } catch(error) {
-       let errorMessage = 'An unknown error occurred.';
-       let errorTitle = 'Sync Failed';
-       if (error instanceof Error) {
-         if (error.message.includes('Failed to fetch')) {
-            errorTitle = 'CORS Policy Error';
-            errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT requests from this app's origin (${window.location.origin}).`;
-         } else {
-            errorMessage = error.message;
-         }
-       }
-       toast({
+  
+    } catch (error) {
+      let errorMessage = 'An unknown error occurred.';
+      let errorTitle = 'Sync Failed';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorTitle = 'CORS Policy Error';
+          errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT and GET requests from this app's origin (${window.location.origin}).`;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      toast({
         variant: 'destructive',
         title: errorTitle,
         description: errorMessage,
@@ -139,31 +155,31 @@ export function SettingsDialog() {
             <Label htmlFor="s3-bucket" className="text-right">
               Bucket
             </Label>
-            <Input id="s3-bucket" value={s3Bucket} onChange={(e) => setS3Bucket(e.target.value)} className="col-span-3" placeholder="my-feathernote-bucket" />
+            <Input id="s3-bucket" value={s3Bucket} onChange={(e) => setS3Bucket(e.target.value)} className="col-span-3" placeholder="my-feathernote-bucket" autoComplete="off" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="s3-region" className="text-right">
               Region
             </Label>
-            <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1 (optional with endpoint)" />
+            <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1 (optional with endpoint)" autoComplete="off" />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="s3-endpoint" className="text-right">
               Endpoint
             </Label>
-            <Input id="s3-endpoint" value={s3Endpoint} onChange={(e) => setS3Endpoint(e.target.value)} className="col-span-3" placeholder="Optional: e.g., s3.us-west-000.backblazeb2.com" />
+            <Input id="s3-endpoint" value={s3Endpoint} onChange={(e) => setS3Endpoint(e.target.value)} className="col-span-3" placeholder="Optional: e.g., s3.us-west-000.backblazeb2.com" autoComplete="off" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="access-key" className="text-right">
               Access Key
             </Label>
-            <Input id="access-key" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)} className="col-span-3" />
+            <Input id="access-key" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)} className="col-span-3" autoComplete="off" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="secret-key" className="text-right">
               Secret Key
             </Label>
-            <Input id="secret-key" type="password" value={secretAccessKey} onChange={(e) => setSecretAccessKey(e.target.value)} className="col-span-3" placeholder="Leave blank to keep existing key" />
+            <Input id="secret-key" type="password" value={secretAccessKey} onChange={(e) => setSecretAccessKey(e.target.value)} className="col-span-3" placeholder="Leave blank to keep existing key" autoComplete="off" />
           </div>
         </div>
         <DialogFooter>
