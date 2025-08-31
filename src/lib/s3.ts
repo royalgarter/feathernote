@@ -25,12 +25,13 @@ export const syncNotesToS3 = async (notes: Note[], creds: S3Credentials): Promis
     });
 
     const notesJson = JSON.stringify(notes, null, 2);
-    const notesBlob = new Blob([notesJson], { type: 'application/json' });
+    // Convert string to Uint8Array to avoid stream issues in the browser.
+    const body = new TextEncoder().encode(notesJson);
 
     const command = new PutObjectCommand({
         Bucket: creds.bucket,
         Key: 'notes.json',
-        Body: notesBlob,
+        Body: body,
         ContentType: 'application/json',
     });
 
