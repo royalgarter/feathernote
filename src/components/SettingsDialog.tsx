@@ -63,11 +63,11 @@ export function SettingsDialog() {
       secretAccessKey: localStorage.getItem('secretAccessKey'),
     }
 
-    if (!credentials.bucket || !credentials.region || !credentials.accessKeyId || !credentials.secretAccessKey) {
+    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey || (!credentials.endpoint && !credentials.region)) {
        toast({
         variant: 'destructive',
         title: 'Missing Credentials',
-        description: 'Please configure all required S3 settings.',
+        description: 'Please configure all required S3 settings. Region is optional only when a custom endpoint is used.',
       });
       setIsSyncing(false);
       return;
@@ -77,7 +77,7 @@ export function SettingsDialog() {
       const notes = await getNotesDB();
       const result = await syncNotesToS3(notes, {
           bucket: credentials.bucket,
-          region: credentials.region,
+          region: credentials.region || undefined,
           endpoint: credentials.endpoint || undefined,
           accessKeyId: credentials.accessKeyId,
           secretAccessKey: credentials.secretAccessKey,
@@ -85,7 +85,7 @@ export function SettingsDialog() {
 
       toast({
         title: 'Sync Successful',
-        description: `Notes successfully uploaded to ${result.Location}`,
+        description: `Notes successfully uploaded to S3 bucket "${credentials.bucket}".`,
       });
 
     } catch(error) {
@@ -137,7 +137,7 @@ export function SettingsDialog() {
             <Label htmlFor="s3-region" className="text-right">
               Region
             </Label>
-            <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1" />
+            <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1 (optional with endpoint)" />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="s3-endpoint" className="text-right">

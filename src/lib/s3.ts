@@ -5,7 +5,7 @@ import { Note } from '@/contexts/NoteContext';
 
 interface S3Credentials {
     bucket: string;
-    region: string;
+    region?: string;
     endpoint?: string;
     accessKeyId: string;
     secretAccessKey: string;
