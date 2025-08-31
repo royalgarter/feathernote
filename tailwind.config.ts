@@ -20,7 +20,7 @@ export default {
       fontFamily: {
         body: ['PT Sans', ...fontFamily.sans],
         headline: ['PT Sans', ...fontFamily.sans],
-        code: ['monospace'],
+        code: ['monospace', ...fontFamily.mono],
       },
       colors: {
         background: 'hsl(var(--background))',

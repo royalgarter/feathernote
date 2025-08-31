@@ -6,7 +6,7 @@ import { NoteContext } from '@/contexts/NoteContext';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, Bell, Trash2, CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Save, Bell, Trash2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +28,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function NotePage() {
   const router = useRouter();
@@ -103,19 +105,60 @@ export default function NotePage() {
 
   const handleSetReminder = async (date: Date | undefined) => {
     if (!date) return;
-    setReminder(date);
-    await updateNote(noteId, { reminder: date.toISOString() });
-    toast({
-      title: 'Reminder Set',
-      description: `You will be notified on ${date.toLocaleString()}.`,
-    });
-
-    if ('Notification' in window && Notification.permission === 'granted') {
-      // Logic to schedule notification would go here.
-      // This is complex with service workers and would typically involve a server.
-      // For now, we rely on the visual cue and the saved date.
-    } else if ('Notification' in window) {
-      Notification.requestPermission();
+  
+    const scheduleNotification = (permission: NotificationPermission) => {
+      if (permission === 'granted') {
+        const now = new Date();
+        if (date > now) {
+          const delay = date.getTime() - now.getTime();
+  
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification('FeatherNote Reminder', {
+              body: `Reminder for your note: "${title}"`,
+              tag: `reminder-${noteId}`,
+              showTrigger: new (window as any).TimestampTrigger(Date.now() + delay),
+            });
+          });
+  
+          toast({
+            title: 'Reminder Set',
+            description: `You will be notified on ${date.toLocaleString()}.`,
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Invalid Date',
+            description: 'Please select a future date and time for the reminder.',
+          });
+          return; // Don't save reminder if it's in the past
+        }
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Notifications Blocked',
+          description: 'Please enable notifications in your browser settings to set reminders.',
+        });
+        return; // Don't save reminder if permission denied
+      }
+      // Only set reminder if notification was scheduled
+      setReminder(date);
+      updateNote(noteId, { reminder: date.toISOString() });
+    };
+  
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        scheduleNotification('granted');
+      } else {
+        Notification.requestPermission().then(permission => {
+          scheduleNotification(permission);
+        });
+      }
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Unsupported Browser',
+        description: 'Your browser does not support notifications.',
+      });
     }
   };
 
@@ -228,17 +271,15 @@ export default function NotePage() {
                 value={content}
                 onChange={handleContentChange}
                 placeholder="Start writing your note here..."
-                className="h-full resize-none text-base leading-relaxed"
+                className="h-full resize-none text-base leading-relaxed font-code"
               />
             </div>
             <div className="flex flex-col">
               <label className="text-sm font-medium text-muted-foreground mb-2">
                 Preview
               </label>
-              <div className="bg-muted/50 p-4 rounded-md h-full overflow-auto prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap font-body text-base leading-relaxed">
-                  {content}
-                </pre>
+              <div className="bg-muted/50 p-4 rounded-md h-full overflow-auto prose prose-sm max-w-none prose-p:font-body prose-p:text-base prose-p:leading-relaxed">
+                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               </div>
             </div>
           </div>
