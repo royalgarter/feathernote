@@ -17,7 +17,7 @@ interface NoteContextType {
   notes: Note[];
   loading: boolean;
   addNote: (title: string, content: string) => Promise<Note | null>;
-  updateNote: (id: string, updates: Partial<Note>) => Promise<Note | undefined>;
+  updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   getNote: (id: string) => Promise<Note | undefined>;
   fetchNotes: () => Promise<void>;
@@ -99,15 +99,10 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
 
       const updatedNote = { ...noteToUpdate, ...updates, updatedAt: new Date().toISOString() };
       await updateNoteDB(updatedNote);
-      
-      setNotes((prevNotes) =>
-        prevNotes.map((note) => (note.id === id ? updatedNote : note))
-      );
-      return updatedNote;
+      // Do not update the global state here to prevent re-renders on the note page
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
-      return undefined;
     }
   };
 

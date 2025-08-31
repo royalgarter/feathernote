@@ -41,7 +41,7 @@ export default function NotePage() {
   if (!noteContext) {
     throw new Error('NoteContext not found');
   }
-  const { getNote, updateNote, deleteNote } = noteContext;
+  const { getNote, updateNote, deleteNote, fetchNotes } = noteContext;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -164,6 +164,11 @@ export default function NotePage() {
     router.push('/');
   };
 
+  const handleBack = async () => {
+    await fetchNotes(); // Refresh the notes list before going back
+    router.push('/');
+  };
+
   if (isLoading) {
     return (
       <AppShell>
@@ -189,7 +194,7 @@ export default function NotePage() {
       <AppShellHeader>
         <Header>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push('/')}>
+            <Button variant="outline" size="sm" onClick={handleBack}>
               <ArrowLeft />
               Back
             </Button>
