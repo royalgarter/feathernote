@@ -6,7 +6,7 @@ import { NoteContext } from '@/contexts/NoteContext';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, Bell, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bell, Trash2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
@@ -46,7 +46,6 @@ export default function NotePage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [reminder, setReminder] = useState<Date | undefined>(undefined);
 
   const debounce = <F extends (...args: any[]) => any>(
@@ -66,13 +65,7 @@ export default function NotePage() {
 
   const saveNote = useCallback(
     async (newTitle: string, newContent: string) => {
-      setIsSaving(true);
-      const updatedNote = await updateNote(noteId, { title: newTitle, content: newContent });
-      if (updatedNote) {
-        setTitle(updatedNote.title);
-        setContent(updatedNote.content);
-      }
-      setTimeout(() => setIsSaving(false), 1000);
+      await updateNote(noteId, { title: newTitle, content: newContent });
     },
     [noteId, updateNote]
   );
@@ -200,13 +193,6 @@ export default function NotePage() {
               <ArrowLeft />
               Back
             </Button>
-            <div
-              className={`text-sm text-muted-foreground transition-opacity duration-300 ${
-                isSaving ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <Save className="h-4 w-4 inline-block mr-1" /> Saving...
-            </div>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
