@@ -74,8 +74,9 @@ export function SettingsDialog() {
     }
 
     try {
-      const notes = await getNotesDB();
-      const result = await syncNotesToS3(notes, {
+      const db = await getNotesDB();
+      const allNotes = await db;
+      const result = await syncNotesToS3(allNotes, {
           bucket: credentials.bucket,
           region: credentials.region || undefined,
           endpoint: credentials.endpoint || undefined,
@@ -90,13 +91,20 @@ export function SettingsDialog() {
 
     } catch(error) {
        let errorMessage = 'An unknown error occurred.';
+       let errorTitle = 'Sync Failed';
        if (error instanceof Error) {
-         errorMessage = error.message;
+         if (error.message.includes('Failed to fetch')) {
+            errorTitle = 'CORS Policy Error';
+            errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT requests from this app's origin (${window.location.origin}).`;
+         } else {
+            errorMessage = error.message;
+         }
        }
        toast({
         variant: 'destructive',
-        title: 'Sync Failed',
+        title: errorTitle,
         description: errorMessage,
+        duration: 9000,
       });
     } finally {
       setIsSyncing(false);
