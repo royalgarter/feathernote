@@ -248,7 +248,7 @@ export function SettingsDialog() {
           </div>
         </div>
 
-        <DialogFooter className="sm:justify-between gap-2">
+        <DialogFooter className="sm:justify-between gap-2 flex-wrap">
             <div className='flex gap-2'>
                 <Dialog>
                     <DialogTrigger asChild>
