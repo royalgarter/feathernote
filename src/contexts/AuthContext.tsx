@@ -62,6 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
       setUser(newUser);
       localStorage.setItem('feathernote-user', JSON.stringify(newUser));
+      localStorage.setItem('feathernote-has-logged-in', 'true');
     } catch (error) {
       console.error("Error decoding JWT:", error)
     }
@@ -72,11 +73,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        use_fedcm_for_prompt: true
+        use_fedcm_for_prompt: true,
+        auto_select: true
       });
-      // The `prompt` method should be called to display the One Tap prompt
-      // or to trigger the automatic sign-in flow.
-      if(!user) {
+      const hasLoggedIn = localStorage.getItem('feathernote-has-logged-in');
+
+      if (!user && !hasLoggedIn) {
         window.google.accounts.id.prompt();
       }
     } else {
@@ -92,18 +94,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const signIn = () => {
-    if (isGsiLoaded) {
-        initializeGoogleOneTap();
+    if (isGsiLoaded && window.google) {
+        window.google.accounts.id.prompt();
     }
   };
 
   const signOut = () => {
     setUser(null);
     localStorage.removeItem('feathernote-user');
+    localStorage.removeItem('feathernote-has-logged-in');
     if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect();
     }
-    // Optionally, you might want to refresh the page or redirect
     window.location.reload();
   };
 
