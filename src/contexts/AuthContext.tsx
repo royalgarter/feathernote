@@ -5,7 +5,7 @@ import { jwtDecode } from 'jwt-decode';
 
 // This is a placeholder for your Google Client ID.
 // You should replace this with your actual client ID and store it in a .env.local file.
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "1234567890-abc123def456.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 interface User {
   id: string;
@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         window.google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
-            auto_select: false, // Important: disable auto select
+            auto_select: false,
             use_fedcm_for_prompt: true,
         });
 
@@ -98,6 +98,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const signIn = () => {
+    if (!GOOGLE_CLIENT_ID) {
+      alert('Google Client ID is not configured. Please set NEXT_PUBLIC_GOOGLE_CLIENT_ID in your environment.');
+      return;
+    }
     if (isGsiLoaded && window.google) {
         window.google.accounts.id.prompt();
     }
