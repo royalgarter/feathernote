@@ -67,7 +67,11 @@ export default function NotePage() {
   const saveNote = useCallback(
     async (newTitle: string, newContent: string) => {
       setIsSaving(true);
-      await updateNote(noteId, { title: newTitle, content: newContent });
+      const updatedNote = await updateNote(noteId, { title: newTitle, content: newContent });
+      if (updatedNote) {
+        setTitle(updatedNote.title);
+        setContent(updatedNote.content);
+      }
       setTimeout(() => setIsSaving(false), 1000);
     },
     [noteId, updateNote]
