@@ -13,6 +13,7 @@ import {
   AppShellHeader,
 } from '@/components/AppShell';
 import Header from '@/components/Header';
+import { format } from 'date-fns';
 
 export default function Home() {
   const router = useRouter();
@@ -24,7 +25,8 @@ export default function Home() {
   const { notes, addNote, loading } = noteContext;
 
   const handleNewNote = async () => {
-    const newNote = await addNote('Untitled Note', '');
+    const defaultTitle = `Note from ${format(new Date(), 'PPP p')}`;
+    const newNote = await addNote(defaultTitle, '');
     if (newNote) {
       router.push(`/notes/${newNote.id}`);
     }
