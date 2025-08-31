@@ -31,11 +31,23 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isGsiLoaded, setIsGsiLoaded] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('feathernote-user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
+    }
+    
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsGsiLoaded(true);
+    document.body.appendChild(script);
+
+    return () => {
+        document.body.removeChild(script);
     }
   }, []);
 
@@ -56,27 +68,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const initializeGoogleOneTap = useCallback(() => {
-    if (window.google) {
+    if (window.google && window.google.accounts) {
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        auto_select: true,
+        use_fedcm_for_prompt: true
       });
-      window.google.accounts.id.prompt();
+      // The `prompt` method should be called to display the One Tap prompt
+      // or to trigger the automatic sign-in flow.
+      if(!user) {
+        window.google.accounts.id.prompt();
+      }
     } else {
         console.error("Google Identity Services script not loaded.");
     }
-  }, [handleCredentialResponse]);
+  }, [handleCredentialResponse, user]);
+
+  useEffect(() => {
+    if(isGsiLoaded) {
+      initializeGoogleOneTap();
+    }
+  }, [isGsiLoaded, initializeGoogleOneTap]);
 
 
   const signIn = () => {
-    initializeGoogleOneTap();
+    if (isGsiLoaded) {
+        initializeGoogleOneTap();
+    }
   };
 
   const signOut = () => {
     setUser(null);
     localStorage.removeItem('feathernote-user');
-    if (window.google) {
+    if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect();
     }
     // Optionally, you might want to refresh the page or redirect
