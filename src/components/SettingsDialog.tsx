@@ -22,6 +22,7 @@ export function SettingsDialog() {
   const [isOpen, setIsOpen] = useState(false);
   const [s3Bucket, setS3Bucket] = useState('');
   const [s3Region, setS3Region] = useState('');
+  const [s3Endpoint, setS3Endpoint] = useState('');
   const [accessKeyId, setAccessKeyId] = useState('');
   const [secretAccessKey, setSecretAccessKey] = useState('');
   const { toast } = useToast();
@@ -30,6 +31,7 @@ export function SettingsDialog() {
     if (isOpen) {
       setS3Bucket(localStorage.getItem('s3Bucket') || '');
       setS3Region(localStorage.getItem('s3Region') || '');
+      setS3Endpoint(localStorage.getItem('s3Endpoint') || '');
       setAccessKeyId(localStorage.getItem('accessKeyId') || '');
       setSecretAccessKey(localStorage.getItem('secretAccessKey') || '');
     }
@@ -38,6 +40,7 @@ export function SettingsDialog() {
   const handleSave = () => {
     localStorage.setItem('s3Bucket', s3Bucket);
     localStorage.setItem('s3Region', s3Region);
+    localStorage.setItem('s3Endpoint', s3Endpoint);
     localStorage.setItem('accessKeyId', accessKeyId);
     localStorage.setItem('secretAccessKey', secretAccessKey);
     toast({ title: 'Settings Saved', description: 'Your S3 credentials have been updated.' });
@@ -47,7 +50,7 @@ export function SettingsDialog() {
   const handleSync = () => {
     toast({
       title: 'Sync Initiated',
-      description: 'In a real app, notes would now sync with your S3 bucket.',
+      description: 'In a real app, notes would now sync with your S3-compatible bucket.',
     });
     // Placeholder for actual S3 sync logic
   };
@@ -87,6 +90,12 @@ export function SettingsDialog() {
               Region
             </Label>
             <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1" />
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="s3-endpoint" className="text-right">
+              Endpoint
+            </Label>
+            <Input id="s3-endpoint" value={s3Endpoint} onChange={(e) => setS3Endpoint(e.target.value)} className="col-span-3" placeholder="Optional: e.g., https://s3.example.com" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="access-key" className="text-right">
