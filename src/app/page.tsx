@@ -1,23 +1,18 @@
 'use client';
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { useRouter } from 'next/navigation';
-import { NoteContext, Note } from '@/contexts/NoteContext';
+import { NoteContext } from '@/contexts/NoteContext';
 import { Button } from '@/components/ui/button';
-import Header from '@/components/Header';
-import { Plus, Trash2, Edit } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Plus } from 'lucide-react';
+import NoteCard from '@/components/NoteCard';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+  AppShell,
+  AppShellContent,
+  AppShellHeader,
+} from '@/components/AppShell';
+import Header from '@/components/Header';
 
 export default function Home() {
   const router = useRouter();
@@ -26,8 +21,8 @@ export default function Home() {
   if (!noteContext) {
     throw new Error('NoteContext not found');
   }
-  const { notes, addNote, deleteNote, loading } = noteContext;
-  
+  const { notes, addNote, loading } = noteContext;
+
   const handleNewNote = async () => {
     const newNote = await addNote('Untitled Note', '');
     if (newNote) {
@@ -35,78 +30,61 @@ export default function Home() {
     }
   };
 
-  const sortedNotes = [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const sortedNotes = [...notes].sort(
+    (a, b) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <main className="flex-grow container mx-auto p-4 md:p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold font-headline text-foreground">My Notes</h1>
-          <Button onClick={handleNewNote}>
-            <Plus className="mr-2 h-4 w-4" /> New Note
-          </Button>
+    <AppShell>
+      <AppShellHeader>
+        <Header>
+          <div className="flex items-center gap-4">
+            <Button onClick={handleNewNote}>
+              <Plus />
+              New Note
+            </Button>
+          </div>
+        </Header>
+      </AppShellHeader>
+      <AppShellContent>
+        <div className="flex justify-between items-center mb-6 px-4 md:px-6">
+          <h1 className="text-2xl md:text-3xl font-bold font-headline text-foreground">
+            My Notes
+          </h1>
         </div>
 
         {loading ? (
-           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-             {[...Array(3)].map((_, i) => (
-                <Card key={i} className="bg-card/80 animate-pulse">
-                  <CardHeader>
-                    <div className="h-6 bg-muted rounded w-3/4"></div>
-                    <div className="h-4 bg-muted rounded w-1/2 mt-2"></div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-4 bg-muted rounded w-full"></div>
-                    <div className="h-4 bg-muted rounded w-5/6 mt-2"></div>
-                  </CardContent>
-                </Card>
-             ))}
-           </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 px-4 md:px-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex flex-col gap-4 p-4 rounded-lg border">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <div className="flex justify-end mt-2">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : notes.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 px-4 md:px-6">
             {sortedNotes.map((note) => (
-              <Card key={note.id} className="flex flex-col justify-between transition-shadow hover:shadow-lg">
-                <CardHeader className="cursor-pointer" onClick={() => router.push(`/notes/${note.id}`)}>
-                  <CardTitle className="font-headline truncate">{note.title}</CardTitle>
-                  <CardDescription>
-                    Last updated: {new Date(note.updatedAt).toLocaleString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-end items-center gap-2 p-4 pt-0">
-                   <Button variant="ghost" size="icon" onClick={() => router.push(`/notes/${note.id}`)} aria-label="Edit note">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label="Delete note">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete your note titled "{note.title}".
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteNote(note.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardContent>
-              </Card>
+              <NoteCard key={note.id} note={note} />
             ))}
           </div>
         ) : (
           <div className="text-center py-20">
-            <h2 className="text-xl font-semibold text-muted-foreground">No notes yet.</h2>
-            <p className="text-muted-foreground mt-2">Click "New Note" to get started.</p>
+            <h2 className="text-xl font-semibold text-muted-foreground">
+              No notes yet.
+            </h2>
+            <p className="text-muted-foreground mt-2">
+              Click "New Note" to get started.
+            </p>
           </div>
         )}
-      </main>
-    </div>
+      </AppShellContent>
+    </AppShell>
   );
 }
