@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   AlertDialog,
@@ -44,19 +45,26 @@ const NoteCard: React.FC<NoteCardProps> = ({ note }) => {
     }
     router.push(`/notes/${note.id}`);
   };
+  
+  const contentPreview = note.content ? `${note.content.substring(0, 100)}...` : 'No content preview';
 
   return (
     <Card
       onClick={handleCardClick}
-      className="flex flex-col justify-between transition-shadow hover:shadow-lg cursor-pointer"
+      className="flex flex-col justify-between transition-shadow hover:shadow-lg cursor-pointer h-full"
     >
-      <CardHeader>
-        <CardTitle className="font-headline truncate">{note.title}</CardTitle>
-        <CardDescription>
-          Last updated: {new Date(note.updatedAt).toLocaleString()}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex justify-end items-center gap-2 p-4 pt-0">
+      <div className="flex-grow">
+        <CardHeader>
+          <CardTitle className="font-headline truncate">{note.title}</CardTitle>
+          <CardDescription>
+            Last updated: {new Date(note.updatedAt).toLocaleString()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+           <p className="text-sm text-muted-foreground line-clamp-3">{contentPreview}</p>
+        </CardContent>
+      </div>
+      <CardFooter className="flex justify-end items-center gap-2 p-4 pt-0">
         <Button
           variant="ghost"
           size="icon"
@@ -99,7 +107,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note }) => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </CardContent>
+      </CardFooter>
     </Card>
   );
 };
