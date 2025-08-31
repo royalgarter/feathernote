@@ -74,17 +74,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
         use_fedcm_for_prompt: true,
-        auto_select: true
       });
-      const hasLoggedIn = localStorage.getItem('feathernote-has-logged-in');
-
-      if (!user && !hasLoggedIn) {
-        window.google.accounts.id.prompt();
-      }
+      // The prompt was causing issues, so we only allow manual sign-in.
     } else {
         console.error("Google Identity Services script not loaded.");
     }
-  }, [handleCredentialResponse, user]);
+  }, [handleCredentialResponse]);
 
   useEffect(() => {
     if(isGsiLoaded) {
