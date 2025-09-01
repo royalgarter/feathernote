@@ -39,7 +39,6 @@ export const uploadNoteToS3 = async (note: Note, creds: S3Credentials): Promise<
     const command = new PutObjectCommand({
         Bucket: creds.bucket,
         Key: key,
-        Body: body,
         ContentType: 'application/json',
     });
 
@@ -65,7 +64,13 @@ export const listNotesInS3 = async (creds: S3Credentials): Promise<string[]> => 
 
     try {
         const response = await s3Client.send(command);
-        return response.Contents?.map(item => item.Key?.replace(prefix, '').replace('.json', '') || '').filter(Boolean) || [];
+        const noteIds = response.Contents?.map(item => {
+            if (!item.Key) return null;
+            // This prevents the folder itself from being treated as a note
+            if (item.Key.endsWith('/')) return null; 
+            return item.Key.replace(prefix, '').replace('.json', '');
+        }).filter((id): id is string => !!id); // Filter out nulls and empty strings
+        return noteIds || [];
     } catch (error) {
         console.error("S3 List Error:", error);
         if (error instanceof Error) {
