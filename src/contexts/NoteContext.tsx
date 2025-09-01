@@ -17,12 +17,13 @@ export interface Note {
 interface NoteContextType {
   notes: Note[];
   loading: boolean;
+  isSyncing: boolean;
   addNote: (title: string, content: string) => Promise<Note | null>;
   updateNote: (id: string, updates: Partial<Note>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   getNote: (id: string) => Promise<Note | undefined>;
   fetchNotes: () => Promise<void>;
-  syncNotes: () => Promise<void>;
+  syncNotes: (isSilent?: boolean) => Promise<void>;
 }
 
 export const NoteContext = createContext<NoteContextType | null>(null);
@@ -30,6 +31,7 @@ export const NoteContext = createContext<NoteContextType | null>(null);
 export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
   const fetchNotes = useCallback(async () => {
@@ -150,6 +152,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
   
+    setIsSyncing(true);
     try {
       const localNotes = await getNotesDB();
       const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
@@ -213,6 +216,8 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
         description: errorMessage,
         duration: 9000,
       });
+    } finally {
+      setIsSyncing(false);
     }
   }, [toast, fetchNotes]);
 
@@ -225,7 +230,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
   }, [syncNotes]);
 
   return (
-    <NoteContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, getNote, fetchNotes, syncNotes }}>
+    <NoteContext.Provider value={{ notes, loading, isSyncing, addNote, updateNote, deleteNote, getNote, fetchNotes, syncNotes }}>
       {children}
     </NoteContext.Provider>
   );

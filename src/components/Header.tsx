@@ -5,6 +5,7 @@ import Link from 'next/link';
 import FeatherIcon from './FeatherIcon';
 import UserProfile from './UserProfile';
 import { SettingsDialog } from './SettingsDialog';
+import SyncStatus from './SyncStatus';
 
 type HeaderProps = {
   children?: React.ReactNode;
@@ -20,6 +21,7 @@ const Header = ({ children }: HeaderProps) => {
         </Link>
         <div className="flex items-center gap-4">
           {children}
+          <SyncStatus />
           <SettingsDialog />
           <UserProfile />
         </div>

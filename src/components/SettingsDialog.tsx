@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -30,7 +29,7 @@ export function SettingsDialog() {
   const [s3Subfolder, setS3Subfolder] = useState('');
   const [accessKeyId, setAccessKeyId] = useState('');
   const [secretAccessKey, setSecretAccessKey] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [exportString, setExportString] = useState('');
   const [importString, setImportString] = useState('');
   const { toast } = useToast();
@@ -65,11 +64,11 @@ export function SettingsDialog() {
   }, [s3Bucket, s3Region, s3Endpoint, s3Subfolder, accessKeyId, secretAccessKey, toast]);
 
   const handleSync = useCallback(async () => {
-    setIsSyncing(true);
+    setIsManualSyncing(true);
     if (noteContext?.syncNotes) {
-      await noteContext.syncNotes();
+      await noteContext.syncNotes(false); // Pass false to indicate a manual sync
     }
-    setIsSyncing(false);
+    setIsManualSyncing(false);
   }, [noteContext]);
 
   const handleExport = useCallback(() => {
@@ -116,6 +115,9 @@ export function SettingsDialog() {
       toast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid settings configuration.' })
     }
   }, [importString, toast, loadSettingsFromStorage]);
+  
+  const isSyncButtonDisabled = isManualSyncing || (noteContext?.isSyncing ?? false);
+
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -234,8 +236,8 @@ export function SettingsDialog() {
             </Dialog>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleSync} variant="secondary" disabled={isSyncing}>
-              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            <Button onClick={handleSync} variant="secondary" disabled={isSyncButtonDisabled}>
+              {isSyncButtonDisabled ? 'Syncing...' : 'Sync Now'}
             </Button>
             <Button onClick={handleSave}>Save Credentials</Button>
           </div>
