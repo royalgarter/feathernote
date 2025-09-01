@@ -8,6 +8,6 @@ runConfig:
   # Add environment variables for your backend here.
   # https://firebase.google.com/docs/app-hosting/configure#environment-variables
   environmentVariables:
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID_HERE"
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com"
 
 # To manage secrets, see https://firebase.google.com/docs/app-hosting/configure#secrets

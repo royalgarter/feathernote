@@ -5,7 +5,7 @@ import { jwtDecode } from 'jwt-decode';
 
 // This is a placeholder for your Google Client ID.
 // You should replace this with your actual client ID and store it in a .env.local file.
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com";
 
 interface User {
   id: string;
