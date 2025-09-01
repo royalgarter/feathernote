@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { NoteContext } from '@/contexts/NoteContext';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,6 +31,17 @@ import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+// A generic debounce function
+function debounce<F extends (...args: any[]) => any>(func: F, delay: number) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<F>): void => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      func(...args);
+    }, delay);
+  };
+}
+
 export default function NotePage() {
   const router = useRouter();
   const params = useParams();
@@ -48,29 +59,15 @@ export default function NotePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [reminder, setReminder] = useState<Date | undefined>(undefined);
 
-  const debounce = <F extends (...args: any[]) => any>(
-    func: F,
-    delay: number
-  ) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    return (...args: Parameters<F>): void => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        func(...args);
-      }, delay);
-    };
-  };
-
-  const saveNote = useCallback(
-    async (newTitle: string, newContent: string) => {
-      await updateNote(noteId, { title: newTitle, content: newContent });
-    },
+  const debouncedSave = useMemo(
+    () =>
+      debounce((newTitle: string, newContent: string) => {
+        if (noteId) {
+          updateNote(noteId, { title: newTitle, content: newContent });
+        }
+      }, 1500),
     [noteId, updateNote]
   );
-
-  const debouncedSave = useCallback(debounce(saveNote, 1500), [saveNote]);
 
   useEffect(() => {
     const fetchNote = async () => {

@@ -160,7 +160,6 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       
       let uploadedCount = 0;
       let downloadedCount = 0;
-      let skippedUploads = 0;
       
       // Upload local notes that are new or updated
       for (const localNote of localNotes) {
@@ -168,8 +167,6 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
         if (!remoteNote || new Date(localNote.updatedAt) > new Date(remoteNote.updatedAt)) {
           await uploadNoteToS3(localNote, credentials);
           uploadedCount++;
-        } else {
-            skippedUploads++;
         }
       }
 
