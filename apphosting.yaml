@@ -5,3 +5,9 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+  # Add environment variables for your backend here.
+  # https://firebase.google.com/docs/app-hosting/configure#environment-variables
+  environmentVariables:
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID_HERE"
+
+# To manage secrets, see https://firebase.google.com/docs/app-hosting/configure#secrets
