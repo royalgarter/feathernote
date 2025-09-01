@@ -1,9 +1,10 @@
+
 'use client';
 
 import { S3Client, PutObjectCommand, PutObjectCommandOutput, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Note } from '@/contexts/NoteContext';
 
-interface S3Credentials {
+export interface S3Credentials {
     bucket: string;
     region?: string;
     endpoint?: string;

@@ -1,9 +1,12 @@
+
 'use client';
 
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { getNotesDB, addNoteDB, updateNoteDB, deleteNoteDB, getNoteDB, getSharedContentDB, clearSharedContentDB } from '@/lib/db';
 import { useToast } from '@/hooks/use-toast';
-import { uploadNoteToS3, listNotesInS3, downloadNoteFromS3 } from '@/lib/s3';
+import { uploadNoteToS3, listNotesInS3, downloadNoteFromS3, S3Credentials } from '@/lib/s3';
+import { decryptSettings } from '@/lib/crypto';
+import { AuthContext } from './AuthContext';
 
 export interface Note {
   id: string;
@@ -33,6 +36,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
+  const authContext = useContext(AuthContext);
 
   const fetchNotes = useCallback(async () => {
     try {
@@ -70,7 +74,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       return null;
     }
   };
-
+  
   const processSharedContent = useCallback(async () => {
     try {
       const sharedItems = await getSharedContentDB();
@@ -131,22 +135,40 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const syncNotes = useCallback(async (isSilent = false) => {
-    const credentials = {
-      bucket: localStorage.getItem('s3Bucket') || '',
-      region: localStorage.getItem('s3Region') || undefined,
-      endpoint: localStorage.getItem('s3Endpoint') || undefined,
-      subfolder: localStorage.getItem('s3Subfolder') || '',
-      accessKeyId: localStorage.getItem('accessKeyId') || '',
-      secretAccessKey: localStorage.getItem('secretAccessKey') || '',
+  const getDecryptedCredentials = useCallback(async (): Promise<S3Credentials | null> => {
+    if (!authContext?.user) return null;
+    const key = `feathernote-settings-${authContext.user.id}`;
+    const encryptedSettings = localStorage.getItem(key);
+    if (!encryptedSettings) return null;
+
+    const decrypted = await decryptSettings<any>(encryptedSettings, authContext.user.id);
+    if (!decrypted) return null;
+
+    return {
+        bucket: decrypted.s3Bucket || '',
+        region: decrypted.s3Region || undefined,
+        endpoint: decrypted.s3Endpoint || undefined,
+        subfolder: decrypted.s3Subfolder || '',
+        accessKeyId: decrypted.accessKeyId || '',
+        secretAccessKey: decrypted.secretAccessKey || '',
     };
+  }, [authContext?.user]);
+
+  const syncNotes = useCallback(async (isSilent = false) => {
+    const isS3Configured = localStorage.getItem('s3Configured') === 'true';
+    if (!isS3Configured || !authContext?.user) {
+        // Don't toast on silent syncs if not configured
+        return;
+    }
+
+    const credentials = await getDecryptedCredentials();
   
-    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+    if (!credentials?.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
       if (!isSilent) {
         toast({
           variant: 'destructive',
           title: 'Missing Credentials',
-          description: 'Please configure your S3 Bucket, Access Key, and Secret Key.',
+          description: 'Could not decrypt or find S3 credentials. Please configure them in Settings.',
         });
       }
       return;
@@ -218,7 +240,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setIsSyncing(false);
     }
-  }, [toast, fetchNotes]);
+  }, [toast, fetchNotes, authContext?.user, getDecryptedCredentials]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
