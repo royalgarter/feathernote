@@ -51,31 +51,6 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
     fetchNotes();
   }, [fetchNotes]);
 
-  const processSharedContent = useCallback(async () => {
-    try {
-      const sharedItems = await getSharedContentDB();
-      if (sharedItems.length > 0) {
-        for (const item of sharedItems) {
-            await addNote('Shared Note', item.content);
-        }
-        await clearSharedContentDB();
-        await fetchNotes(); // Refresh notes list
-        toast({
-          title: 'Content Imported',
-          description: `${sharedItems.length} item(s) have been added to your notes.`,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to process shared content', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
-    }
-  }, [toast, fetchNotes]);
-
-  useEffect(() => {
-    processSharedContent();
-  }, [processSharedContent]);
-
-
   const addNote = async (title: string, content: string): Promise<Note | null> => {
     try {
       const now = new Date().toISOString();
@@ -95,6 +70,31 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       return null;
     }
   };
+
+  const processSharedContent = useCallback(async () => {
+    try {
+      const sharedItems = await getSharedContentDB();
+      if (sharedItems.length > 0) {
+        for (const item of sharedItems) {
+            await addNote('Shared Note', item.content);
+        }
+        await clearSharedContentDB();
+        await fetchNotes(); // Refresh notes list
+        toast({
+          title: 'Content Imported',
+          description: `${sharedItems.length} item(s) have been added to your notes.`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to process shared content', error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
+    }
+  }, [toast, fetchNotes, addNote]);
+
+  useEffect(() => {
+    processSharedContent();
+  }, [processSharedContent]);
+
 
   const updateNote = async (id: string, updates: Partial<Omit<Note, 'id' | 'createdAt'>>) => {
     try {
@@ -136,7 +136,7 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       bucket: localStorage.getItem('s3Bucket') || '',
       region: localStorage.getItem('s3Region') || undefined,
       endpoint: localStorage.getItem('s3Endpoint') || undefined,
-      subfolder: localStorage.getItem('s3Subfolder') || undefined,
+      subfolder: localStorage.getItem('s3Subfolder') || '',
       accessKeyId: localStorage.getItem('accessKeyId') || '',
       secretAccessKey: localStorage.getItem('secretAccessKey') || '',
     };
@@ -174,9 +174,11 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
       for (const noteId of remoteNoteIds) {
         const localNote = localNotesMap.get(noteId);
         const remoteNote = await downloadNoteFromS3(noteId, credentials);
-        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-          await updateNoteDB(remoteNote);
-          downloadedCount++;
+        if (remoteNote) {
+            if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+                await updateNoteDB(remoteNote);
+                downloadedCount++;
+            }
         }
       }
       

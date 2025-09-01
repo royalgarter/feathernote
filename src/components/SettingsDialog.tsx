@@ -50,7 +50,7 @@ export function SettingsDialog() {
     }
   }, [isOpen, loadSettingsFromStorage]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     localStorage.setItem('s3Bucket', s3Bucket);
     localStorage.setItem('s3Region', s3Region);
     localStorage.setItem('s3Endpoint', s3Endpoint);
@@ -61,17 +61,17 @@ export function SettingsDialog() {
     }
     toast({ title: 'Settings Saved', description: 'Your S3 credentials have been updated.' });
     setIsOpen(false);
-  };
+  }, [s3Bucket, s3Region, s3Endpoint, s3Subfolder, accessKeyId, secretAccessKey, toast]);
 
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     setIsManualSyncing(true);
     if (noteContext?.syncNotes) {
       await noteContext.syncNotes(false); // Pass false to indicate a manual sync
     }
     setIsManualSyncing(false);
-  };
+  }, [noteContext]);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     const settings = {
       s3Bucket: localStorage.getItem('s3Bucket') || '',
       s3Region: localStorage.getItem('s3Region') || '',
@@ -82,14 +82,14 @@ export function SettingsDialog() {
     };
     const settingsString = JSON.stringify(settings);
     setExportString(btoa(settingsString));
-  };
+  }, []);
 
-  const copyExportStringToClipboard = () => {
+  const copyExportStringToClipboard = useCallback(() => {
     navigator.clipboard.writeText(exportString);
     toast({ title: 'Copied!', description: 'Settings string copied to clipboard.' })
-  };
+  }, [exportString, toast]);
 
-  const handleImport = () => {
+  const handleImport = useCallback(() => {
     try {
       const decodedString = atob(importString);
       const settings = JSON.parse(decodedString);
@@ -114,7 +114,7 @@ export function SettingsDialog() {
       console.error(error);
       toast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid settings configuration.' })
     }
-  };
+  }, [importString, loadSettingsFromStorage, toast]);
   
   const isSyncButtonDisabled = isManualSyncing || (noteContext?.isSyncing ?? false);
 
