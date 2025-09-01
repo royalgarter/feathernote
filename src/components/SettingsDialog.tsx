@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,6 @@ import { Settings, BrainCircuit, Copy, FileInput, FileOutput } from 'lucide-reac
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
-import { uploadNoteToS3, listNotesInS3, downloadNoteFromS3 } from '@/lib/s3';
-import { getNotesDB, addNoteDB } from '@/lib/db';
 import { NoteContext } from '@/contexts/NoteContext';
 import { Textarea } from './ui/textarea';
 
@@ -37,23 +35,22 @@ export function SettingsDialog() {
   const { toast } = useToast();
   const noteContext = useContext(NoteContext);
 
-  const loadSettingsFromStorage = () => {
+  const loadSettingsFromStorage = useCallback(() => {
     setS3Bucket(localStorage.getItem('s3Bucket') || '');
     setS3Region(localStorage.getItem('s3Region') || '');
     setS3Endpoint(localStorage.getItem('s3Endpoint') || '');
     setS3Subfolder(localStorage.getItem('s3Subfolder') || '');
     setAccessKeyId(localStorage.getItem('accessKeyId') || '');
-    // We don't re-fill the secret key for security.
-    setSecretAccessKey('');
-  }
+    setSecretAccessKey(''); // Never re-populate secret key
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       loadSettingsFromStorage();
     }
-  }, [isOpen]);
+  }, [isOpen, loadSettingsFromStorage]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     localStorage.setItem('s3Bucket', s3Bucket);
     localStorage.setItem('s3Region', s3Region);
     localStorage.setItem('s3Endpoint', s3Endpoint);
@@ -64,84 +61,17 @@ export function SettingsDialog() {
     }
     toast({ title: 'Settings Saved', description: 'Your S3 credentials have been updated.' });
     setIsOpen(false);
-  };
+  }, [s3Bucket, s3Region, s3Endpoint, s3Subfolder, accessKeyId, secretAccessKey, toast]);
   
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     setIsSyncing(true);
-    const credentials = {
-      bucket: localStorage.getItem('s3Bucket') || '',
-      region: localStorage.getItem('s3Region') || undefined,
-      endpoint: localStorage.getItem('s3Endpoint') || undefined,
-      subfolder: localStorage.getItem('s3Subfolder') || undefined,
-      accessKeyId: localStorage.getItem('accessKeyId') || '',
-      secretAccessKey: localStorage.getItem('secretAccessKey') || '',
-    };
-  
-    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing Credentials',
-        description: 'Please configure your S3 Bucket, Access Key, and Secret Key.',
-      });
-      setIsSyncing(false);
-      return;
+    if(noteContext?.syncNotes) {
+        await noteContext.syncNotes();
     }
-  
-    try {
-      const localNotes = await getNotesDB();
-      const localNoteIds = new Set(localNotes.map(n => n.id));
-      
-      // Upload local notes
-      await Promise.all(localNotes.map(note => uploadNoteToS3(note, credentials)));
-  
-      // List remote notes
-      const remoteNoteIds = await listNotesInS3(credentials);
-  
-      // Download notes from S3 that are not present locally
-      const missingNoteIds = remoteNoteIds.filter(id => !localNoteIds.has(id));
-      let downloadedCount = 0;
-      for (const noteId of missingNoteIds) {
-        try {
-          const note = await downloadNoteFromS3(noteId, credentials);
-          await addNoteDB(note);
-          downloadedCount++;
-        } catch (downloadError) {
-          console.error(`Failed to download or add note ${noteId}:`, downloadError);
-        }
-      }
+    setIsSyncing(false);
+  }, [noteContext]);
 
-      if (noteContext?.fetchNotes) {
-        await noteContext.fetchNotes();
-      }
-  
-      toast({
-        title: 'Sync Successful',
-        description: `${localNotes.length} notes uploaded, ${downloadedCount} notes downloaded.`,
-      });
-  
-    } catch (error) {
-      let errorMessage = 'An unknown error occurred.';
-      let errorTitle = 'Sync Failed';
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorTitle = 'CORS Policy Error';
-          errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT, GET and LIST requests from this app's origin (${window.location.origin}).`;
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      toast({
-        variant: 'destructive',
-        title: errorTitle,
-        description: errorMessage,
-        duration: 9000,
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     const settings = {
       s3Bucket: localStorage.getItem('s3Bucket') || '',
       s3Region: localStorage.getItem('s3Region') || '',
@@ -152,14 +82,14 @@ export function SettingsDialog() {
     };
     const settingsString = JSON.stringify(settings);
     setExportString(btoa(settingsString));
-  };
+  }, []);
 
-  const copyExportStringToClipboard = () => {
+  const copyExportStringToClipboard = useCallback(() => {
     navigator.clipboard.writeText(exportString);
     toast({title: 'Copied!', description: 'Settings string copied to clipboard.'})
-  }
+  }, [exportString, toast]);
   
-  const handleImport = () => {
+  const handleImport = useCallback(() => {
     try {
       const decodedString = atob(importString);
       const settings = JSON.parse(decodedString);
@@ -184,7 +114,7 @@ export function SettingsDialog() {
       console.error(error);
       toast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid settings configuration.'})
     }
-  };
+  }, [importString, toast, loadSettingsFromStorage]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -248,7 +178,7 @@ export function SettingsDialog() {
           </div>
         </div>
 
-        <DialogFooter className="sm:justify-between gap-2 flex-wrap">
+        <DialogFooter className="sm:justify-between flex-wrap gap-2">
             <div className='flex gap-2'>
                 <Dialog>
                     <DialogTrigger asChild>
@@ -288,7 +218,7 @@ export function SettingsDialog() {
                             <DialogDescription>
                                 Copy this string and import it on another device to transfer your S3 configuration.
                             </DialogDescription>
-                        </DialogHeader>
+                        </Header>
                         <div className="relative">
                             <Textarea
                                 readOnly

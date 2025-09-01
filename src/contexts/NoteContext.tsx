@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { getNotesDB, addNoteDB, updateNoteDB, deleteNoteDB, getNoteDB, getSharedContentDB, clearSharedContentDB } from '@/lib/db';
 import { useToast } from '@/hooks/use-toast';
+import { uploadNoteToS3, listNotesInS3, downloadNoteFromS3 } from '@/lib/s3';
 
 export interface Note {
   id: string;
@@ -21,6 +22,7 @@ interface NoteContextType {
   deleteNote: (id: string) => Promise<void>;
   getNote: (id: string) => Promise<Note | undefined>;
   fetchNotes: () => Promise<void>;
+  syncNotes: () => Promise<void>;
 }
 
 export const NoteContext = createContext<NoteContextType | null>(null);
@@ -127,8 +129,103 @@ export const NoteProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const syncNotes = useCallback(async (isSilent = false) => {
+    const credentials = {
+      bucket: localStorage.getItem('s3Bucket') || '',
+      region: localStorage.getItem('s3Region') || undefined,
+      endpoint: localStorage.getItem('s3Endpoint') || undefined,
+      subfolder: localStorage.getItem('s3Subfolder') || undefined,
+      accessKeyId: localStorage.getItem('accessKeyId') || '',
+      secretAccessKey: localStorage.getItem('secretAccessKey') || '',
+    };
+  
+    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+      if (!isSilent) {
+        toast({
+          variant: 'destructive',
+          title: 'Missing Credentials',
+          description: 'Please configure your S3 Bucket, Access Key, and Secret Key.',
+        });
+      }
+      return;
+    }
+  
+    try {
+      const localNotes = await getNotesDB();
+      const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
+      const remoteNoteIds = await listNotesInS3(credentials);
+      
+      let uploadedCount = 0;
+      let downloadedCount = 0;
+      let skippedUploads = 0;
+      
+      // Upload local notes that are new or updated
+      for (const localNote of localNotes) {
+        const remoteNote = remoteNoteIds.find(id => id === localNote.id) ? await downloadNoteFromS3(localNote.id, credentials).catch(() => null) : null;
+        if (!remoteNote || new Date(localNote.updatedAt) > new Date(remoteNote.updatedAt)) {
+          await uploadNoteToS3(localNote, credentials);
+          uploadedCount++;
+        } else {
+            skippedUploads++;
+        }
+      }
+
+      // Download remote notes that are new or updated
+      for (const noteId of remoteNoteIds) {
+        const localNote = localNotesMap.get(noteId);
+        const remoteNote = await downloadNoteFromS3(noteId, credentials);
+        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+          await updateNoteDB(remoteNote);
+          downloadedCount++;
+        }
+      }
+      
+      if (downloadedCount > 0) {
+        await fetchNotes();
+      }
+
+      if (!isSilent) {
+        toast({
+          title: 'Sync Successful',
+          description: `Uploaded: ${uploadedCount}, Downloaded/Updated: ${downloadedCount}.`,
+        });
+      }
+  
+    } catch (error) {
+      if (isSilent) {
+        console.error('Silent sync failed:', error);
+        return;
+      }
+
+      let errorMessage = 'An unknown error occurred.';
+      let errorTitle = 'Sync Failed';
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorTitle = 'CORS Policy Error';
+          errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT, GET and LIST requests from this app's origin (${window.location.origin}).`;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      toast({
+        variant: 'destructive',
+        title: errorTitle,
+        description: errorMessage,
+        duration: 9000,
+      });
+    }
+  }, [toast, fetchNotes]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      syncNotes(true); // Run a silent sync
+    }, 2 * 60 * 1000); // Every 2 minutes
+  
+    return () => clearInterval(intervalId);
+  }, [syncNotes]);
+
   return (
-    <NoteContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, getNote, fetchNotes }}>
+    <NoteContext.Provider value={{ notes, loading, addNote, updateNote, deleteNote, getNote, fetchNotes, syncNotes }}>
       {children}
     </NoteContext.Provider>
   );
