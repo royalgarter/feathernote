@@ -14,7 +14,7 @@ interface S3Credentials {
 
 const getS3Client = (creds: S3Credentials) => {
     return new S3Client({
-        region: creds.region,
+        region: creds.region || 'us-east-1',
         endpoint: creds.endpoint,
         credentials: {
             accessKeyId: creds.accessKeyId,
@@ -33,12 +33,11 @@ const getKey = (noteId: string, creds: S3Credentials): string => {
 export const uploadNoteToS3 = async (note: Note, creds: S3Credentials): Promise<PutObjectCommandOutput> => {
     const s3Client = getS3Client(creds);
     const noteJson = JSON.stringify(note, null, 2);
-    const body = new Blob([noteJson], { type: 'application/json' });
-    const key = getKey(note.id, creds);
     
     const command = new PutObjectCommand({
         Bucket: creds.bucket,
-        Key: key,
+        Key: getKey(note.id, creds),
+        Body: noteJson,
         ContentType: 'application/json',
     });
 

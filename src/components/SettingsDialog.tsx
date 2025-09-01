@@ -70,7 +70,7 @@ export function SettingsDialog() {
     setIsSyncing(true);
     const credentials = {
       bucket: localStorage.getItem('s3Bucket') || '',
-      region: localStorage.getItem('s3Region') || undefined,
+      region: localStorage.getItem('s3Region') || 'us-east-1',
       endpoint: localStorage.getItem('s3Endpoint') || undefined,
       subfolder: localStorage.getItem('s3Subfolder') || undefined,
       accessKeyId: localStorage.getItem('accessKeyId') || '',
