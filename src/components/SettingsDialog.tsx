@@ -70,18 +70,18 @@ export function SettingsDialog() {
     setIsSyncing(true);
     const credentials = {
       bucket: localStorage.getItem('s3Bucket') || '',
-      region: localStorage.getItem('s3Region') || 'us-east-1',
+      region: localStorage.getItem('s3Region') || undefined,
       endpoint: localStorage.getItem('s3Endpoint') || undefined,
       subfolder: localStorage.getItem('s3Subfolder') || undefined,
       accessKeyId: localStorage.getItem('accessKeyId') || '',
       secretAccessKey: localStorage.getItem('secretAccessKey') || '',
     };
   
-    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey || (!credentials.endpoint && !credentials.region)) {
+    if (!credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
       toast({
         variant: 'destructive',
         title: 'Missing Credentials',
-        description: 'Please configure all required S3 settings. Region is optional only when a custom endpoint is used.',
+        description: 'Please configure your S3 Bucket, Access Key, and Secret Key.',
       });
       setIsSyncing(false);
       return;
