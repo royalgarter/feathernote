@@ -41,7 +41,7 @@ export default function NotePage() {
   if (!noteContext) {
     throw new Error('NoteContext not found');
   }
-  const { getNote, updateNote, deleteNote, fetchNotes } = noteContext;
+  const { getNote, updateNote, deleteNote, syncNotes } = noteContext;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -165,7 +165,7 @@ export default function NotePage() {
   };
 
   const handleBack = async () => {
-    await fetchNotes(); // Refresh the notes list before going back
+    await syncNotes(true); // Sync silently before going back
     router.push('/');
   };
 
