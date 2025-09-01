@@ -57,17 +57,17 @@ export function SettingsDialog() {
     localStorage.setItem('s3Endpoint', s3Endpoint);
     localStorage.setItem('s3Subfolder', s3Subfolder);
     localStorage.setItem('accessKeyId', accessKeyId);
-    if(secretAccessKey) {
+    if (secretAccessKey) {
       localStorage.setItem('secretAccessKey', secretAccessKey);
     }
     toast({ title: 'Settings Saved', description: 'Your S3 credentials have been updated.' });
     setIsOpen(false);
   }, [s3Bucket, s3Region, s3Endpoint, s3Subfolder, accessKeyId, secretAccessKey, toast]);
-  
+
   const handleSync = useCallback(async () => {
     setIsSyncing(true);
-    if(noteContext?.syncNotes) {
-        await noteContext.syncNotes();
+    if (noteContext?.syncNotes) {
+      await noteContext.syncNotes();
     }
     setIsSyncing(false);
   }, [noteContext]);
@@ -87,33 +87,33 @@ export function SettingsDialog() {
 
   const copyExportStringToClipboard = useCallback(() => {
     navigator.clipboard.writeText(exportString);
-    toast({title: 'Copied!', description: 'Settings string copied to clipboard.'})
+    toast({ title: 'Copied!', description: 'Settings string copied to clipboard.' })
   }, [exportString, toast]);
-  
+
   const handleImport = useCallback(() => {
     try {
       const decodedString = atob(importString);
       const settings = JSON.parse(decodedString);
-      
+
       const { s3Bucket, s3Region, s3Endpoint, s3Subfolder, accessKeyId, secretAccessKey } = settings;
 
-      if(s3Bucket && accessKeyId && secretAccessKey) {
+      if (s3Bucket && accessKeyId && secretAccessKey) {
         localStorage.setItem('s3Bucket', s3Bucket);
         localStorage.setItem('s3Region', s3Region || '');
         localStorage.setItem('s3Endpoint', s3Endpoint || '');
         localStorage.setItem('s3Subfolder', s3Subfolder || '');
         localStorage.setItem('accessKeyId', accessKeyId);
         localStorage.setItem('secretAccessKey', secretAccessKey);
-        
+
         loadSettingsFromStorage();
         setImportString('');
-        toast({ title: 'Settings Imported', description: 'Your S3 credentials have been imported successfully.'});
+        toast({ title: 'Settings Imported', description: 'Your S3 credentials have been imported successfully.' });
       } else {
         throw new Error('Invalid or incomplete settings data.');
       }
     } catch (error) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid settings configuration.'})
+      toast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid settings configuration.' })
     }
   }, [importString, toast, loadSettingsFromStorage]);
 
@@ -153,7 +153,7 @@ export function SettingsDialog() {
             </Label>
             <Input id="s3-region" value={s3Region} onChange={(e) => setS3Region(e.target.value)} className="col-span-3" placeholder="us-east-1 (optional with endpoint)" autoComplete="off" />
           </div>
-           <div className="grid grid-cols-4 items-center gap-4">
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="s3-endpoint" className="text-right">
               Endpoint
             </Label>
@@ -180,65 +180,65 @@ export function SettingsDialog() {
         </div>
 
         <DialogFooter className="sm:justify-between flex-wrap gap-2">
-            <div className='flex gap-2'>
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" onClick={() => setImportString('')}>
-                            <FileInput /> Import
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Import S3 Settings</DialogTitle>
-                            <DialogDescription>
-                                Paste the settings string from another device to import your S3 configuration.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <Textarea
-                            value={importString}
-                            onChange={(e) => setImportString(e.target.value)}
-                            placeholder="Paste your settings string here..."
-                            rows={5}
-                        />
-                        <DialogFooter>
-                            <DialogClose asChild>
-                                <Button onClick={handleImport}>Import and Save</Button>
-                            </DialogClose>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" onClick={handleExport}>
-                            <FileOutput /> Export
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Export S3 Settings</DialogTitle>
-                            <DialogDescription>
-                                Copy this string and import it on another device to transfer your S3 configuration.
-                            </DialogDescription>
-                        </Header>
-                        <div className="relative">
-                            <Textarea
-                                readOnly
-                                value={exportString}
-                                rows={5}
-                            />
-                            <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-7 w-7" onClick={copyExportStringToClipboard}>
-                                <Copy className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            </div>
-            <div className="flex gap-2">
-                <Button onClick={handleSync} variant="secondary" disabled={isSyncing}>
-                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+          <div className='flex gap-2'>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={() => setImportString('')}>
+                  <FileInput /> Import
                 </Button>
-                <Button onClick={handleSave}>Save Credentials</Button>
-            </div>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import S3 Settings</DialogTitle>
+                  <DialogDescription>
+                    Paste the settings string from another device to import your S3 configuration.
+                  </DialogDescription>
+                </DialogHeader>
+                <Textarea
+                  value={importString}
+                  onChange={(e) => setImportString(e.target.value)}
+                  placeholder="Paste your settings string here..."
+                  rows={5}
+                />
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button onClick={handleImport}>Import and Save</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={handleExport}>
+                  <FileOutput /> Export
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Export S3 Settings</DialogTitle>
+                  <DialogDescription>
+                    Copy this string and import it on another device to transfer your S3 configuration.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="relative">
+                  <Textarea
+                    readOnly
+                    value={exportString}
+                    rows={5}
+                  />
+                  <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-7 w-7" onClick={copyExportStringToClipboard}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSync} variant="secondary" disabled={isSyncing}>
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+            <Button onClick={handleSave}>Save Credentials</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
