@@ -244,7 +244,7 @@ export function SettingsDialog() {
             <Label htmlFor="secret-key" className="text-right">
               Secret Key
             </Label>
-            <Input id="secret-key" type="password" value={secretAccessKey} onChange={(e) => setSecretAccessKey(e.target.value)} className="col-span-3" placeholder="Leave blank to keep existing key" autoComplete="off" />
+            <Input id="secret-key" type="password" value={secretAccessKey} onChange={(e) => setSecretAccessKey(e.target.value)} className="col-span-3" placeholder="Leave blank to keep existing key" autoComplete="new-password" />
           </div>
         </div>
 
