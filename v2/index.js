@@ -273,16 +273,34 @@ document.addEventListener('alpine:init', () => {
         });
     };
 
-    Alpine.data('app', () => ({
+    Alpine.data('mainApp', () => ({
+        // --- App Data ---
         toasts: [],
         toastIdCounter: 0,
 
-        initApp() {
-            // Call processSharedContent from noteManager after all components are initialized
+        // --- Auth Data ---
+        user: null,
+        isGsiLoaded: false,
+        GOOGLE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com",
+
+        // --- Note Manager Data ---
+        notes: [],
+        loading: true,
+        isSyncing: false,
+        syncIntervalId: null,
+        editingNoteId: null, // New state to track which note is being edited
+
+        // --- Note Editor Data ---
+        noteEditorNoteId: null,
+        noteEditorTitle: '',
+        noteEditorContent: '',
+        noteEditorReminder: '',
+
+        // --- Main App Init ---
+        init() {
+            // App Init
             this.$nextTick(() => {
-                if (this.$root.noteManager) {
-                    this.$root.noteManager.processSharedContent();
-                }
+                this.processSharedContent();
             });
 
             // Register Service Worker
@@ -295,8 +313,36 @@ document.addEventListener('alpine:init', () => {
                         console.error('Service Worker registration failed:', error);
                     });
             }
+
+            // Auth Init
+            const storedUser = localStorage.getItem('feathernote-user');
+            if (storedUser) {
+                this.user = JSON.parse(storedUser);
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            script.onload = () => {
+                this.isGsiLoaded = true;
+            };
+            document.body.appendChild(script);
+
+            // Note Manager Init
+            this.fetchNotes();
+            this.syncIntervalId = setInterval(() => {
+                this.syncNotes(true); // Run a silent sync
+            }, 2 * 60 * 1000); // Every 2 minutes
+
+            this.$watch('$el', (el) => {
+                if (!el) {
+                    clearInterval(this.syncIntervalId);
+                }
+            });
         },
 
+        // --- App Methods ---
         formatDate(isoString) {
             return new Date(isoString).toLocaleString();
         },
@@ -318,162 +364,12 @@ document.addEventListener('alpine:init', () => {
             this.toasts = this.toasts.map(toast =>
                 toast.id === id ? { ...toast, show: false } : toast
             );
-            // Remove from DOM after animation (if any)
             setTimeout(() => {
                 this.toasts = this.toasts.filter(toast => toast.id !== id);
-            }, 300); // Adjust this duration to match your CSS transition for fade-out
-        }
-    }));
-
-    Alpine.data('settingsDialog', () => ({
-        isOpen: false,
-        s3Bucket: '',
-        s3Region: '',
-        s3Endpoint: '',
-        s3Subfolder: '',
-        accessKeyId: '',
-        secretAccessKey: '',
-        isManualSyncing: false,
-        exportString: '',
-        importString: '',
-        showImportModal: false,
-        showExportModal: false,
-
-        init() {
-            this.$watch('isOpen', (value) => {
-                if (value) {
-                    this.loadSettingsFromStorage();
-                }
-            });
+            }, 300);
         },
 
-        get userId() {
-            return this.$root.auth && this.$root.auth.user ? this.$root.auth.user.id : null;
-        },
-
-        get isSyncConfigured() {
-            return !!(this.$root.auth && this.$root.auth.user);
-        },
-
-        get isSyncButtonDisabled() {
-            return !this.isSyncConfigured || this.isManualSyncing || (this.$root.noteManager && this.$root.noteManager.isSyncing);
-        },
-
-        async loadSettingsFromStorage() {
-            if (!this.userId) return;
-            const key = `feathernote-settings-${this.userId}`;
-            const encryptedSettings = localStorage.getItem(key);
-            if (encryptedSettings) {
-                const decrypted = await decryptSettings(encryptedSettings, this.userId);
-                if (decrypted) {
-                    this.s3Bucket = decrypted.s3Bucket || '';
-                    this.s3Region = decrypted.s3Region || '';
-                    this.s3Endpoint = decrypted.s3Endpoint || '';
-                    this.s3Subfolder = decrypted.s3Subfolder || '';
-                    this.accessKeyId = decrypted.accessKeyId || '';
-                    this.secretAccessKey = ''; // Always require re-entry of secret key
-                }
-            }
-        },
-
-        async handleSave() {
-            if (!this.userId) {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to save settings.' });
-                return;
-            }
-            const key = `feathernote-settings-${this.userId}`;
-
-            const settingsToStore = {
-                s3Bucket: this.s3Bucket,
-                s3Region: this.s3Region,
-                s3Endpoint: this.s3Endpoint,
-                s3Subfolder: this.s3Subfolder,
-                accessKeyId: this.accessKeyId,
-            };
-            if (this.secretAccessKey) {
-                settingsToStore.secretAccessKey = this.secretAccessKey;
-            }
-
-            const encryptedSettings = await encryptSettings(settingsToStore, this.userId);
-            localStorage.setItem(key, encryptedSettings);
-            localStorage.setItem('s3Configured', 'true');
-            
-            this.$dispatch('show-toast', { title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
-            this.isOpen = false;
-        },
-
-        async handleSync() {
-            this.isManualSyncing = true;
-            // Call the noteManager's syncNotes function
-            if (this.$root.noteManager) {
-                await this.$root.noteManager.syncNotes(false);
-            }
-            this.isManualSyncing = false;
-        },
-
-        async handleExport() {
-            if (!this.userId) return;
-            const key = `feathernote-settings-${this.userId}`;
-            const encryptedString = localStorage.getItem(key);
-            if (encryptedString) {
-                this.exportString = encryptedString;
-            } else {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Nothing to Export', description: 'No saved settings found.' });
-            }
-        },
-
-        copyExportStringToClipboard() {
-            navigator.clipboard.writeText(this.exportString);
-            this.$dispatch('show-toast', { title: 'Copied!', description: 'Encrypted settings string copied to clipboard.' });
-        },
-
-        async handleImport() {
-            if (!this.userId) {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to import settings.' });
-                return;
-            }
-            const key = `feathernote-settings-${this.userId}`;
-
-            try {
-                const parsed = JSON.parse(this.importString);
-                if (parsed.salt && parsed.iv && parsed.content) {
-                    localStorage.setItem(key, this.importString);
-                    await this.loadSettingsFromStorage();
-                    this.importString = '';
-                    this.$dispatch('show-toast', { title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
-                    this.isOpen = false;
-                } else {
-                    throw new Error('Invalid or incomplete settings data.');
-                }
-            } catch (error) {
-                console.error(error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
-            }
-        }
-    }));
-
-    Alpine.data('auth', () => ({
-        user: null,
-        isGsiLoaded: false,
-        GOOGLE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com",
-
-        init() {
-            const storedUser = localStorage.getItem('feathernote-user');
-            if (storedUser) {
-                this.user = JSON.parse(storedUser);
-            }
-
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => {
-                this.isGsiLoaded = true;
-                // Do not call initializeGoogleOneTap here directly. Let signIn handle it.
-            };
-            document.body.appendChild(script);
-        },
-
+        // --- Auth Methods ---
         handleCredentialResponse(response) {
             try {
                 const decoded = jwtDecode(response.credential);
@@ -486,15 +382,14 @@ document.addEventListener('alpine:init', () => {
                 this.user = newUser;
                 localStorage.setItem('feathernote-user', JSON.stringify(newUser));
                 localStorage.setItem('feathernote-has-logged-in', 'true');
-                this.$dispatch('show-toast', { title: 'Signed In', description: `Welcome, ${newUser.name}!` });
+                this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
             } catch (error) {
                 console.error("Error decoding JWT:", error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Sign In Failed', description: 'Could not process Google credential.' });
+                this.showToast({ variant: 'destructive', title: 'Sign In Failed', description: 'Could not process Google credential.' });
             }
         },
 
         initializeGoogleOneTap() {
-            // This function is now called only when needed (e.g., by signIn)
             if (window.google && window.google.accounts) {
                 window.google.accounts.id.initialize({
                     client_id: this.GOOGLE_CLIENT_ID,
@@ -509,15 +404,14 @@ document.addEventListener('alpine:init', () => {
 
         signIn() {
             if (!this.GOOGLE_CLIENT_ID) {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
+                this.showToast({ variant: 'destructive', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
                 return;
             }
-            // Ensure GSI is initialized before prompting
             if (this.isGsiLoaded && window.google) {
-                this.initializeGoogleOneTap(); // Initialize here before prompt
+                this.initializeGoogleOneTap();
                 window.google.accounts.id.prompt();
             } else {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
+                this.showToast({ variant: 'destructive', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
             }
         },
 
@@ -528,34 +422,10 @@ document.addEventListener('alpine:init', () => {
             if (window.google && window.google.accounts) {
                 window.google.accounts.id.disableAutoSelect();
             }
-            this.$dispatch('show-toast', { title: 'Signed Out', description: 'You have been signed out.' });
-            // Optionally reload or redirect
-            // window.location.reload();
-        }
-    }));
-
-    Alpine.data('noteManager', () => ({
-        notes: [],
-        loading: true,
-        isSyncing: false,
-        syncIntervalId: null,
-        editingNoteId: null, // New state to track which note is being edited
-
-        init() {
-            this.fetchNotes();
-            // Set up silent sync interval
-            this.syncIntervalId = setInterval(() => {
-                this.syncNotes(true); // Run a silent sync
-            }, 2 * 60 * 1000); // Every 2 minutes
-
-            // Cleanup on component destroy (if Alpine supports it, or on page unload)
-            this.$watch('$el', (el) => {
-                if (!el) {
-                    clearInterval(this.syncIntervalId);
-                }
-            });
+            this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
         },
 
+        // --- Note Manager Methods ---
         async fetchNotes() {
             this.loading = true;
             try {
@@ -563,7 +433,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = notesFromDB;
             } catch (error) {
                 console.error('Error in fetchNotes:', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not load notes.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not load notes.' });
             } finally {
                 this.loading = false;
             }
@@ -582,11 +452,11 @@ document.addEventListener('alpine:init', () => {
                 };
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote); // Add to the beginning
-                this.$dispatch('show-toast', { title: 'Note Added', description: 'New note created.' });
+                this.showToast({ title: 'Note Added', description: 'New note created.' });
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not create note.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not create note.' });
                 return null;
             }
         },
@@ -598,12 +468,11 @@ document.addEventListener('alpine:init', () => {
 
                 const updatedNote = { ...noteToUpdate, ...updates, updatedAt: new Date().toISOString() };
                 await updateNoteDB(updatedNote);
-                // Update the note in the local notes array
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
-                this.$dispatch('show-toast', { title: 'Note Updated', description: 'Note saved successfully.' });
+                this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
             } catch (error) {
                 console.error('Error in updateNote:', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not update note.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
             }
         },
 
@@ -611,10 +480,10 @@ document.addEventListener('alpine:init', () => {
             try {
                 await deleteNoteDB(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
-                this.$dispatch('show-toast', { title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
             }
         },
 
@@ -623,18 +492,18 @@ document.addEventListener('alpine:init', () => {
                 return await getNoteDB(id);
             } catch (error) {
                 console.error('Error in getNote:', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not fetch note.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not fetch note.' });
                 return undefined;
             }
         },
 
         async syncNotes(isSilent = false) {
-            const userId = this.$root.auth.user ? this.$root.auth.user.id : null;
+            const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
             if (!isS3Configured || !userId) {
                 if (!isSilent) {
-                    this.$dispatch('show-toast', { variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+                    this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
                 }
                 return;
             }
@@ -661,15 +530,13 @@ document.addEventListener('alpine:init', () => {
                 const result = await response.json();
 
                 if (response.ok) {
-                    // Update local IndexedDB with updatedNotes from server
                     for (const note of result.updatedNotes) {
                         await updateNoteDB(note);
                     }
-                    // Re-fetch notes to update UI with latest from DB
                     await this.fetchNotes();
 
                     if (!isSilent) {
-                        this.$dispatch('show-toast', {
+                        this.showToast({
                             title: 'Sync Successful',
                             description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${result.downloadedCount}.`,
                         });
@@ -697,7 +564,7 @@ document.addEventListener('alpine:init', () => {
                         errorMessage = error.message;
                     }
                 }
-                this.$dispatch('show-toast', {
+                this.showToast({
                     variant: 'destructive',
                     title: errorTitle,
                     description: errorMessage,
@@ -716,92 +583,194 @@ document.addEventListener('alpine:init', () => {
                         await this.addNote('Shared Note', item.content);
                     }
                     await clearSharedContentDB();
-                    await this.fetchNotes(); // Refresh notes list
-                    this.$dispatch('show-toast', {
+                    await this.fetchNotes();
+                    this.showToast({
                         title: 'Content Imported',
                         description: `${sharedItems.length} item(s) have been added to your notes.`,
                     });
                 }
             } catch (error) {
                 console.error('Failed to process shared content', error);
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
             }
         },
 
-        // New methods for note editing flow
         createNewNote() {
-            this.editingNoteId = 'new'; // Use a special ID for new notes
-            // Reset noteEditor state for a new note
-            this.$nextTick(() => {
-                if (this.$root.noteEditor) {
-                    this.$root.noteEditor.noteId = null;
-                    this.$root.noteEditor.title = '';
-                    this.$root.noteEditor.content = '';
-                    this.$root.noteEditor.reminder = ''; // Clear reminder for new note
-                }
-            });
+            this.editingNoteId = 'new';
+            this.noteEditorNoteId = null;
+            this.noteEditorTitle = '';
+            this.noteEditorContent = '';
+            this.noteEditorReminder = '';
         },
 
         async editNote(id) {
             this.editingNoteId = id;
-            // Load note into noteEditor state
-            this.$nextTick(async () => {
-                if (this.$root.noteEditor) {
-                    await this.$root.noteEditor.loadNote(id);
-                }
-            });
-        }
-    }));
+            await this.loadNoteIntoEditor(id);
+        },
 
-    Alpine.data('noteEditor', () => ({
-        noteId: null,
-        title: '',
-        content: '',
-        reminder: '', // New reminder property
-
-        // initEditor() is now called by noteManager.editNote or createNewNote
-        async loadNote(id) {
-            this.noteId = id; // Ensure noteId is set for load
-            if (!this.noteId) return;
-            const note = await this.$root.noteManager.getNote(this.noteId);
+        // --- Note Editor Methods (moved from noteEditor component) ---
+        async loadNoteIntoEditor(id) {
+            this.noteEditorNoteId = id; 
+            if (!this.noteEditorNoteId) return;
+            const note = await this.getNote(this.noteEditorNoteId);
             if (note) {
-                this.title = note.title;
-                this.content = note.content;
-                this.reminder = note.reminder || ''; // Populate reminder
+                this.noteEditorTitle = note.title;
+                this.noteEditorContent = note.content;
+                this.noteEditorReminder = note.reminder || '';
             } else {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Error', description: 'Note not found.' });
-                // If note not found, go back to list view
-                this.$root.noteManager.editingNoteId = null;
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Note not found.' });
+                this.editingNoteId = null;
             }
         },
 
         async saveNote() {
-            if (!this.title.trim()) {
-                this.$dispatch('show-toast', { variant: 'destructive', title: 'Validation Error', description: 'Note title cannot be empty.' });
+            if (!this.noteEditorTitle.trim()) {
+                this.showToast({ variant: 'destructive', title: 'Validation Error', description: 'Note title cannot be empty.' });
                 return;
             }
 
             const noteData = {
-                title: this.title,
-                content: this.content,
-                reminder: this.reminder.trim() !== '' ? this.reminder : undefined, // Only save if not empty
+                title: this.noteEditorTitle,
+                content: this.noteEditorContent,
+                reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
             };
 
-            if (this.noteId && this.noteId !== 'new') {
-                // Update existing note
-                await this.$root.noteManager.updateNote(this.noteId, noteData);
+            if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
+                await this.updateNote(this.noteEditorNoteId, noteData);
             } else {
-                // Add new note
-                const newNote = await this.$root.noteManager.addNote(noteData.title, noteData.content, noteData.reminder);
+                const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder);
                 if (newNote) {
-                    this.noteId = newNote.id; // Set ID for newly created note
+                    this.noteEditorNoteId = newNote.id;
                 }
             }
-            this.$root.noteManager.editingNoteId = null; // Go back to list view after saving
+            this.editingNoteId = null;
         },
 
         cancelEdit() {
-            this.$root.noteManager.editingNoteId = null; // Go back to list view
+            this.editingNoteId = null;
+        },
+
+        // --- Settings Dialog Data & Methods (moved from settingsDialog component) ---
+        settingsDialogIsOpen: false,
+        s3Bucket: '',
+        s3Region: '',
+        s3Endpoint: '',
+        s3Subfolder: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+        isManualSyncing: false,
+        exportString: '',
+        importString: '',
+        showImportModal: false,
+        showExportModal: false,
+
+        initSettingsDialog() {
+            this.$watch('settingsDialogIsOpen', (value) => {
+                if (value) {
+                    this.loadSettingsFromStorage();
+                }
+            });
+        },
+
+        get userId() {
+            return this.user ? this.user.id : null;
+        },
+
+        get isSyncConfigured() {
+            return !!this.user;
+        },
+
+        get isSyncButtonDisabled() {
+            return !this.isSyncConfigured || this.isManualSyncing || this.isSyncing;
+        },
+
+        async loadSettingsFromStorage() {
+            if (!this.userId) return;
+            const key = `feathernote-settings-${this.userId}`;
+            const encryptedSettings = localStorage.getItem(key);
+            if (encryptedSettings) {
+                const decrypted = await decryptSettings(encryptedSettings, this.userId);
+                if (decrypted) {
+                    this.s3Bucket = decrypted.s3Bucket || '';
+                    this.s3Region = decrypted.s3Region || '';
+                    this.s3Endpoint = decrypted.s3Endpoint || '';
+                    this.s3Subfolder = decrypted.s3Subfolder || '';
+                    this.accessKeyId = decrypted.accessKeyId || '';
+                    this.secretAccessKey = '';
+                }
+            }
+        },
+
+        async handleSave() {
+            if (!this.userId) {
+                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to save settings.' });
+                return;
+            }
+            const key = `feathernote-settings-${this.userId}`;
+
+            const settingsToStore = {
+                s3Bucket: this.s3Bucket,
+                s3Region: this.s3Region,
+                s3Endpoint: this.s3Endpoint,
+                s3Subfolder: this.s3Subfolder,
+                accessKeyId: this.accessKeyId,
+            };
+            if (this.secretAccessKey) {
+                settingsToStore.secretAccessKey = this.secretAccessKey;
+            }
+
+            const encryptedSettings = await encryptSettings(settingsToStore, this.userId);
+            localStorage.setItem(key, encryptedSettings);
+            localStorage.setItem('s3Configured', 'true');
+            
+            this.showToast({ title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
+            this.settingsDialogIsOpen = false;
+        },
+
+        async handleSync() {
+            this.isManualSyncing = true;
+            await this.syncNotes(false);
+            this.isManualSyncing = false;
+        },
+
+        async handleExport() {
+            if (!this.userId) return;
+            const key = `feathernote-settings-${this.userId}`;
+            const encryptedString = localStorage.getItem(key);
+            if (encryptedString) {
+                this.exportString = encryptedString;
+            } else {
+                this.showToast({ variant: 'destructive', title: 'Nothing to Export', description: 'No saved settings found.' });
+            }
+        },
+
+        copyExportStringToClipboard() {
+            navigator.clipboard.writeText(this.exportString);
+            this.showToast({ title: 'Copied!', description: 'Encrypted settings string copied to clipboard.' });
+        },
+
+        async handleImport() {
+            if (!this.userId) {
+                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to import settings.' });
+                return;
+            }
+            const key = `feathernote-settings-${this.userId}`;
+
+            try {
+                const parsed = JSON.parse(this.importString);
+                if (parsed.salt && parsed.iv && parsed.content) {
+                    localStorage.setItem(key, this.importString);
+                    await this.loadSettingsFromStorage();
+                    this.importString = '';
+                    this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
+                    this.settingsDialogIsOpen = false;
+                } else {
+                    throw new Error('Invalid or incomplete settings data.');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showToast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
+            }
         }
     }));
 });
