@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.621.0",
+    "@aws-sdk/client-s3": "^3.879.0",
     "@genkit-ai/googleai": "^1.14.1",
     "@genkit-ai/next": "^1.14.1",
     "@radix-ui/react-alert-dialog": "^1.1.6",
@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "genkit": "^1.14.1",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.475.0",
