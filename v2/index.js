@@ -99,15 +99,88 @@ document.addEventListener('alpine:init', () => {
         }
     }
 
-    // Simple JWT Decoder (for Google ID Token)
+    // --- JWT Verification ---
+    // Simple JWT Decoder
     function jwtDecode(token) {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (e) {
+            console.error("Error decoding JWT payload:", e);
+            return null;
+        }
+    }
 
-        return JSON.parse(jsonPayload);
+    // Function to verify the signature of a Google ID token
+    async function verifyGoogleJwt(token, clientId) {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                throw new Error("Invalid JWT: The token must have 3 parts.");
+            }
+            const [headerB64, payloadB64, signatureB64] = parts;
+            const header = JSON.parse(atob(headerB64.replace(/-/g, '+').replace(/_/g, '/')));
+            const payload = jwtDecode(token);
+
+            // Step 1: Verify issuer
+            if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') {
+                throw new Error(`Invalid issuer: ${payload.iss}`);
+            }
+
+            // Step 2: Verify audience
+            if (payload.aud !== clientId) {
+                throw new Error("Invalid audience.");
+            }
+
+            // Step 3: Verify expiration time
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp < now) {
+                throw new Error("Token has expired.");
+            }
+
+            // Step 4: Fetch Google's public keys
+            const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+            if (!response.ok) {
+                throw new Error("Failed to fetch Google's public keys.");
+            }
+            const certs = await response.json();
+            const jwk = certs.keys.find(key => key.kid === header.kid);
+
+            if (!jwk) {
+                throw new Error("No matching public key found for the token's kid.");
+            }
+
+            // Step 5: Import the public key
+            const key = await crypto.subtle.importKey(
+                'jwk',
+                jwk,
+                { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+                false,
+                ['verify']
+            );
+
+            // Step 6: Verify the signature
+            const encoder = new TextEncoder();
+            const data = encoder.encode(`${headerB64}.${payloadB64}`);
+            const signature = base64ToBuffer(signatureB64.replace(/-/g, '+').replace(/_/g, '/'));
+
+            const isValid = await crypto.subtle.verify(
+                'RSASSA-PKCS1-v1_5',
+                key,
+                signature,
+                data
+            );
+
+            return isValid ? payload : null;
+
+        } catch (error) {
+            console.error("JWT verification failed:", error);
+            return null;
+        }
     }
 
     // IndexedDB Functions
@@ -116,27 +189,26 @@ document.addEventListener('alpine:init', () => {
     const NOTE_STORE = 'notes';
     const SHARED_CONTENT_STORE = 'shared-content';
 
-    let dbInstance;
+    let dbPromise;
 
     const initDB = () => {
-        return new Promise((resolve, reject) => {
-            if (dbInstance) {
-                console.log('IndexedDB already initialized.');
-                return resolve(dbInstance);
-            }
+        if (dbPromise) {
+            return dbPromise;
+        }
 
+        dbPromise = new Promise((resolve, reject) => {
             console.log('Attempting to open IndexedDB...');
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
             request.onerror = (event) => {
                 console.error('Error opening database:', event.target.error);
+                dbPromise = null; // Reset promise on error
                 reject('Error opening database');
             };
 
             request.onsuccess = (event) => {
-                dbInstance = event.target.result;
                 console.log('IndexedDB opened successfully.');
-                resolve(dbInstance);
+                resolve(event.target.result);
             };
 
             request.onupgradeneeded = (event) => {
@@ -152,6 +224,7 @@ document.addEventListener('alpine:init', () => {
                 }
             };
         });
+        return dbPromise;
     };
 
     const getNotesDB = async () => {
@@ -370,9 +443,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         // --- Auth Methods ---
-        handleCredentialResponse(response) {
+        async handleCredentialResponse(response) {
             try {
-                const decoded = jwtDecode(response.credential);
+                const decoded = await verifyGoogleJwt(response.credential, this.GOOGLE_CLIENT_ID);
+
+                if (!decoded) {
+                    throw new Error("Invalid JWT signature or claims.");
+                }
+
                 const newUser = {
                     id: decoded.sub,
                     name: decoded.name,
@@ -384,8 +462,8 @@ document.addEventListener('alpine:init', () => {
                 localStorage.setItem('feathernote-has-logged-in', 'true');
                 this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
             } catch (error) {
-                console.error("Error decoding JWT:", error);
-                this.showToast({ variant: 'destructive', title: 'Sign In Failed', description: 'Could not process Google credential.' });
+                console.error("Error processing credential:", error);
+                this.showToast({ variant: 'destructive', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
             }
         },
 
@@ -530,15 +608,20 @@ document.addEventListener('alpine:init', () => {
                 const result = await response.json();
 
                 if (response.ok) {
-                    for (const note of result.updatedNotes) {
-                        await updateNoteDB(note);
+                    let downloadedCount = 0;
+                    for (const remoteNote of result.updatedNotes) {
+                        const localNote = await getNoteDB(remoteNote.id);
+                        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+                            await updateNoteDB(remoteNote);
+                            downloadedCount++;
+                        }
                     }
                     await this.fetchNotes();
 
                     if (!isSilent) {
                         this.showToast({
                             title: 'Sync Successful',
-                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${result.downloadedCount}.`,
+                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}.`,
                         });
                     }
                 } else {
@@ -553,17 +636,13 @@ document.addEventListener('alpine:init', () => {
 
                 let errorMessage = 'An unknown error occurred.';
                 let errorTitle = 'Sync Failed';
-                if (error instanceof Error) {
-                    if (error.message.includes('Failed to fetch')) {
-                        errorTitle = 'Network Error';
-                        errorMessage = `Could not connect to the server. Please check your internet connection or server status.`;
-                    } else if (error.message.includes('CORS')) {
-                        errorTitle = 'CORS Policy Error';
-                        errorMessage = `Could not connect to S3. This is likely a CORS issue. Please configure your S3 bucket's CORS policy to allow PUT, GET and LIST requests from this app's origin (${window.location.origin}).`;
-                    } else {
-                        errorMessage = error.message;
-                    }
+                if (error instanceof TypeError) {
+                    errorTitle = 'Network Error';
+                    errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
+                } else if (error instanceof Error) {
+                    errorMessage = error.message;
                 }
+
                 this.showToast({
                     variant: 'destructive',
                     title: errorTitle,
@@ -708,14 +787,25 @@ document.addEventListener('alpine:init', () => {
             }
             const key = `feathernote-settings-${this.userId}`;
 
+            // Get existing settings to preserve the secret key if not changed
+            const existingEncrypted = localStorage.getItem(key);
+            let existingSettings = {};
+            if (existingEncrypted) {
+                const decrypted = await decryptSettings(existingEncrypted, this.userId);
+                if(decrypted) existingSettings = decrypted;
+            }
+
             const settingsToStore = {
                 s3Bucket: this.s3Bucket,
                 s3Region: this.s3Region,
                 s3Endpoint: this.s3Endpoint,
                 s3Subfolder: this.s3Subfolder,
                 accessKeyId: this.accessKeyId,
+                secretAccessKey: existingSettings.secretAccessKey || ''
             };
+
             if (this.secretAccessKey) {
+                // Only update the secret key if a new one is entered
                 settingsToStore.secretAccessKey = this.secretAccessKey;
             }
 
