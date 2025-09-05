@@ -28,9 +28,7 @@ self.addEventListener('fetch', (event) => {
         const formData = await event.request.formData();
         const text = formData.get('text') || formData.get('url') || '';
         const title = formData.get('title') || '';
-        const content = title ? `${title}
-
-${text}` : text;
+        const content = title ? `${title}\n-\n${text}` : text;
 
         if (content) {
           await saveSharedContentToDB(content);
