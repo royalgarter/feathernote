@@ -242,9 +242,7 @@
                 </div>
 
             <!-- Import Dialog -->
-            <div x-data="{ showImportModal: showImportModal, importString: importString, handleImport: handleImport }"
-                 @open-import-dialog.window="showImportModal = true; importString = ''"
-                 x-show="showImportModal"
+            <div x-show="showImportModal"
                  x-transition:enter="ease-out duration-300"
                  x-transition:enter-start="opacity-0"
                  x-transition:enter-end="opacity-100"
@@ -274,9 +272,7 @@
             </div>
 
             <!-- Export Dialog -->
-            <div x-data="{ showExportModal: showExportModal, exportString: exportString, copyExportStringToClipboard: copyExportStringToClipboard, handleExport: handleExport }"
-                 @open-export-dialog.window="showExportModal = true; handleExport()"
-                 x-show="showExportModal"
+            <div x-show="showExportModal"
                  x-transition:enter="ease-out duration-300"
                  x-transition:enter-start="opacity-0"
                  x-transition:enter-end="opacity-100"
