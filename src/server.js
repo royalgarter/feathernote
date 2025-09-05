@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
+const crypto = require('crypto');
+const { TextEncoder, TextDecoder } = require('util');
 
 const app = express();
 const port = 3000;
@@ -10,51 +12,21 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 // Serve static files from the 'v2' directory
 app.use(express.static(path.join(__dirname)));
 
-// --- Crypto Functions (Copied from client-side for server-side decryption) ---
-// Helper function to convert buffer to base64
-function bufferToBase64(buffer) {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return Buffer.from(binary, 'binary').toString('base64');
-}
+// --- Crypto Functions for server-side decryption ---
 
-// Helper function to convert base64 to buffer
+// Helper function to convert base64 to a Buffer
 function base64ToBuffer(base64) {
-    const binary_string = Buffer.from(base64, 'base64').toString('binary');
-    const len = binary_string.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary_string.charCodeAt(i);
-    }
-    return bytes.buffer;
+    return Buffer.from(base64, 'base64');
 }
 
 // Derives a key from a user ID using PBKDF2.
-async function getKey(userId, salt) {
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        enc.encode(userId),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveKey']
-    );
-    return crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt: salt,
-            iterations: 100000,
-            hash: 'SHA-256',
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt', 'decrypt']
-    );
+function getKey(userId, salt) {
+    return new Promise((resolve, reject) => {
+        crypto.pbkdf2(userId, salt, 100000, 32, 'sha256', (err, derivedKey) => {
+            if (err) reject(err);
+            resolve(derivedKey);
+        });
+    });
 }
 
 // Decrypts the string back into an object.
@@ -64,21 +36,22 @@ async function decryptSettings(encryptedString, userId) {
 
         const salt = base64ToBuffer(saltB64);
         const iv = base64ToBuffer(ivB64);
-        const content = base64ToBuffer(contentB64);
-        
+        const encryptedContent = base64ToBuffer(contentB64);
+
         const key = await getKey(userId, salt);
 
-        const decryptedContent = await crypto.subtle.decrypt(
-            {
-                name: 'AES-GCM',
-                iv: iv,
-            },
-            key,
-            content
-        );
+        // The encrypted content from the browser includes the auth tag, so we need to separate it.
+        const tagLength = 16; // AES-GCM auth tag is 128 bits (16 bytes)
+        const ciphertext = encryptedContent.slice(0, -tagLength);
+        const authTag = encryptedContent.slice(-tagLength);
 
-        const dec = new TextDecoder();
-        return JSON.parse(dec.decode(decryptedContent));
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        decipher.setAuthTag(authTag);
+
+        let decrypted = decipher.update(ciphertext, 'binary', 'utf8');
+        decrypted += decipher.final('utf8');
+
+        return JSON.parse(decrypted);
     } catch (error) {
         console.error('Server-side decryption failed:', error);
         return null;
