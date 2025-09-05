@@ -7,12 +7,13 @@ This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it 
 ## Features
 
 *   **Offline First:** Your notes are stored locally in your browser, so you can access them even without an internet connection.
-*   **Simple Note Management:** Create, edit, and delete notes with a clean and intuitive interface.
+*   **Simple Note Management:** Create, edit, delete and set reminders for notes with a clean and intuitive interface.
 *   **Optional S3 Sync:** For users who want to back up their notes or sync them across multiple devices, FeatherNote offers a secure S3 sync feature.
 *   **Privacy Focused:** Your notes are your own. If you choose to use the S3 sync feature, your S3 credentials are encrypted in your browser and are never sent to any server other than your own S3 bucket.
 *   **Google Sign-In:** Securely sign in with your Google account to associate your S3 settings with your identity.
 *   **Import/Export Settings:** Easily move your encrypted S3 configuration between devices.
 *   **PWA Ready:** FeatherNote can be "installed" as a Progressive Web App (PWA) on your desktop or mobile device for a more native-like experience.
+*   **Share Target:** Enable to share from mobile / desktop browser using PWA Share Target API.
 
 ## Tech Stack
 
@@ -21,29 +22,30 @@ This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it 
 *   **Database:** [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (via a simple wrapper)
 *   **Authentication:** Google Identity Services (for client-side authentication)
 *   **Encryption:** Web Crypto API (for encrypting S3 credentials)
+*   **Backend:** [Node.js](https://nodejs.org/)
 
 ## Getting Started
 
-To run FeatherNote v2, you don't need a complex build process. You can simply serve the files in the `v2` directory with any static file server.
+To run FeatherNote v2, you don't need a complex build process. You can simply serve the files in the `src` directory with any static file server.
 
 1.  **Clone the repository (if you haven't already):**
     ```bash
     git clone <repository-url>
-    cd <repository-url>/v2
+    cd <repository-url>
     ```
 
-2.  **Serve the files:**
-    You can use any simple HTTP server. If you have Python installed, you can run:
+2.  **Install dependencies:**
     ```bash
-    python3 -m http.server
-    ```
-    Or, if you have Node.js installed, you can use `npx`:
-    ```bash
-    npx serve
+    npm install
     ```
 
-3.  **Open in your browser:**
-    Navigate to `http://localhost:8000` (or whatever port your server is running on).
+3.  **Run the server:**
+    ```bash
+    npm start
+    ```
+
+4.  **Open in your browser:**
+    Navigate to `http://localhost:3000`.
 
 ## S3 Sync Configuration
 
@@ -59,7 +61,7 @@ The S3 sync feature is optional. To use it, you will need:
 
 For FeatherNote to be able to communicate with your S3 bucket, you will need to configure the bucket's CORS (Cross-Origin Resource Sharing) policy.
 
-Here is an example CORS policy. You will need to replace `https://your-feathernote-domain.com` with the actual domain where you are hosting FeatherNote (or `http://localhost:8000` for local development).
+Here is an example CORS policy. You will need to replace `https://your-feathernote-domain.com` with the actual domain where you are hosting FeatherNote (or `http://localhost:3000` for local development).
 
 ```json
 [
@@ -74,7 +76,7 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
             "DELETE"
         ],
         "AllowedOrigins": [
-            "http://localhost:8000",
+            "http://localhost:3000",
             "https://your-feathernote-domain.com"
         ],
         "ExposeHeaders": []
