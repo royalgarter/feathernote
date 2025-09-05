@@ -1,6 +1,6 @@
-# FeatherNote v2
+# FeatherNote
 
-FeatherNote v2 is a lightweight, privacy-focused notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
+FeatherNote is a lightweight, privacy-focused offline-first notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
 
 This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it fast, simple, and easy to maintain.
 
@@ -18,34 +18,11 @@ This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it 
 ## Tech Stack
 
 *   **Frontend:** [Alpine.js](https://alpinejs.dev/)
+*   **Backend:** [Node.js](https://nodejs.org/)
 *   **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 *   **Database:** [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (via a simple wrapper)
 *   **Authentication:** Google Identity Services (for client-side authentication)
 *   **Encryption:** Web Crypto API (for encrypting S3 credentials)
-*   **Backend:** [Node.js](https://nodejs.org/)
-
-## Getting Started
-
-To run FeatherNote v2, you don't need a complex build process. You can simply serve the files in the `src` directory with any static file server.
-
-1.  **Clone the repository (if you haven't already):**
-    ```bash
-    git clone <repository-url>
-    cd <repository-url>
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Run the server:**
-    ```bash
-    npm start
-    ```
-
-4.  **Open in your browser:**
-    Navigate to `http://localhost:3000`.
 
 ## S3 Sync Configuration
 
@@ -61,7 +38,7 @@ The S3 sync feature is optional. To use it, you will need:
 
 For FeatherNote to be able to communicate with your S3 bucket, you will need to configure the bucket's CORS (Cross-Origin Resource Sharing) policy.
 
-Here is an example CORS policy. You will need to replace `https://your-feathernote-domain.com` with the actual domain where you are hosting FeatherNote (or `http://localhost:3000` for local development).
+Here is an example CORS policy. You will need to replace `https://your-feathernote-domain.com` with the actual domain where you are hosting FeatherNote (or `http://localhost:7347` for local development).
 
 ```json
 [
@@ -76,7 +53,7 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
             "DELETE"
         ],
         "AllowedOrigins": [
-            "http://localhost:3000",
+            "http://localhost:7347",
             "https://your-feathernote-domain.com"
         ],
         "ExposeHeaders": []
