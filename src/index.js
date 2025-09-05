@@ -731,7 +731,7 @@ document.addEventListener('alpine:init', () => {
         createNewNote() {
             this.editingNoteId = 'new';
             this.noteEditorNoteId = null;
-            this.noteEditorTitle = '';
+            this.noteEditorTitle = 'Note for ' + new Date().toString().substr(0, 24);
             this.noteEditorContent = '';
             this.noteEditorReminder = '';
         },
