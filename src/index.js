@@ -67,6 +67,8 @@ document.addEventListener('alpine:init', () => {
             iv: bufferToBase64(iv),
             content: bufferToBase64(encryptedContent)
         };
+
+        console.log('encrypt', settings, encryptedPackage);
         
         return JSON.stringify(encryptedPackage);
     }
@@ -92,7 +94,12 @@ document.addEventListener('alpine:init', () => {
             );
 
             const dec = new TextDecoder();
-            return JSON.parse(dec.decode(decryptedContent));
+
+            const json = JSON.parse(dec.decode(decryptedContent));
+
+            console.log('decrypt', json);
+
+            return json;
         } catch (error) {
             console.error('Decryption failed:', error);
             return null;
@@ -429,6 +436,8 @@ document.addEventListener('alpine:init', () => {
             const newToast = { id, title, description, variant, show: true };
             this.toasts.push(newToast);
 
+            console.log('toast', title + ':',description);
+
             setTimeout(() => {
                 this.dismissToast(id);
             }, duration);
@@ -622,7 +631,7 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if (!isS3Configured || !userId) {
+            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
                 if (!isSilent) {
                     this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
                 }
@@ -776,10 +785,10 @@ document.addEventListener('alpine:init', () => {
 
         // --- Settings Dialog Data & Methods (moved from settingsDialog component) ---
         settingsDialogIsOpen: false,
-        s3Bucket: '',
         s3Region: '',
-        s3Endpoint: '',
+        s3Bucket: '',
         s3Subfolder: '',
+        s3Endpoint: '',
         accessKeyId: '',
         secretAccessKey: '',
         isManualSyncing: false,
@@ -801,7 +810,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get isSyncConfigured() {
-            return !!this.user;
+            return (location.hostname == 'localhost') ||  (!!this.user);
         },
 
         get isSyncButtonDisabled() {
@@ -809,7 +818,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async loadSettingsFromStorage() {
-            if (!this.userId) return;
+            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedSettings = localStorage.getItem(key);
             if (encryptedSettings) {
@@ -826,7 +835,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleSave() {
-            if (!this.userId) {
+            if (location.hostname != 'localhost' && !this.userId) {
                 this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to save settings.' });
                 return;
             }
@@ -859,7 +868,7 @@ document.addEventListener('alpine:init', () => {
             localStorage.setItem('s3Configured', 'true');
             
             this.showToast({ title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
-            this.settingsDialogIsOpen = false;
+            // this.settingsDialogIsOpen = false;
         },
 
         async handleSync() {
@@ -869,7 +878,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleExport() {
-            if (!this.userId) return;
+            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedString = localStorage.getItem(key);
             if (encryptedString) {
@@ -877,6 +886,7 @@ document.addEventListener('alpine:init', () => {
             } else {
                 this.showToast({ variant: 'destructive', title: 'Nothing to Export', description: 'No saved settings found.' });
             }
+            this.showExportModal = true; // Ensure the modal opens
         },
 
         copyExportStringToClipboard() {
@@ -885,7 +895,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleImport() {
-            if (!this.userId) {
+            if (location.hostname != 'localhost' && !this.userId) {
                 this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to import settings.' });
                 return;
             }
@@ -899,6 +909,7 @@ document.addEventListener('alpine:init', () => {
                     this.importString = '';
                     this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
                     this.settingsDialogIsOpen = false;
+                    this.showImportModal = false; // Close the modal after successful import
                 } else {
                     throw new Error('Invalid or incomplete settings data.');
                 }

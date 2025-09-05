@@ -18,7 +18,7 @@
         <div class="container mx-auto flex h-16 items-center justify-between p-4">
             <a href="#" class="flex items-center gap-2">
                 <!-- FeatherIcon Placeholder -->
-                <div class="h-6 w-6 text-blue-500">Icon</div>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-purple-500"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><path d="m5 19-2 2"></path><path d="m15 9-2 2"></path></svg>
                 <span class="font-bold text-lg font-sans text-gray-900">FeatherNote</span>
             </a>
             <div class="flex items-center gap-4">
@@ -28,19 +28,22 @@
                         <span class="text-sm text-blue-600">Syncing...</span>
                     </template>
                     <template x-if="!isSyncing">
-                        <span class="text-sm text-gray-500">Synced</span>
+                        <span class="text-sm text-gray-500"><!-- Synced --></span>
                     </template>
                 </div>
                 <!-- SettingsDialog Trigger -->
                 <button @click="settingsDialogIsOpen = true" class="p-2 rounded-full hover:bg-gray-200" aria-label="Settings">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.09.15a2 2 0 0 1 0 2.73l-.09.15a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.09-.15a2 2 0 0 1 0-2.73l.09-.15a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
                 </button>
                 <!-- UserProfile -->
                 <div>
                     <template x-if="user">
-                        <div class="flex items-center gap-2">
-                            <img :src="user.picture" alt="User Picture" class="h-8 w-8 rounded-full" />
-                            <button @click="signOut()" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Sign Out</button>
+                        <div @click="signOut()" class="flex items-center gap-2">
+                            <img :src="user.picture || 'https://cdn.jsdelivr.net/npm/heroicons/24/outline/user-circle.svg'" alt="User Picture" class="h-8 w-8 rounded-full" />
+                            <!-- <button @click="signOut()" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Sign Out</button> -->
                         </div>
                     </template>
                     <template x-if="!user">
@@ -90,7 +93,7 @@
 
         <!-- Note Editor View -->
         <template x-if="editingNoteId !== null">
-            <div class="px-4 py-6 sm:px-0 bg-white rounded-lg shadow-md p-6">
+            <div class="bg-white rounded-lg shadow-md p-4">
                 <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Edit Note' : 'Create New Note'"></h2>
                 <div class="mb-4">
                     <label for="note-title" class="block text-sm font-medium text-gray-700">Title</label>
@@ -105,9 +108,9 @@
                     <input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
                 </div>
                 <div class="flex justify-end space-x-3">
-                    <button @click="saveNote()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save Note</button>
+                    <button @click="deleteNoteFromS3(noteEditorNoteId)" class="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                     <button @click="cancelEdit()" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button @click="deleteNoteFromS3(noteEditorNoteId)" class="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete from S3</button>
+                    <button @click="saveNote()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
                 </div>
             </div>
         </template>
@@ -177,53 +180,49 @@
              x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
              x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         >
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex justify-between items-center mb-2">
                 <h3 class="text-lg font-bold">Settings</h3>
                 <button @click="settingsDialogIsOpen = false" class="p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
-            <p class="text-sm text-gray-600 mb-6">Configure application settings and data synchronization.</p>
 
             <div class="grid gap-4 py-4">
-                <h3 class="font-semibold text-lg flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain-circuit mr-2"><path d="M12 4a2 2 0 0 0-2 2v1.17c0 .21-.04.42-.11.62-.05.17-.11.33-.19.49a.9.9 0 0 0-.19.49c-.07.2-.11.41-.11.62V10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h.17c.21 0 .42-.04.62-.11.17-.05.33-.11.49-.19a.9.9 0 0 0 .49-.19c.2-.07.41-.11.62-.11H10a2 2 0 0 1 2 2v.17c0 .21-.04.42-.11.62-.05.17-.11.33-.19.49a.9.9 0 0 0-.19.49c-.07.2-.11.41-.11.62V14a2 2 0 0 0 2 2h.17c.21 0 .42-.04.62-.11.17-.05.33-.11.49-.19a.9.9 0 0 0 .49-.19c.2-.07.41-.11.62-.11H20a2 2 0 0 1 2 2v.17c0 .21-.04.42-.11.62-.05.17-.11.33-.19.49a.9.9 0 0 0-.19.49c-.07.2-.11.41-.11.62V20a2 2 0 0 1-2 2h-.17c-.21 0-.42.04-.62.11-.17.05-.33.11-.49.19a.9.9 0 0 0-.49.19c-.2.07-.41.11-.62.11H14a2 2 0 0 1-2-2v-.17c0-.21.04-.42.11-.62.05-.17.11-.33.19-.49a.9.9 0 0 0 .19-.49c.07-.2.11-.41.11-.62V10a2 2 0 0 0-2-2h-.17c-.21 0-.42.04-.62.11-.17.05-.33.11-.49.19a.9.9 0 0 0-.49.19c-.2.07-.41.11-.62.11H4a2 2 0 0 0-2 2v.17c0 .21.04.42.11.62.05.17.11.33.19.49a.9.9 0 0 0 .49.19c.2.07.41.11.62.11H10a2 2 0 0 0 2-2V4z"/><circle cx="12" cy="12" r="3"/></svg> S3 Sync (Login Required)
-                </h3>
                 <!-- Login Required Alert -->
-                <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-                    <strong class="font-bold">Login Required</strong>
+                <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <strong class="font-bold">Login Required:</strong>
                     <span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
                 </div>
                 <!-- Security Note Alert -->
-                <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative" role="alert">
-                    <strong class="font-bold">Security Note</strong>
-                    <span class="block sm:inline">Your credentials are encrypted in this browser, tied to your Google account ID. Use IAM credentials with minimal, restricted permissions.</span>
+                <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 px-4 py-3 rounded relative" role="alert">
+                    <strong class="font-bold">Security Note:</strong>
+                    <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
                 </div>
 
                 <fieldset :disabled="!isSyncConfigured" class="grid gap-4">
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-bucket" class="text-right">Bucket</label>
-                        <input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
-                    </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-region" class="text-right">Region</label>
+                        <label for="s3-region" class="text-right">S3 Region</label>
                         <input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
                     </div>
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-endpoint" class="text-right">Endpoint</label>
-                        <input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: e.g., s3.us-west-000.backblazeb2.com" autocomplete="off" />
+                        <label for="s3-bucket" class="text-right">S3 Bucket</label>
+                        <input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
                     </div>
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-subfolder" class="text-right">Subfolder</label>
+                        <label for="s3-subfolder" class="text-right">S3 Subfolder</label>
                         <input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
                     </div>
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="access-key" class="text-right">Access Key</label>
-                        <input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" />
+                        <label for="s3-endpoint" class="text-right">S3 Endpoint</label>
+                        <input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing value" autocomplete="off" />
                     </div>
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="secret-key" class="text-right">Secret Key</label>
-                        <input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing key" autocomplete="new-password" />
+                        <label for="access-key" class="text-right">S3 Access Key</label>
+                        <input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing value"/>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <label for="secret-key" class="text-right">S3 Secret Key</label>
+                        <input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing value" autocomplete="new-password" />
                     </div>
                 </fieldset>
             </div>
@@ -236,9 +235,9 @@
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync Now')"></span>
+                        <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync')"></span>
                     </button>
-                    <button @click="handleSave()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save Credentials</button>
+                    <button @click="handleSave()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
                 </div>
 
             <!-- Import Dialog -->
@@ -266,7 +265,7 @@
                     <textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste your encrypted settings string here..."></textarea>
                     <div class="flex justify-end gap-2 mt-4">
                         <button @click="showImportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button @click="handleImport(); showImportModal = false;" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
+                        <button @click="handleImport()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
                     </div>
                 </div>
             </div>

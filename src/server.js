@@ -6,7 +6,7 @@ const { TextEncoder, TextDecoder } = require('util');
 const multer = require('multer');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 7347;
 const upload = multer();
 
 app.use(express.json()); // Middleware to parse JSON request bodies
@@ -24,7 +24,9 @@ function base64ToBuffer(base64) {
 // Derives a key from a user ID using PBKDF2.
 function getKey(userId, salt) {
     return new Promise((resolve, reject) => {
-        crypto.pbkdf2(userId, salt, 100000, 32, 'sha256', (err, derivedKey) => {
+        const enc = new TextEncoder(); // Use TextEncoder for consistency
+        const userIdBuffer = enc.encode(userId); // Encode userId to a Buffer
+        crypto.pbkdf2(userIdBuffer, salt, 100000, 32, 'sha256', (err, derivedKey) => {
             if (err) reject(err);
             resolve(derivedKey);
         });
@@ -172,7 +174,9 @@ const deleteNoteFromS3 = async (noteId, creds) => {
 
 // --- API Endpoints ---
 app.post('/api/sync-notes', async (req, res) => {
-    const { encryptedSettings, userId, localNotes, deletedNoteIds } = req.body;
+    let { encryptedSettings, userId, localNotes, deletedNoteIds } = req.body;
+
+    userId = userId || 'null'; // Debug for localhost
 
     if (!encryptedSettings || !userId || !localNotes) {
         return res.status(400).json({ error: 'Missing required parameters.' });
@@ -180,6 +184,11 @@ app.post('/api/sync-notes', async (req, res) => {
 
     try {
         const credentials = await decryptSettings(encryptedSettings, userId);
+
+        credentials.region = credentials.region || credentials.s3Region;
+        credentials.bucket = credentials.bucket || credentials.s3Bucket;
+        credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
+        credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
         if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
             return res.status(400).json({ error: 'Invalid or incomplete S3 credentials.' });
