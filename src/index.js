@@ -376,6 +376,7 @@ document.addEventListener('alpine:init', () => {
         noteEditorTitle: '',
         noteEditorContent: '',
         noteEditorReminder: '',
+        easyMDE: null,
 
         // --- Main App Init ---
         init() {
@@ -754,6 +755,17 @@ document.addEventListener('alpine:init', () => {
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Note not found.' });
                 this.editingNoteId = null;
             }
+
+            this.easyMDE = this.easyMDE || new EasyMDE({
+                element: document.getElementById('note-content'),
+                unorderedListStyle: "-",
+                lineNumbers: true,
+                spellChecker: false,
+                nativeSpellcheck: false,
+                autosave: true,
+                forceSync: true,
+                previewImagesInEditor: true,
+            });
         },
 
         async saveNote() {
@@ -764,7 +776,7 @@ document.addEventListener('alpine:init', () => {
 
             const noteData = {
                 title: this.noteEditorTitle,
-                content: this.noteEditorContent,
+                content: this.easyMDE?.value() || this.noteEditorContent,
                 reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
             };
 
@@ -777,6 +789,9 @@ document.addEventListener('alpine:init', () => {
                 }
             }
             this.editingNoteId = null;
+
+            this.easyMDE?.toTextArea?.();
+            this.easyMDE = null;
         },
 
         cancelEdit() {
