@@ -1,11 +1,13 @@
 const express = require('express');
 const path = require('path');
-const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
 const { TextEncoder, TextDecoder } = require('util');
+const multer = require('multer');
 
 const app = express();
 const port = 3000;
+const upload = multer();
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
@@ -148,9 +150,29 @@ const downloadNoteFromS3 = async (noteId, creds) => {
     }
 };
 
+const deleteNoteFromS3 = async (noteId, creds) => {
+    const s3Client = getS3Client(creds);
+    const key = getS3ObjectKey(noteId, creds);
+    const command = new DeleteObjectCommand({
+        Bucket: creds.bucket,
+        Key: key,
+    });
+
+    try {
+        const response = await s3Client.send(command);
+        return response;
+    } catch (error) {
+        console.error(`S3 Delete Error for note ${noteId}:`, error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to delete note from S3: ${error.name} - ${error.message}`);
+        }
+        throw new Error('An unknown error occurred during S3 delete.');
+    }
+};
+
 // --- API Endpoints ---
 app.post('/api/sync-notes', async (req, res) => {
-    const { encryptedSettings, userId, localNotes } = req.body;
+    const { encryptedSettings, userId, localNotes, deletedNoteIds } = req.body;
 
     if (!encryptedSettings || !userId || !localNotes) {
         return res.status(400).json({ error: 'Missing required parameters.' });
@@ -163,13 +185,21 @@ app.post('/api/sync-notes', async (req, res) => {
             return res.status(400).json({ error: 'Invalid or incomplete S3 credentials.' });
         }
 
-        // --- S3 Sync Logic (Copied from NoteContext) ---
         const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
         const remoteNoteIds = await listNotesInS3(credentials);
         
         let uploadedCount = 0;
         let downloadedCount = 0;
+        let deletedCount = 0;
         let updatedNotes = [];
+
+        // Delete notes from S3 that were deleted locally
+        if (deletedNoteIds && deletedNoteIds.length > 0) {
+            for (const noteId of deletedNoteIds) {
+                await deleteNoteFromS3(noteId, credentials);
+                deletedCount++;
+            }
+        }
         
         // Upload local notes that are new or updated
         for (const localNote of localNotes) {
@@ -182,6 +212,9 @@ app.post('/api/sync-notes', async (req, res) => {
 
         // Download remote notes that are new or updated
         for (const noteId of remoteNoteIds) {
+            if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
+                continue; // Skip notes that were just deleted
+            }
             const localNote = localNotesMap.get(noteId);
             const remoteNote = await downloadNoteFromS3(noteId, credentials);
             if (remoteNote) {
@@ -192,7 +225,7 @@ app.post('/api/sync-notes', async (req, res) => {
             }
         }
 
-        res.json({ success: true, uploadedCount, downloadedCount, updatedNotes });
+        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes });
 
     } catch (error) {
         console.error('Server-side sync error:', error);
@@ -209,7 +242,41 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Handle shared content from PWA
+app.post('/_share-target', upload.none(), (req, res) => {
+    // The service worker will handle this, but we have a server-side route as a fallback.
+    // In a real app, you might save this to a temporary session or user-specific store.
+    console.log('Shared content received on server:', req.body);
+    res.redirect('/');
+});
 
+app.post('/api/delete-note', async (req, res) => {
+    const { encryptedSettings, userId, noteId } = req.body;
+
+    if (!encryptedSettings || !userId || !noteId) {
+        return res.status(400).json({ error: 'Missing required parameters.' });
+    }
+
+    try {
+        const credentials = await decryptSettings(encryptedSettings, userId);
+
+        if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+            return res.status(400).json({ error: 'Invalid or incomplete S3 credentials.' });
+        }
+
+        await deleteNoteFromS3(noteId, credentials);
+
+        res.json({ success: true, message: `Note ${noteId} deleted from S3.` });
+
+    } catch (error) {
+        console.error('Server-side delete error:', error);
+        let errorMessage = 'An unknown error occurred during deletion.';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        res.status(500).json({ error: errorMessage });
+    }
+});
 
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);

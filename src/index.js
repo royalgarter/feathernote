@@ -362,6 +362,7 @@ document.addEventListener('alpine:init', () => {
         isSyncing: false,
         syncIntervalId: null,
         editingNoteId: null, // New state to track which note is being edited
+        deletedNoteIds: [],
 
         // --- Note Editor Data ---
         noteEditorNoteId: null,
@@ -558,10 +559,52 @@ document.addEventListener('alpine:init', () => {
             try {
                 await deleteNoteDB(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
+                this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
+            }
+        },
+
+        async deleteNoteFromS3(noteId) {
+            const userId = this.user ? this.user.id : null;
+            const isS3Configured = localStorage.getItem('s3Configured') === 'true';
+
+            if (!isS3Configured || !userId) {
+                this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+                return;
+            }
+
+            try {
+                const encryptedSettings = localStorage.getItem(`feathernote-settings-${userId}`);
+                if (!encryptedSettings) {
+                    throw new Error('S3 credentials not found in local storage.');
+                }
+
+                const response = await fetch('/api/delete-note', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        encryptedSettings,
+                        userId,
+                        noteId,
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    this.showToast({ title: 'Note Deleted from S3', description: `Note ${noteId} has been deleted from S3.` });
+                } else {
+                    throw new Error(result.error || 'Server responded with an error.');
+                }
+
+            } catch (error) {
+                console.error('Error deleting note from S3:', error);
+                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note from S3.' });
             }
         },
 
@@ -602,6 +645,7 @@ document.addEventListener('alpine:init', () => {
                         encryptedSettings,
                         userId,
                         localNotes: await getNotesDB(), // Send all local notes for comparison
+                        deletedNoteIds: this.deletedNoteIds,
                     }),
                 });
 
@@ -617,11 +661,12 @@ document.addEventListener('alpine:init', () => {
                         }
                     }
                     await this.fetchNotes();
+                    this.deletedNoteIds = []; // Clear deleted notes after successful sync
 
                     if (!isSilent) {
                         this.showToast({
                             title: 'Sync Successful',
-                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}.`,
+                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}.`,
                         });
                     }
                 } else {

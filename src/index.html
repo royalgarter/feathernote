@@ -107,6 +107,7 @@
                 <div class="flex justify-end space-x-3">
                     <button @click="saveNote()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save Note</button>
                     <button @click="cancelEdit()" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button @click="deleteNoteFromS3(noteEditorNoteId)" class="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete from S3</button>
                 </div>
             </div>
         </template>
@@ -227,18 +228,9 @@
                 </fieldset>
             </div>
 
-            <div class="flex flex-wrap gap-2 sm:justify-between">
-                <div class='flex gap-2'>
-                    <!-- Import Dialog Trigger -->
-                    <button @click="showImportModal = true; importString = ''" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-input"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v3"/><polyline points="14 2 14 8 20 8"/><path d="M13 12v6"/><path d="M16 15l-3-3-3 3"/></svg> Import
-                    </button>
-                    <!-- Export Dialog Trigger -->
-                    <button @click="handleExport()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-output"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M13 12v6"/><path d="M16 15l-3 3-3-3"/></svg> Export
-                    </button>
-                </div>
-                <div class="flex gap-2">
+            <div class="flex justify-end gap-2">
+                    <button @click="showImportModal = true; importString = ''" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+                    <button @click="handleExport()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
                     <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 flex items-center">
                         <svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -248,7 +240,6 @@
                     </button>
                     <button @click="handleSave()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save Credentials</button>
                 </div>
-            </div>
 
             <!-- Import Dialog -->
             <div x-data="{ showImportModal: showImportModal, importString: importString, handleImport: handleImport }"
