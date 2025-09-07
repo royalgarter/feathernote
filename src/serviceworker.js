@@ -1,6 +1,6 @@
 // This is a basic service worker for offline caching and handling shared content.
 
-const CACHE_NAME = 'feathernote-cache-v1';
+const CACHE_NAME = 'feathernote-cache-v2';
 const SHARED_CONTENT_DB_NAME = 'FeatherNoteDB';
 const SHARED_CONTENT_STORE = 'shared-content';
 
@@ -48,10 +48,17 @@ self.addEventListener('fetch', (event) => {
     );
   } else {
     event.respondWith(
-      caches.match(event.request).then((response) => {
-        // Cache falling back to the network
-        return response || fetch(event.request);
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
     );
   }
 });
