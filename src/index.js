@@ -455,7 +455,7 @@ document.addEventListener('alpine:init', () => {
 
             // Note Manager Init
             this.fetchNotes();
-            this.syncNotes(true);
+            this.syncNotes();
             this.syncIntervalId = setInterval(() => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
@@ -590,7 +590,7 @@ document.addEventListener('alpine:init', () => {
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote); // Add to the beginning
                 this.showToast({ title: 'Note Added', description: 'New note created.' });
-                this.syncNotes(true);
+                this.syncNotes();
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
@@ -608,7 +608,7 @@ document.addEventListener('alpine:init', () => {
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
-                this.syncNotes(true);
+                this.syncNotes();
             } catch (error) {
                 console.error('Error in updateNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
@@ -621,7 +621,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
-                this.syncNotes(true);
+                this.syncNotes();
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
@@ -730,6 +730,7 @@ document.addEventListener('alpine:init', () => {
                             description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}.`,
                         });
                     }
+
                 } else {
                     throw new Error(result.error || 'Server responded with an error.');
                 }
