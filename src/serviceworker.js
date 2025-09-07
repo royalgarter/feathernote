@@ -16,6 +16,7 @@ const urlsToCache = [
   'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2',
   'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
   'https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css',
+  'https://cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js',
   'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css',
   'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js'
 ];

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FeatherNote</title>
     <link rel="manifest" href="/manifest.json">
-    <!-- TailwindCSS CDN -->
     <!-- <script src="https://cdn.tailwindcss.com"></script> -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
     <style>
@@ -18,16 +17,14 @@
             overflow: hidden;
         }
     </style>
-    <!-- AlpineJS CDN -->
+    <script async defer src="https://cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
     <script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-    <!-- Heroicons (optional, for icons) -->
-    <!-- You might need to include a specific Heroicons library or use them as SVG directly -->
 </head>
-<body class="flex flex-col min-h-screen bg-gray-100" x-data="mainApp()" x-init="init()">
+<body class="flex flex-col min-h-screen bg-gray-200" x-data="mainApp()" x-init="init()">
     <!-- AppShellHeader -->
-    <header class="sticky top-0 z-0 w-full border-b bg-white">
+    <header class="sticky top-0 z-10 w-full border-b bg-white">
         <div class="container mx-auto flex h-16 items-center justify-between p-4">
             <a href="#" class="flex items-center gap-2">
                 <!-- FeatherIcon Placeholder -->
@@ -84,7 +81,14 @@
     <main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 w-full">
         <div class="flex justify-between items-center mb-4 px-4 gap-4">
             <div class="relative w-full max-w-xs">
-                <input type="text" id="searchInput" x-model="searchTag" @input.debounce.300ms="filteredNotes" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
+                <input type="text" id="searchInput" x-model="searchTag" @input.debounce.300ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
+                <div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+                    <template x-for="suggestion in suggestions" :key="suggestion.id">
+                        <div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:bg-gray-100">
+                            <span x-text="suggestion.suggestion"></span>
+                        </div>
+                    </template>
+                </div>
             </div>
             <button @click="createNewNote()" class="cursor-pointer font-bold px-4 py-2 w-28 rounded-md bg-green-600 text-white hover:bg-green-700">
                 Add Note

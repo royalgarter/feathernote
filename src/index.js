@@ -386,7 +386,9 @@ document.addEventListener('alpine:init', () => {
         // --- Note Manager Data ---
         notes: [],
         searchTag: '',
+        suggestions: [], // New property
         loading: true,
+        miniSearch: null,
         isSyncing: false,
         syncIntervalId: null,
         editingNoteId: null, // New state to track which note is being edited
@@ -409,20 +411,16 @@ document.addEventListener('alpine:init', () => {
             if (!this.searchTag.trim()) {
                 return this.notes;
             }
-            const searchTagLower = this.searchTag.toLowerCase();
-
-            return this.notes.filter(note => {
-                const tagMatch = note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTagLower));
-                if (tagMatch) return tagMatch;
-
-                const titleMatch = note.title.toLowerCase().includes(searchTagLower);
-                if (titleMatch) return titleMatch;
-
-                const contentMatch = note.content.toLowerCase().includes(searchTagLower);
-                if (contentMatch) return contentMatch;
-
-                return titleMatch || tagMatch || contentMatch;
+            // Use minisearch for filtering
+            const searchResults = this.miniSearch.search(this.searchTag, {
+                prefix: true, // Search for prefixes
+                fuzzy: 0.2, // Allow some fuzziness
+                combineWith: 'AND' // All terms must match
             });
+            // minisearch returns an array of objects with 'id' and other stored fields.
+            // We need to return the original note objects, so map them back.
+            const resultIds = new Set(searchResults.map(result => result.id));
+            return this.notes.filter(note => resultIds.has(note.id));
         },
 
 
@@ -453,27 +451,39 @@ document.addEventListener('alpine:init', () => {
                 this.user = JSON.parse(storedUser);
             }
 
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => {
-                this.isGsiLoaded = true;
-            };
-            document.body.appendChild(script);
+            // Only append GSI script if it's not already in the DOM
+            if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+                const script = document.createElement('script');
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.async = true;
+                script.defer = true;
+                script.onload = () => {
+                    this.isGsiLoaded = true;
+                };
+                document.body.appendChild(script);
+            }
 
             // Note Manager Init
             const lastSync = localStorage.getItem('feathernote-lastSync');
             if (lastSync) {
                 this.lastSync = lastSync;
             }
+            this.miniSearch = new MiniSearch({
+                fields: ['title', 'content', 'tags'], // Fields to search!
+                storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
+            });
             this.fetchNotes();
             this.syncNotes();
             this.syncIntervalId = setInterval(() => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
 
-            this.$watch('notes', () => this.updateAppBadge());
+            this.$watch('notes', (newNotes) => {
+                this.updateAppBadge();
+                this.miniSearch.removeAll();
+                this.miniSearch.addAll(newNotes);
+            });
+            this.$watch('searchTag', () => this.generateSuggestions());
 
             this.$watch('$el', (el) => {
                 if (!el) {
@@ -661,6 +671,17 @@ document.addEventListener('alpine:init', () => {
         },
 
         // --- Note Manager Methods ---
+        async generateSuggestions() {
+            if (this.searchTag.trim() === '') {
+                this.suggestions = [];
+                return;
+            }
+            this.suggestions = this.miniSearch.autoSuggest(this.searchTag, {
+                prefix: true,
+                fuzzy: 0.2,
+                combineWith: 'AND'
+            });
+        },
         async fetchNotes() {
             this.loading = true;
             try {
