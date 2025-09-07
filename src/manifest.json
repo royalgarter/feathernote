@@ -4,7 +4,7 @@
   "description": "Lightweight offline-first PWA Note with Markdown, S3 Sync, Share Target API",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#A0D2EB",
+  "background_color": "#F5F5F5",
   "theme_color": "#AC47FF",
   "share_target": {
     "action": "/_share-target",

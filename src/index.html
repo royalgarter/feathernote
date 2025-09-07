@@ -28,10 +28,10 @@
                 <!-- SyncStatus -->
                 <div>
                     <template x-if="isSyncing">
-                        <span class="text-sm text-blue-600">Syncing...</span>
+                        <span class="text-sm text-gray-300 animate-pulse">Syncing...</span>
                     </template>
                     <template x-if="!isSyncing">
-                        <span class="text-sm text-gray-500"><!-- Synced --></span>
+                        <span class="text-sm text-gray-400">Synced</span>
                     </template>
                 </div>
                 <!-- SettingsDialog Trigger -->
@@ -78,7 +78,7 @@
                         <div class="flex-grow" @click="editNote(note.id)">
                             <h3 class="font-bold text-lg truncate mb-2" x-text="note.title"></h3>
                             <p class="text-xs text-gray-500 mb-2 pl-1"><span x-text="formatDate(note.updatedAt)"></span></p>
-                            <p class="text-sm text-gray-700 line-clamp-3" x-text="getNotePreview(note.content)"></p>
+                            <p class="text-sm text-gray-700 line-clamp-3 truncate" x-text="getNotePreview(note.content)"></p>
                             <template x-if="note.reminder">
                                 <p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
                             </template>
@@ -101,7 +101,7 @@
         <!-- Note Editor View -->
         <template x-if="editingNoteId !== null">
             <div class="bg-white rounded-lg shadow-md p-4">
-                <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Edit Note' : 'Create New Note'"></h2>
+                <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
                 <div class="mb-4">
                     <label for="note-title" class="block text-sm font-medium text-gray-700">Title</label>
                     <input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Note Title" />
@@ -178,7 +178,7 @@
          class="fixed inset-0 z-50 w-full h-full bg-gray-900 bg-opacity-50 flex items-center justify-center"
          style="display: none;"
     >
-        <div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-8 rounded-lg shadow-xl overflow-y-auto bg-white backdrop:bg-transparent"
+        <div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-6 rounded-lg shadow-xl overflow-y-auto bg-white backdrop:bg-transparent"
              @click.away="settingsDialogIsOpen = false"
              x-transition:enter="ease-out duration-300"
              x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"

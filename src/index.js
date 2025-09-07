@@ -254,17 +254,21 @@ document.addEventListener('alpine:init', () => {
     const getNoteDB = async (id) => {
         const db = await initDB();
         return new Promise((resolve, reject) => {
-            const transaction = db.transaction([NOTE_STORE], 'readonly');
-            const store = transaction.objectStore(NOTE_STORE);
-            const request = store.get(id);
+            try {
+                const transaction = db.transaction([NOTE_STORE], 'readonly');
+                const store = transaction.objectStore(NOTE_STORE);
+                const request = store.get(id);
 
-            request.onsuccess = () => {
-                resolve(request.result);
-            };
-            request.onerror = (event) => {
-                console.error('Error fetching note from DB:', event.target.error);
-                reject('Error fetching note');
-            };
+                request.onsuccess = () => {
+                    resolve(request.result);
+                };
+                request.onerror = (event) => {
+                    console.error('Error fetching note from DB:', event.target.error);
+                    reject('Error fetching note');
+                };
+            } catch (ex) {
+                reject(ex);
+            }
         });
     };
 
@@ -376,7 +380,7 @@ document.addEventListener('alpine:init', () => {
         noteEditorTitle: '',
         noteEditorContent: '',
         noteEditorReminder: '',
-        easyMDE: null,
+
 
         // --- Main App Init ---
         init() {
@@ -413,6 +417,7 @@ document.addEventListener('alpine:init', () => {
 
             // Note Manager Init
             this.fetchNotes();
+            this.syncNotes(true);
             this.syncIntervalId = setInterval(() => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
@@ -422,6 +427,10 @@ document.addEventListener('alpine:init', () => {
                     clearInterval(this.syncIntervalId);
                 }
             });
+
+            if (window.location.hash === '#new_note') {
+                this.createNewNote();
+            }
         },
 
         // --- App Methods ---
@@ -542,6 +551,7 @@ document.addEventListener('alpine:init', () => {
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote); // Add to the beginning
                 this.showToast({ title: 'Note Added', description: 'New note created.' });
+                await this.syncNotes(true);
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
@@ -559,6 +569,7 @@ document.addEventListener('alpine:init', () => {
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
+                await this.syncNotes(true);
             } catch (error) {
                 console.error('Error in updateNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
@@ -571,6 +582,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                await this.syncNotes(true);
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
@@ -710,31 +722,67 @@ document.addEventListener('alpine:init', () => {
         },
 
         async processSharedContent() {
-            try {
-                const sharedItems = await getSharedContentDB();
-                if (sharedItems.length > 0) {
-                    for (const item of sharedItems) {
-                        await this.addNote('Shared Note', item.content);
+            await navigator.locks.request('shared-content-lock', async lock => {
+                try {
+                    const sharedItems = await getSharedContentDB();
+                    if (sharedItems.length > 0) {
+                        for (const item of sharedItems) {
+                            await this.addNote('Share ' + new Date().toString().substr(0, 21), item.content);
+                        }
+                        await clearSharedContentDB();
+                        await this.fetchNotes();
+                        this.showToast({
+                            title: 'Content Imported',
+                            description: `${sharedItems.length} item(s) have been added to your notes.`,
+                        });
                     }
-                    await clearSharedContentDB();
-                    await this.fetchNotes();
-                    this.showToast({
-                        title: 'Content Imported',
-                        description: `${sharedItems.length} item(s) have been added to your notes.`,
-                    });
+                } catch (error) {
+                    console.error('Failed to process shared content', error);
+                    this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
                 }
-            } catch (error) {
-                console.error('Failed to process shared content', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
-            }
+            });
+        },
+
+        prepareEasyMDE(id) {
+            this.$nextTick(() => {
+                window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
+                    element: document.getElementById('note-content'),
+                    unorderedListStyle: "-",
+                    lineNumbers: true,
+                    spellChecker: false,
+                    nativeSpellcheck: false,
+                    autosave: {
+                        enabled: true,
+                        uniqueId: id,
+                        delay: 1000,
+                        submit_delay: 5000,
+                        timeFormat: {
+                            locale: 'en-US',
+                            format: {
+                                year: 'numeric',
+                                month: 'long',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            },
+                        },
+                        text: "Autosaved: "
+                    },
+                    forceSync: true,
+                    previewImagesInEditor: true,
+                });
+            });
         },
 
         createNewNote() {
             this.editingNoteId = 'new';
             this.noteEditorNoteId = null;
-            this.noteEditorTitle = 'Note for ' + new Date().toString().substr(0, 24);
+            this.noteEditorTitle = 'Note at ' + new Date().toString().substr(0, 21);
             this.noteEditorContent = '';
             this.noteEditorReminder = '';
+
+            this.prepareEasyMDE(this.editingNoteId);
+            window.location.hash = '#new_note';
         },
 
         async editNote(id) {
@@ -744,7 +792,7 @@ document.addEventListener('alpine:init', () => {
 
         // --- Note Editor Methods (moved from noteEditor component) ---
         async loadNoteIntoEditor(id) {
-            this.noteEditorNoteId = id; 
+            this.noteEditorNoteId = id;
             if (!this.noteEditorNoteId) return;
             const note = await this.getNote(this.noteEditorNoteId);
             if (note) {
@@ -756,16 +804,7 @@ document.addEventListener('alpine:init', () => {
                 this.editingNoteId = null;
             }
 
-            this.easyMDE = this.easyMDE || new EasyMDE({
-                element: document.getElementById('note-content'),
-                unorderedListStyle: "-",
-                lineNumbers: true,
-                spellChecker: false,
-                nativeSpellcheck: false,
-                autosave: true,
-                forceSync: true,
-                previewImagesInEditor: true,
-            });
+            this.prepareEasyMDE(id);
         },
 
         async saveNote() {
@@ -776,7 +815,7 @@ document.addEventListener('alpine:init', () => {
 
             const noteData = {
                 title: this.noteEditorTitle,
-                content: this.easyMDE?.value() || this.noteEditorContent,
+                content: window.easyMDEInstance?.value() || this.noteEditorContent,
                 reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
             };
 
@@ -788,14 +827,16 @@ document.addEventListener('alpine:init', () => {
                     this.noteEditorNoteId = newNote.id;
                 }
             }
-            this.editingNoteId = null;
 
-            this.easyMDE?.toTextArea?.();
-            this.easyMDE = null;
+            this.cancelEdit();
         },
 
         cancelEdit() {
+            window.easyMDEInstance?.toTextArea?.();
+            window.easyMDEInstance = null;
+
             this.editingNoteId = null;
+            window.location.hash = '';
         },
 
         // --- Settings Dialog Data & Methods (moved from settingsDialog component) ---
@@ -881,9 +922,10 @@ document.addEventListener('alpine:init', () => {
             const encryptedSettings = await encryptSettings(settingsToStore, this.userId);
             localStorage.setItem(key, encryptedSettings);
             localStorage.setItem('s3Configured', 'true');
-            
+
             this.showToast({ title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
             // this.settingsDialogIsOpen = false;
+            await this.syncNotes(true);
         },
 
         async handleSync() {
@@ -923,7 +965,7 @@ document.addEventListener('alpine:init', () => {
                     await this.loadSettingsFromStorage();
                     this.importString = '';
                     this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
-                    this.settingsDialogIsOpen = false;
+                    await this.syncNotes(true);
                     this.showImportModal = false; // Close the modal after successful import
                 } else {
                     throw new Error('Invalid or incomplete settings data.');

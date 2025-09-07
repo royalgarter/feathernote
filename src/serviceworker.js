@@ -9,7 +9,15 @@ const urlsToCache = [
   '/index.html',
   '/index.js',
   '/manifest.json',
-  // Add other important assets to cache here
+  '/favicon.ico',
+  '/favicon.png',
+  '/icons/icons.json',
+  'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
+  'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2',
+  'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
+  'https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css',
+  'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css',
+  'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js'
 ];
 
 self.addEventListener('install', (event) => {
