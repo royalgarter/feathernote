@@ -120,12 +120,14 @@ const listNotesInS3 = async (creds) => {
 
     try {
         const response = await s3Client.send(command);
-        const noteIds = response.Contents?.map(item => {
-            if (!item.Key) return null;
-            if (item.Key.endsWith('/')) return null; 
-            return item.Key.replace(prefix, '').replace('.json', '');
-        }).filter(id => !!id); 
-        return noteIds || [];
+        const noteMetadata = response.Contents?.map(item => {
+            if (!item.Key || item.Key.endsWith('/')) return null;
+            return {
+                id: item.Key.replace(prefix, '').replace('.json', ''),
+                lastModified: item.LastModified // S3's LastModified timestamp
+            };
+        }).filter(item => !!item) || [];
+        return noteMetadata;
     } catch (error) {
         console.error("S3 List Error:", error);
         if (error instanceof Error) {
@@ -170,9 +172,7 @@ const deleteNoteFromS3 = async (noteId, creds) => {
     try {
         const response = await s3Client.send(command);
 
-        if (response.ok) {
-            console.log(`S3 Deleted note ${noteId}:`, await response.json());
-        }
+        console.log(`S3 Deleted note ${noteId}:`, response);
 
         return response;
     } catch (error) {
@@ -215,7 +215,8 @@ app.post('/api/sync-notes', async (req, res) => {
         }
 
         const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
-        const remoteNoteIds = await listNotesInS3(credentials);
+        const remoteNoteMetadata = await listNotesInS3(credentials);
+        const remoteNoteIdsSet = new Set(remoteNoteMetadata.map(item => item.id)); // For client-side deletion check
         
         let uploadedCount = 0;
         let downloadedCount = 0;
@@ -237,15 +238,21 @@ app.post('/api/sync-notes', async (req, res) => {
         }
 
         // Download remote notes that are new or updated
-        for (const noteId of remoteNoteIds) {
+        for (const remoteMeta of remoteNoteMetadata) {
+            const noteId = remoteMeta.id;
+            const s3LastModified = new Date(remoteMeta.lastModified); // Convert to Date object
+
             if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
                 continue; // Skip notes that were just deleted
             }
-            const localNote = localNotesMap.get(noteId);
-            const remoteNote = await downloadNoteFromS3(noteId, credentials);
-            if (remoteNote) {
-                if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-                    if (!lastSync || new Date(remoteNote.updatedAt) > new Date(lastSync)) {
+
+            // Only download if the S3 object is newer than the client's last sync
+            if (!lastSync || s3LastModified > new Date(lastSync)) {
+                const localNote = localNotesMap.get(noteId);
+                const remoteNote = await downloadNoteFromS3(noteId, credentials);
+                if (remoteNote) {
+                    // Also check the note's internal updatedAt, in case S3 LastModified is not perfectly aligned
+                    if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
                         updatedNotes.push(remoteNote);
                         downloadedCount++;
                     }
@@ -253,7 +260,7 @@ app.post('/api/sync-notes', async (req, res) => {
             }
         }
 
-        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds });
+        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds: Array.from(remoteNoteIdsSet) });
 
     } catch (error) {
         console.error('Server-side sync error:', error);
