@@ -1036,7 +1036,7 @@ document.addEventListener('alpine:init', () => {
                 const syncTime = new Date().toISOString();
                 let localNotes = notes || await getNotesDB();
 
-                if (this.lastSync) {
+                if (!notes?.length && this.lastSync) {
                     localNotes = localNotes.filter(note => new Date(note.updatedAt) > new Date(this.lastSync));
                 }
 
@@ -1328,7 +1328,7 @@ document.addEventListener('alpine:init', () => {
 
         async handleSync() {
             this.isManualSyncing = true;
-            this.syncNotes(false);
+            await this.syncNotes(false);
             this.isManualSyncing = false;
         },
 
