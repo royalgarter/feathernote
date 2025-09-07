@@ -493,7 +493,7 @@ document.addEventListener('alpine:init', () => {
             return new Date(isoString).toLocaleString();
         },
         getNotePreview(content) {
-            return content ? `${content.substring(0, 100)}...` : 'No content preview';
+            return content ? `${content.substring(0, 200)}...` : 'No content preview';
         },
 
         showToast({ title, description, variant = 'default', duration = 3000 }) {
