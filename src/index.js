@@ -1097,7 +1097,7 @@ document.addEventListener('alpine:init', () => {
 
         async handleSync() {
             this.isManualSyncing = true;
-            await this.syncNotes(false);
+            this.syncNotes(false);
             this.isManualSyncing = false;
         },
 

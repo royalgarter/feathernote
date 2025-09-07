@@ -62,8 +62,6 @@ async function decryptSettings(encryptedString, userId) {
         credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
         credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
-        console.dir(credentials);
-
         return credentials;
     } catch (error) {
         console.error('Server-side decryption failed:', error);
