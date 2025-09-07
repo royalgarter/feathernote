@@ -69,3 +69,34 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
 4.  Click "Save Credentials".
 
 Your notes will now automatically sync every 2 minutes, and you can trigger a manual sync at any time.
+
+## Deployment
+
+FeatherNote is designed to be deployed as a static web application, with all client-side logic residing in the `src/` directory.
+
+### Normal NodeJS / Deno Hosting
+
+If you wish to utilize the full functionality of FeatherNote, including the PWA Share Target feature, you can deploy the application using a Node.js or Deno environment. The `server.js` file provides the necessary backend routes.
+
+To deploy:
+
+1.  Ensure you have Node.js (or Deno) installed.
+2.  Install dependencies: `npm install` (for Node.js).
+3.  Start the server: `npm start` (for Node.js) or `deno run --allow-net --allow-read server.js` (for Deno, if compatible).
+4.  Configure your hosting environment to run `server.js` and serve the static files from the `src/` directory.
+
+### Static Site Hosting
+
+You can deploy FeatherNote to any static site hosting service (e.g., GitHub Pages, Netlify, Vercel, AWS S3 + CloudFront) by simply serving the contents of the `src/` directory.
+
+**Important Note on Share Target (`/_share-target` route):**
+
+The PWA Share Target feature, which allows other applications to share content directly with FeatherNote, relies on a server-side route (`/_share-target`) to process incoming shared data. When deploying FeatherNote as a purely static site, this server-side route will **not** function.
+
+If the Share Target feature is critical for your use case, you have a few options:
+
+1.  **Node.js Server (as provided):** Deploy the `server.js` file alongside your static assets to a platform that supports Node.js (e.g., Heroku, AWS Elastic Beanstalk, Google App Engine). This ensures the `/_share-target` route is active.
+2.  **Serverless Function:** Implement the logic of the `/_share-target` route as a serverless function (e.g., AWS Lambda, Google Cloud Functions, Azure Functions) and configure your static site to proxy requests to this function.
+3.  **Client-Side Only Share Target (Advanced):** For very specific scenarios, you might be able to handle some share target functionality purely client-side using the `navigator.share` API, but this is generally more limited and complex than a server-side approach.
+
+For most users who primarily use FeatherNote for personal note-taking and S3 sync, deploying as a static site is sufficient, and the absence of the `/_share-target` route will not impact core functionality.
