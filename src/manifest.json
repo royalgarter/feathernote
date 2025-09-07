@@ -29,8 +29,17 @@
   "shortcuts": [
     {
       "name": "New Note",
+      "short_name": "New",
+      "description": "Create a new note",
       "url": "/#new_note",
-      "description": "Create new note"
+      "icons": [{ "src": "/icons/ios/192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Search Notes",
+      "short_name": "Search",
+      "description": "Search through your notes",
+      "url": "/#search",
+      "icons": [{ "src": "/icons/ios/192.png", "sizes": "192x192" }]
     }
   ],
   "edge_side_panel": {

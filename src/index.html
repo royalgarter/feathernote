@@ -65,7 +65,7 @@
     <main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 w-full">
         <div class="flex justify-between items-center mb-4 px-4 gap-4">
             <div class="relative w-full max-w-xs">
-                <input type="text" x-model="searchTag" @input.debounce.300ms="filteredNotes" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
+                <input type="text" id="searchInput" x-model="searchTag" @input.debounce.300ms="filteredNotes" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
             </div>
             <button @click="createNewNote()" class="cursor-pointer font-bold px-4 py-2 w-28 rounded-md bg-green-600 text-white hover:bg-green-700">
                 + Note
@@ -217,6 +217,23 @@
                 <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 px-4 py-3 rounded relative" role="alert">
                     <strong class="font-bold">Security Note:</strong>
                     <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
+                </div>
+
+                <!-- Notification Settings -->
+                <div class="border-t pt-4 mt-4">
+                    <h4 class="text-md font-semibold mb-2">Notifications</h4>
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm text-gray-600">Enable reminders for your notes.</p>
+                        <button @click="togglePushNotifications()" 
+                                :class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
+                                class="relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+                            <span :class="{ 'translate-x-6': notificationsEnabled, 'translate-x-1': !notificationsEnabled }"
+                                  class="inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+                        </button>
+                    </div>
+                    <p x-show="notificationPermissionStatus !== 'granted' && notificationPermissionStatus !== 'default'" class="text-xs text-red-500 mt-2">
+                        Notification permission is <span x-text="notificationPermissionStatus"></span>. Please enable it in your browser settings.
+                    </p>
                 </div>
 
                 <fieldset :disabled="!isSyncConfigured" class="grid gap-2">

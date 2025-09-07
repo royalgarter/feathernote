@@ -399,6 +399,11 @@ document.addEventListener('alpine:init', () => {
         noteEditorTags: '',
         noteEditorReminder: '',
 
+        // --- Notification Data ---
+        notificationsEnabled: false,
+        notificationPermissionStatus: 'default',
+        scheduledNotifications: {},
+
         get filteredNotes() {
             if (!this.searchTag.trim()) {
                 return this.notes;
@@ -426,6 +431,9 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(() => {
                 this.processSharedContent();
             });
+
+            // Notifications Init
+            this.initNotifications();
 
             // Register Service Worker
             if ('serviceWorker' in navigator) {
@@ -460,6 +468,8 @@ document.addEventListener('alpine:init', () => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
 
+            this.$watch('notes', () => this.updateAppBadge());
+
             this.$watch('$el', (el) => {
                 if (!el) {
                     clearInterval(this.syncIntervalId);
@@ -468,6 +478,8 @@ document.addEventListener('alpine:init', () => {
 
             if (window.location.hash === '#new_note') {
                 this.createNewNote();
+            } else if (window.location.hash === '#search') {
+                this.$nextTick(() => document.getElementById('searchInput')?.focus());
             }
         },
 
@@ -561,12 +573,95 @@ document.addEventListener('alpine:init', () => {
             this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
         },
 
+        
+
+        // --- Notification Methods (Local) ---
+        initNotifications() {
+            if (!('Notification' in window) || !navigator.serviceWorker) {
+                console.warn('Notifications API not supported.');
+                return;
+            }
+            this.notificationPermissionStatus = Notification.permission;
+            this.notificationsEnabled = this.notificationPermissionStatus === 'granted';
+        },
+
+        async togglePushNotifications() { // Name kept for consistency in UI
+            if (this.notificationPermissionStatus !== 'granted') {
+                this.notificationPermissionStatus = await Notification.requestPermission();
+                this.notificationsEnabled = this.notificationPermissionStatus === 'granted';
+                if (this.notificationsEnabled) {
+                    this.showToast({ title: 'Notifications Enabled', description: 'You can now set reminders on notes.' });
+                    this.scheduleAllFutureReminders();
+                } else {
+                    this.showToast({ variant: 'destructive', title: 'Notifications Disabled', description: 'Permission was not granted.' });
+                }
+            } else {
+                this.showToast({ title: 'Permissions', description: 'To disable notifications, manage permissions in your browser settings.' });
+            }
+        },
+        
+        scheduleNotification(note) {
+            this.cancelNotification(note.id);
+
+            if (!note.reminder || this.notificationPermissionStatus !== 'granted') {
+                return;
+            }
+
+            const reminderTime = new Date(note.reminder).getTime();
+            const now = new Date().getTime();
+            const delay = reminderTime - now;
+
+            if (delay > 0) {
+                const timeoutId = setTimeout(() => {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification(note.title, {
+                            body: note.content.substring(0, 100),
+                            icon: '/favicon.png',
+                            badge: '/favicon.png',
+                            data: { url: `/#note/${note.id}` }
+                        });
+                    });
+                }, delay);
+
+                this.scheduledNotifications[note.id] = timeoutId;
+                console.log(`Reminder scheduled for note ${note.id} in ${delay}ms`);
+            }
+        },
+
+        cancelNotification(noteId) {
+            if (this.scheduledNotifications[noteId]) {
+                clearTimeout(this.scheduledNotifications[noteId]);
+                delete this.scheduledNotifications[noteId];
+                console.log(`Cancelled reminder for note ${noteId}`);
+            }
+        },
+
+        scheduleAllFutureReminders() {
+            if (this.notificationPermissionStatus !== 'granted') return;
+            this.notes.forEach(note => this.scheduleNotification(note));
+        },
+
+        // --- App Badging Methods ---
+        async updateAppBadge() {
+            if ('setAppBadge' in navigator) {
+                const reminderNotesCount = this.notes.filter(note => !!note.reminder).length;
+                if (reminderNotesCount > 0) {
+                    await navigator.setAppBadge(reminderNotesCount);
+                    console.log(`App badge set to ${reminderNotesCount}`);
+                } else {
+                    await navigator.clearAppBadge();
+                    console.log('App badge cleared.');
+                }
+            }
+        },
+
         // --- Note Manager Methods ---
         async fetchNotes() {
             this.loading = true;
             try {
                 const notesFromDB = await getNotesDB();
                 this.notes = notesFromDB;
+                this.scheduleAllFutureReminders();
             } catch (error) {
                 console.error('Error in fetchNotes:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not load notes.' });
@@ -588,7 +683,8 @@ document.addEventListener('alpine:init', () => {
                     tags: tags || [],
                 };
                 await addNoteDB(newNote);
-                this.notes.unshift(newNote); // Add to the beginning
+                this.notes.unshift(newNote);
+                this.scheduleNotification(newNote);
                 this.showToast({ title: 'Note Added', description: 'New note created.' });
                 this.syncNotes();
                 return newNote;
@@ -607,6 +703,7 @@ document.addEventListener('alpine:init', () => {
                 const updatedNote = { ...noteToUpdate, ...updates, updatedAt: new Date().toISOString() };
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
+                this.scheduleNotification(updatedNote);
                 this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
                 this.syncNotes();
             } catch (error) {
@@ -617,6 +714,7 @@ document.addEventListener('alpine:init', () => {
 
         async deleteNote(id) {
             try {
+                this.cancelNotification(id);
                 await deleteNoteDB(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
