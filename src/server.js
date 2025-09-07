@@ -62,6 +62,8 @@ async function decryptSettings(encryptedString, userId) {
         credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
         credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
+        console.dir(credentials);
+
         return credentials;
     } catch (error) {
         console.error('Server-side decryption failed:', error);
@@ -184,6 +186,19 @@ const deleteNoteFromS3 = async (noteId, creds) => {
     }
 };
 
+// Route for the main application page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Handle shared content from PWA
+app.post('/_share-target', upload.none(), (req, res) => {
+    // The service worker will handle this, but we have a server-side route as a fallback.
+    // In a real app, you might save this to a temporary session or user-specific store.
+    console.log('Shared content received on server:', req.body);
+    res.redirect('/');
+});
+
 // --- API Endpoints ---
 app.post('/api/sync-notes', async (req, res) => {
     let { encryptedSettings, userId, localNotes, deletedNoteIds, lastSync } = req.body;
@@ -250,19 +265,6 @@ app.post('/api/sync-notes', async (req, res) => {
         }
         res.status(500).json({ error: errorMessage });
     }
-});
-
-// Route for the main application page
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Handle shared content from PWA
-app.post('/_share-target', upload.none(), (req, res) => {
-    // The service worker will handle this, but we have a server-side route as a fallback.
-    // In a real app, you might save this to a temporary session or user-specific store.
-    console.log('Shared content received on server:', req.body);
-    res.redirect('/');
 });
 
 app.post('/api/delete-note', async (req, res) => {
