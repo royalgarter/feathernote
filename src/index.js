@@ -192,7 +192,7 @@ document.addEventListener('alpine:init', () => {
 
     // IndexedDB Functions
     const DB_NAME = 'FeatherNoteDB';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     const NOTE_STORE = 'notes';
     const SHARED_CONTENT_STORE = 'shared-content';
 
@@ -228,6 +228,22 @@ document.addEventListener('alpine:init', () => {
                 if (!db.objectStoreNames.contains(SHARED_CONTENT_STORE)) {
                     db.createObjectStore(SHARED_CONTENT_STORE, { keyPath: 'id', autoIncrement: true });
                     console.log(`Object store '${SHARED_CONTENT_STORE}' created.`);
+                }
+
+                if (event.oldVersion < 2) {
+                    const transaction = event.target.transaction;
+                    const noteStore = transaction.objectStore(NOTE_STORE);
+                    noteStore.openCursor().onsuccess = (e) => {
+                        const cursor = e.target.result;
+                        if (cursor) {
+                            const note = cursor.value;
+                            if (!note.tags) {
+                                note.tags = [];
+                            }
+                            cursor.update(note);
+                            cursor.continue();
+                        }
+                    };
                 }
             };
         });
@@ -369,6 +385,7 @@ document.addEventListener('alpine:init', () => {
 
         // --- Note Manager Data ---
         notes: [],
+        searchTag: '',
         loading: true,
         isSyncing: false,
         syncIntervalId: null,
@@ -379,7 +396,28 @@ document.addEventListener('alpine:init', () => {
         noteEditorNoteId: null,
         noteEditorTitle: '',
         noteEditorContent: '',
+        noteEditorTags: '',
         noteEditorReminder: '',
+
+        get filteredNotes() {
+            if (!this.searchTag.trim()) {
+                return this.notes;
+            }
+            const searchTagLower = this.searchTag.toLowerCase();
+
+            return this.notes.filter(note => {
+                const tagMatch = note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTagLower));
+                if (tagMatch) return tagMatch;
+
+                const titleMatch = note.title.toLowerCase().includes(searchTagLower);
+                if (titleMatch) return titleMatch;
+
+                const contentMatch = note.content.toLowerCase().includes(searchTagLower);
+                if (contentMatch) return contentMatch;
+
+                return titleMatch || tagMatch || contentMatch;
+            });
+        },
 
 
         // --- Main App Init ---
@@ -537,7 +575,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        async addNote(title, content, reminder) {
+        async addNote(title, content, reminder, tags) {
             try {
                 const now = new Date().toISOString();
                 const newNote = {
@@ -547,11 +585,12 @@ document.addEventListener('alpine:init', () => {
                     createdAt: now,
                     updatedAt: now,
                     reminder: reminder || undefined,
+                    tags: tags || [],
                 };
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote); // Add to the beginning
                 this.showToast({ title: 'Note Added', description: 'New note created.' });
-                await this.syncNotes(true);
+                this.syncNotes(true);
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
@@ -569,7 +608,7 @@ document.addEventListener('alpine:init', () => {
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
-                await this.syncNotes(true);
+                this.syncNotes(true);
             } catch (error) {
                 console.error('Error in updateNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
@@ -582,7 +621,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
-                await this.syncNotes(true);
+                this.syncNotes(true);
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
@@ -780,6 +819,7 @@ document.addEventListener('alpine:init', () => {
             this.noteEditorTitle = 'Note at ' + new Date().toString().substr(0, 21);
             this.noteEditorContent = '';
             this.noteEditorReminder = '';
+            this.noteEditorTags = '';
 
             this.prepareEasyMDE(this.editingNoteId);
             window.location.hash = '#new_note';
@@ -799,6 +839,7 @@ document.addEventListener('alpine:init', () => {
                 this.noteEditorTitle = note.title;
                 this.noteEditorContent = note.content;
                 this.noteEditorReminder = note.reminder || '';
+                this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
             } else {
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Note not found.' });
                 this.editingNoteId = null;
@@ -813,16 +854,19 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
+            const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+
             const noteData = {
                 title: this.noteEditorTitle,
                 content: window.easyMDEInstance?.value() || this.noteEditorContent,
                 reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
+                tags: tags,
             };
 
             if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
                 await this.updateNote(this.noteEditorNoteId, noteData);
             } else {
-                const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder);
+                const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags);
                 if (newNote) {
                     this.noteEditorNoteId = newNote.id;
                 }
@@ -925,7 +969,7 @@ document.addEventListener('alpine:init', () => {
 
             this.showToast({ title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
             // this.settingsDialogIsOpen = false;
-            await this.syncNotes(true);
+            this.syncNotes(true);
         },
 
         async handleSync() {
@@ -965,7 +1009,7 @@ document.addEventListener('alpine:init', () => {
                     await this.loadSettingsFromStorage();
                     this.importString = '';
                     this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
-                    await this.syncNotes(true);
+                    this.syncNotes(true);
                     this.showImportModal = false; // Close the modal after successful import
                 } else {
                     throw new Error('Invalid or incomplete settings data.');

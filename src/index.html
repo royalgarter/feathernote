@@ -63,17 +63,19 @@
 
     <!-- AppShellContent -->
     <main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 w-full">
-        <div class="flex justify-end mb-4 px-4">
-            <button @click="createNewNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus inline-block mr-1"><path d="M12 5v14M5 12h14"/></svg>
-                New Note
+        <div class="flex justify-between items-center mb-4 px-4 gap-4">
+            <div class="relative w-full max-w-xs">
+                <input type="text" x-model="searchTag" @input.debounce.300ms="filteredNotes" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
+            </div>
+            <button @click="createNewNote()" class="cursor-pointer font-bold px-4 py-2 w-28 rounded-md bg-green-600 text-white hover:bg-green-700">
+                + Note
             </button>
         </div>
 
         <!-- Notes List View -->
         <template x-if="editingNoteId === null">
             <div class="px-4 py-6 sm:px-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <template x-for="note in notes" :key="note.id">
+                <template x-for="note in filteredNotes" :key="note.id">
                     <div class="flex flex-col justify-between transition-shadow hover:shadow-lg cursor-pointer h-full bg-white rounded-lg shadow-md p-4">
                         <div class="flex-grow" @click="editNote(note.id)">
                             <h3 class="font-bold text-lg truncate mb-2" x-text="note.title"></h3>
@@ -82,6 +84,13 @@
                             <template x-if="note.reminder">
                                 <p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
                             </template>
+                        </div>
+                        <div class="mt-4">
+                            <div class="flex flex-wrap gap-1">
+                                <template x-for="tag in note.tags" :key="tag">
+                                    <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
+                                </template>
+                            </div>
                         </div>
                         <div class="flex justify-end items-center gap-2 mt-4">
                             <button class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
@@ -109,6 +118,10 @@
                 <div class="mb-4">
                     <label for="note-content" class="block text-sm font-medium text-gray-700">Content</label>
                     <textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="The palest ink is better than the best memory"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
+                    <input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="e.g. work, personal, ideas" />
                 </div>
                 <div class="mb-4">
                     <label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
