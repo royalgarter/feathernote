@@ -953,12 +953,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         createNewNote() {
-            this.editingNoteId = 'new';
+            this.editingNoteId = new Date().toString().substr(0, 18);
             this.noteEditorNoteId = null;
-            this.noteEditorTitle = 'Note at ' + new Date().toString().substr(0, 21);
+            this.noteEditorTitle = '';
             this.noteEditorContent = '';
             this.noteEditorReminder = '';
             this.noteEditorTags = '';
+
+            this.$nextTick(() => document.getElementById('note-title').setAttribute('placeholder', 'Note at ' + new Date().toString().substr(0, 21)));
 
             this.prepareEasyMDE(this.editingNoteId);
             window.location.hash = '#new_note';
@@ -988,15 +990,16 @@ document.addEventListener('alpine:init', () => {
         },
 
         async saveNote() {
-            if (!this.noteEditorTitle.trim()) {
-                this.showToast({ variant: 'destructive', title: 'Validation Error', description: 'Note title cannot be empty.' });
-                return;
+            let finalTitle = this.noteEditorTitle.trim();
+            if (!finalTitle) {
+                // If title is empty or just whitespace, use a default title
+                finalTitle = 'Note at ' + new Date().toString().substr(0, 21); // Use a more readable format
             }
 
             const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
 
             const noteData = {
-                title: this.noteEditorTitle,
+                title: finalTitle,
                 content: window.easyMDEInstance?.value() || this.noteEditorContent,
                 reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
                 tags: tags,
