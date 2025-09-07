@@ -1,11 +1,11 @@
 {
   "name": "FeatherNote",
   "short_name": "FeatherNote",
-  "description": "A minimalist note-taking app with offline support and sync.",
+  "description": "Lightweight offline-first PWA Note with Markdown, S3 Sync, Share Target API",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#A0D2EB",
-  "theme_color": "#A0D2EB",
+  "theme_color": "#AC47FF",
   "share_target": {
     "action": "/_share-target",
     "method": "POST",
@@ -18,16 +18,24 @@
   },
   "icons": [
     {
-      "src": "https://placehold.co/192x192/A0D2EB/FFFFFF?text=FN",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "https://placehold.co/512x512/A0D2EB/FFFFFF?text=FN",
+      "src": "/icons/ios/512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
   ],
+  "note_taking": {
+    "new_note_url": "/#new_note"
+  },
+  "shortcuts": [
+    {
+      "name": "New Note",
+      "url": "/#new_note",
+      "description": "Create new note"
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "categories": [
     "personalization",
     "productivity",
