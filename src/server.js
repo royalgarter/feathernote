@@ -55,7 +55,14 @@ async function decryptSettings(encryptedString, userId) {
         let decrypted = decipher.update(ciphertext, 'binary', 'utf8');
         decrypted += decipher.final('utf8');
 
-        return JSON.parse(decrypted);
+        let credentials = JSON.parse(decrypted);
+
+        credentials.region = credentials.region || credentials.s3Region;
+        credentials.bucket = credentials.bucket || credentials.s3Bucket;
+        credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
+        credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
+
+        return credentials;
     } catch (error) {
         console.error('Server-side decryption failed:', error);
         return null;
@@ -160,8 +167,15 @@ const deleteNoteFromS3 = async (noteId, creds) => {
         Key: key,
     });
 
+    console.dir({deleteNoteFromS3: key, command})
+
     try {
         const response = await s3Client.send(command);
+
+        if (response.ok) {
+            console.log(`S3 Deleted note ${noteId}:`, await response.json());
+        }
+
         return response;
     } catch (error) {
         console.error(`S3 Delete Error for note ${noteId}:`, error);
@@ -185,10 +199,7 @@ app.post('/api/sync-notes', async (req, res) => {
     try {
         const credentials = await decryptSettings(encryptedSettings, userId);
 
-        credentials.region = credentials.region || credentials.s3Region;
-        credentials.bucket = credentials.bucket || credentials.s3Bucket;
-        credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
-        credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
+
 
         if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
             return res.status(400).json({ error: 'Invalid or incomplete S3 credentials.' });
@@ -260,7 +271,9 @@ app.post('/_share-target', upload.none(), (req, res) => {
 });
 
 app.post('/api/delete-note', async (req, res) => {
-    const { encryptedSettings, userId, noteId } = req.body;
+    let { encryptedSettings, userId, noteId } = req.body;
+
+    userId = userId || 'null'; // Debug for localhost
 
     if (!encryptedSettings || !userId || !noteId) {
         return res.status(400).json({ error: 'Missing required parameters.' });

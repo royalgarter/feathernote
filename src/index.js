@@ -496,7 +496,7 @@ document.addEventListener('alpine:init', () => {
             const newToast = { id, title, description, variant, show: true };
             this.toasts.push(newToast);
 
-            console.log('toast', title + ':',description);
+            console.log(description);
 
             setTimeout(() => {
                 this.dismissToast(id);
@@ -650,7 +650,7 @@ document.addEventListener('alpine:init', () => {
                     console.log(`App badge set to ${reminderNotesCount}`);
                 } else {
                     await navigator.clearAppBadge();
-                    console.log('App badge cleared.');
+                    // console.log('App badge cleared.');
                 }
             }
         },
@@ -686,7 +686,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes.unshift(newNote);
                 this.scheduleNotification(newNote);
                 this.showToast({ title: 'Note Added', description: 'New note created.' });
-                this.syncNotes();
+                this.syncNotes(false, 1, [newNote]);
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
@@ -705,7 +705,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.scheduleNotification(updatedNote);
                 this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
-                this.syncNotes();
+                this.syncNotes(false, 1, [updatedNote]);
             } catch (error) {
                 console.error('Error in updateNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
@@ -716,11 +716,10 @@ document.addEventListener('alpine:init', () => {
             try {
                 this.cancelNotification(id);
                 await deleteNoteDB(id);
+                await this.deleteNoteFromS3(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
-                this.deleteNoteFromS3(id);
-                this.syncNotes();
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
@@ -731,7 +730,7 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if (!isS3Configured || !userId) {
+            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
                 this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
                 return;
             }
@@ -756,6 +755,8 @@ document.addEventListener('alpine:init', () => {
 
                 const result = await response.json();
 
+                console.dir({deleteNoteFromS3: result})
+
                 if (response.ok) {
                     this.showToast({ title: 'Note Deleted from S3', description: `Note ${noteId} has been deleted from S3.` });
                 } else {
@@ -778,7 +779,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        async syncNotes(isSilent = false) {
+        async syncNotes(isSilent = false, iterator = 0, notes = null) {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
@@ -789,12 +790,21 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
+            if (this.isSyncing) {
+                iterator++;
+                // setTimeout(() => this.syncNotes(true, iterator, notes), 5e3 * iterator);
+                return;
+            }
+
             this.isSyncing = true;
             try {
                 const encryptedSettings = localStorage.getItem(`feathernote-settings-${userId}`);
                 if (!encryptedSettings) {
                     throw new Error('S3 credentials not found in local storage.');
                 }
+
+                let localNotes = notes || await getNotesDB();
+                localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
 
                 const response = await fetch('/api/sync-notes', {
                     method: 'POST',
@@ -804,7 +814,7 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify({
                         encryptedSettings,
                         userId,
-                        localNotes: await getNotesDB(), // Send all local notes for comparison
+                        localNotes: localNotes,
                         deletedNoteIds: this.deletedNoteIds,
                     }),
                 });
@@ -829,7 +839,6 @@ document.addEventListener('alpine:init', () => {
                             description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}.`,
                         });
                     }
-
                 } else {
                     throw new Error(result.error || 'Server responded with an error.');
                 }

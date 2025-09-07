@@ -30,7 +30,16 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method === 'POST' && event.request.url.endsWith('/_share-target')) {
+  const url = new URL(event.request.url);
+
+  // Bypass caching for API requests.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Handle the share target separately.
+  if (event.request.method === 'POST' && url.pathname.endsWith('/_share-target')) {
     event.respondWith(
       (async () => {
         const formData = await event.request.formData();
@@ -47,13 +56,22 @@ self.addEventListener('fetch', (event) => {
       })()
     );
   } else {
+    // For all other requests, use the network-first strategy.
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          // Only cache successful GET requests with http/https schemes.
+          if (
+            networkResponse &&
+            networkResponse.status === 200 &&
+            event.request.method === 'GET' &&
+            (event.request.url.startsWith('http') || event.request.url.startsWith('https'))
+          ) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
           return networkResponse;
         })
         .catch(() => {
