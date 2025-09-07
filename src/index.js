@@ -573,7 +573,7 @@ document.addEventListener('alpine:init', () => {
             this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
         },
 
-        
+
 
         // --- Notification Methods (Local) ---
         initNotifications() {
@@ -599,7 +599,7 @@ document.addEventListener('alpine:init', () => {
                 this.showToast({ title: 'Permissions', description: 'To disable notifications, manage permissions in your browser settings.' });
             }
         },
-        
+
         scheduleNotification(note) {
             this.cancelNotification(note.id);
 
@@ -719,6 +719,7 @@ document.addEventListener('alpine:init', () => {
                 this.notes = this.notes.filter((note) => note.id !== id);
                 this.deletedNoteIds.push(id);
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                this.deleteNoteFromS3(id);
                 this.syncNotes();
             } catch (error) {
                 console.error('Error in deleteNote:', error);
