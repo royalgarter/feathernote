@@ -1052,7 +1052,7 @@ document.addEventListener('alpine:init', () => {
                     this.s3Endpoint = decrypted.s3Endpoint || '';
                     this.s3Subfolder = decrypted.s3Subfolder || '';
                     this.accessKeyId = decrypted.accessKeyId || '';
-                    this.secretAccessKey = '';
+                    this.secretAccessKey = decrypted.secretAccessKey || '';
                 }
             }
         },
