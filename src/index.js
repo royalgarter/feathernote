@@ -842,7 +842,23 @@ document.addEventListener('alpine:init', () => {
                             downloadedCount++;
                         }
                     }
-                    await this.fetchNotes();
+
+                    // NEW LOGIC: Handle notes deleted remotely
+                    const remoteNoteIdsSet = new Set(result.remoteNoteIds);
+                    const notesToDeleteLocally = [];
+                    for (const localNote of this.notes) { // Use this.notes which is the current state
+                        if (!remoteNoteIdsSet.has(localNote.id)) {
+                            notesToDeleteLocally.push(localNote.id);
+                        }
+                    }
+
+                    for (const noteIdToDelete of notesToDeleteLocally) {
+                        await deleteNoteDB(noteIdToDelete);
+                        // No need to call deleteNoteFromS3 here, it's already deleted from S3
+                        // and we are just reflecting that deletion locally.
+                    }
+
+                    await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
                     this.deletedNoteIds = []; // Clear deleted notes after successful sync
                     this.lastSync = syncTime;
                     localStorage.setItem('feathernote-lastSync', syncTime);
@@ -850,7 +866,7 @@ document.addEventListener('alpine:init', () => {
                     if (!isSilent) {
                         this.showToast({
                             title: 'Sync Successful',
-                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}.`,
+                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`, // Add remotely deleted count
                         });
                     }
                 } else {

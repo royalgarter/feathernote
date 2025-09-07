@@ -253,7 +253,7 @@ app.post('/api/sync-notes', async (req, res) => {
             }
         }
 
-        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes });
+        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds });
 
     } catch (error) {
         console.error('Server-side sync error:', error);
