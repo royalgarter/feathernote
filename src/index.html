@@ -175,10 +175,10 @@
          x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+         class="fixed inset-0 z-50 w-full h-full bg-gray-900 bg-opacity-50 flex items-center justify-center"
          style="display: none;"
     >
-        <div class="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto"
+        <div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-8 rounded-lg shadow-xl overflow-y-auto bg-white backdrop:bg-transparent"
              @click.away="settingsDialogIsOpen = false"
              x-transition:enter="ease-out duration-300"
              x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
@@ -189,7 +189,7 @@
         >
             <div class="flex justify-between items-center mb-2">
                 <h3 class="text-lg font-bold">Settings</h3>
-                <button @click="settingsDialogIsOpen = false" class="p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+                <button @click="settingsDialogIsOpen = false" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
@@ -206,45 +206,45 @@
                     <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
                 </div>
 
-                <fieldset :disabled="!isSyncConfigured" class="grid gap-4">
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-region" class="text-right">S3 Region</label>
-                        <input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
+                <fieldset :disabled="!isSyncConfigured" class="grid gap-2">
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="s3-region" class="text-right">Region</label>
+                        <input id="s3-region" x-model="s3Region" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
                     </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-bucket" class="text-right">S3 Bucket</label>
-                        <input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="s3-bucket" class="text-right">Bucket</label>
+                        <input id="s3-bucket" x-model="s3Bucket" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
                     </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-subfolder" class="text-right">S3 Subfolder</label>
-                        <input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="s3-subfolder" class="text-right">Subfolder</label>
+                        <input id="s3-subfolder" x-model="s3Subfolder" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
                     </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="s3-endpoint" class="text-right">S3 Endpoint</label>
-                        <input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing value" autocomplete="off" />
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="s3-endpoint" class="text-right">Endpoint</label>
+                        <input id="s3-endpoint" x-model="s3Endpoint" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing value" autocomplete="off" />
                     </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="access-key" class="text-right">S3 Access Key</label>
-                        <input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing value"/>
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="access-key" class="text-right">Access Key</label>
+                        <input id="access-key" x-model="accessKeyId" class="cursor-pointer col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing value"/>
                     </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <label for="secret-key" class="text-right">S3 Secret Key</label>
-                        <input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing value" autocomplete="new-password" />
+                    <div class="grid grid-cols-4 items-center gap-2">
+                        <label for="secret-key" class="text-right">Secret Key</label>
+                        <input id="secret-key" type="password" x-   model="secretAccessKey" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing value" autocomplete="new-password" />
                     </div>
                 </fieldset>
             </div>
 
             <div class="flex justify-end gap-2">
-                    <button @click="showImportModal = true; importString = ''" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
-                    <button @click="handleExport()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
-                    <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="px-4 py-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 flex items-center">
+                    <button @click="showImportModal = true; importString = ''" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+                    <button @click="handleExport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
+                    <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
                         <svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync')"></span>
                     </button>
-                    <button @click="handleSave()" :disabled="!isSyncConfigured" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
+                    <button @click="handleSave()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
                 </div>
 
             <!-- Import Dialog -->
@@ -255,7 +255,7 @@
                  x-transition:leave="ease-in duration-200"
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0"
-                 class="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+                 class="absolute inset-0 z-10 bg-white rounded-lg"
                  style="display: none;"
             >
                 <div class="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto"
@@ -285,7 +285,7 @@
                  x-transition:leave="ease-in duration-200"
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0"
-                 class="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+                 class="absolute inset-0 z-10 bg-white rounded-lg"
                  style="display: none;"
             >
                 <div class="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto"
