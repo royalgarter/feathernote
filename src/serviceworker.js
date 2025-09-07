@@ -12,6 +12,7 @@ const urlsToCache = [
   '/favicon.ico',
   '/favicon.png',
   '/icons/icons.json',
+  'https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js',
   'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
   'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2',
   'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',

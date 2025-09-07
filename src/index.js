@@ -95,14 +95,226 @@ document.addEventListener('alpine:init', () => {
 
             const dec = new TextDecoder();
 
-            const json = JSON.parse(dec.decode(decryptedContent));
+            const credentials = JSON.parse(dec.decode(decryptedContent));
 
-            console.log('decrypt', json);
+            credentials.region = credentials.region || credentials.s3Region;
+            credentials.bucket = credentials.bucket || credentials.s3Bucket;
+            credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
+            credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
-            return json;
+            console.log('decrypt', credentials);
+
+            return credentials;
         } catch (error) {
             console.error('Decryption failed:', error);
             return null;
+        }
+    }
+
+    // --- S3 Functions (Client-side AWS SDK v2) ---
+    const getS3ClientV2 = (creds) => {
+        // AWS.config.update is generally not recommended for client-side in a single-page app
+        // as it's global. Instead, pass credentials directly to the S3 constructor.
+        return new AWS.S3({
+            region: creds.region || 'us-east-1',
+            endpoint: creds.endpoint,
+            accessKeyId: creds.accessKeyId,
+            secretAccessKey: creds.secretAccessKey,
+            s3ForcePathStyle: !!creds.endpoint, // Required for custom endpoints like R2
+        });
+    };
+
+    const getS3ObjectKey = (noteId, creds) => {
+        const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+        return `${path}${noteId}.json`;
+    };
+
+    const uploadNoteToS3V2 = async (note, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const noteJson = JSON.stringify(note, null, 2);
+
+        const params = {
+            Bucket: creds.bucket,
+            Key: getS3ObjectKey(note.id, creds),
+            Body: noteJson,
+            ContentType: 'application/json',
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.upload(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Upload Error for note ${note.id}:`, err);
+                    reject(new Error(`Failed to upload to S3: ${err.code} - ${err.message}`));
+                } else {
+                    resolve(data);
+                }
+            });
+        });
+    };
+
+    const listNotesInS3V2 = async (creds) => {
+        const s3 = getS3ClientV2(creds);
+        const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+        const params = {
+            Bucket: creds.bucket,
+            Prefix: prefix,
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.listObjectsV2(params, (err, data) => {
+                if (err) {
+                    console.error("S3 List Error:", err);
+                    reject(new Error(`Failed to list notes in S3: ${err.code} - ${err.message}`));
+                } else {
+                    const noteMetadata = data.Contents?.map(item => {
+                        if (!item.Key || item.Key.endsWith('/')) return null;
+                        return {
+                            id: item.Key.replace(prefix, '').replace('.json', ''),
+                            lastModified: item.LastModified // S3's LastModified timestamp
+                        };
+                    }).filter(item => !!item) || [];
+                    resolve(noteMetadata);
+                }
+            });
+        });
+    };
+
+    const downloadNoteFromS3V2 = async (noteId, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const key = getS3ObjectKey(noteId, creds);
+        const params = {
+            Bucket: creds.bucket,
+            Key: key,
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.getObject(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Download Error for note ${noteId}:`, err);
+                    reject(new Error(`Failed to download note from S3: ${err.code} - ${err.message}`));
+                } else {
+                    if (data.Body) {
+                        // AWS SDK v2 returns Body as a Buffer in Node.js, but a Blob/Uint8Array in browser
+                        // For browser, we need to convert it to text
+                        const str = new TextDecoder().decode(data.Body);
+                        resolve(JSON.parse(str));
+                    } else {
+                        reject(new Error('Downloaded note has no body'));
+                    }
+                }
+            });
+        });
+    };
+
+    const deleteNoteFromS3V2 = async (noteId, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const key = getS3ObjectKey(noteId, creds);
+        const params = {
+            Bucket: creds.bucket,
+            Key: key,
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.deleteObject(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Delete Error for note ${noteId}:`, err);
+                    reject(new Error(`Failed to delete note from S3: ${err.code} - ${err.message}`));
+                } else {
+                    console.log(`S3 Deleted note ${noteId}:`, data);
+                    resolve(data);
+                }
+            });
+        });
+    };
+
+    // --- New API Functions (Client-side) ---
+    async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync) {
+        try {
+            const credentials = await decryptSettings(encryptedSettings, userId);
+
+            if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+                throw new Error('Invalid or incomplete S3 credentials.');
+            }
+
+            const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
+            const remoteNoteMetadata = await listNotesInS3V2(credentials);
+            const remoteNoteIdsSet = new Set(remoteNoteMetadata.map(item => item.id));
+
+            let uploadedCount = 0;
+            let downloadedCount = 0;
+            let deletedCount = 0;
+            let updatedNotes = [];
+
+            // Delete notes from S3 that were deleted locally
+            if (deletedNoteIds && deletedNoteIds.length > 0) {
+                const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
+                await Promise.all(deletePromises);
+                deletedCount = deletedNoteIds.length;
+            }
+
+            // Upload local notes that are new or updated
+            const uploadPromises = localNotes.map(localNote => uploadNoteToS3V2(localNote, credentials));
+            await Promise.all(uploadPromises);
+            uploadedCount = localNotes.length;
+
+            // Download remote notes that are new or updated
+            const downloadPromises = remoteNoteMetadata.map(async (remoteMeta) => {
+                const noteId = remoteMeta.id;
+                const s3LastModified = new Date(remoteMeta.lastModified);
+
+                if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
+                    return null; // Skip notes that were just deleted
+                }
+
+                // Only download if the S3 object is newer than the client's last sync
+                if (!lastSync || s3LastModified > new Date(lastSync)) {
+                    const localNote = localNotesMap.get(noteId);
+                    const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
+                    if (remoteNote) {
+                        // Also check the note's internal updatedAt, in case S3 LastModified is not perfectly aligned
+                        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+                            return remoteNote;
+                        }
+                    }
+                }
+                return null;
+            });
+
+            const downloadedNotes = (await Promise.all(downloadPromises)).filter(note => note !== null);
+            updatedNotes = downloadedNotes;
+            downloadedCount = downloadedNotes.length;
+
+            return { success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds: Array.from(remoteNoteIdsSet) };
+
+        } catch (error) {
+            console.error('Client-side sync error:', error);
+            let errorMessage = 'An unknown error occurred during sync.';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    async function apiDeleteNote(encryptedSettings, userId, noteId) {
+        try {
+            const credentials = await decryptSettings(encryptedSettings, userId);
+
+            if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+                throw new Error('Invalid or incomplete S3 credentials.');
+            }
+
+            await deleteNoteFromS3V2(noteId, credentials);
+
+            return { success: true, message: `Note ${noteId} deleted from S3.` };
+
+        } catch (error) {
+            console.error('Client-side delete error:', error);
+            let errorMessage = 'An unknown error occurred during deletion.';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            return { success: false, error: errorMessage };
         }
     }
 
@@ -756,8 +968,8 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
-                this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+            if (!isS3Configured) {
+                this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 return;
             }
 
@@ -767,23 +979,15 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
-                const response = await fetch('/api/delete-note', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        encryptedSettings,
-                        userId,
-                        noteId,
-                    }),
-                });
-
-                const result = await response.json();
+                const result = await apiDeleteNote(
+                    encryptedSettings,
+                    userId,
+                    noteId
+                );
 
                 console.dir({deleteNoteFromS3: result})
 
-                if (response.ok) {
+                if (result.success) {
                     this.showToast({ title: 'Note Deleted from S3', description: `Note ${noteId} has been deleted from S3.` });
                 } else {
                     throw new Error(result.error || 'Server responded with an error.');
@@ -809,9 +1013,9 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
+            if (!isS3Configured) {
                 if (!isSilent) {
-                    this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+                    this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 }
                 return;
             }
@@ -838,23 +1042,15 @@ document.addEventListener('alpine:init', () => {
 
                 localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
 
-                const response = await fetch('/api/sync-notes', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        encryptedSettings,
-                        userId,
-                        localNotes: localNotes,
-                        deletedNoteIds: this.deletedNoteIds,
-                        lastSync: this.lastSync
-                    }),
-                });
+                const result = await apiSyncNotes(
+                    encryptedSettings,
+                    userId,
+                    localNotes,
+                    this.deletedNoteIds,
+                    this.lastSync
+                );
 
-                const result = await response.json();
-
-                if (response.ok) {
+                if (result.success) {
                     let downloadedCount = 0;
                     for (const remoteNote of result.updatedNotes) {
                         const localNote = await getNoteDB(remoteNote.id);
@@ -1073,7 +1269,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         get isSyncConfigured() {
-            return (location.hostname == 'localhost') ||  (!!this.user);
+            return true;
         },
 
         get isSyncButtonDisabled() {
@@ -1081,7 +1277,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async loadSettingsFromStorage() {
-            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedSettings = localStorage.getItem(key);
             if (encryptedSettings) {
@@ -1098,10 +1293,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleSave() {
-            if (location.hostname != 'localhost' && !this.userId) {
-                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to save settings.' });
-                return;
-            }
             const key = `feathernote-settings-${this.userId}`;
 
             // Get existing settings to preserve the secret key if not changed
@@ -1142,7 +1333,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleExport() {
-            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedString = localStorage.getItem(key);
             if (encryptedString) {
@@ -1159,10 +1349,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         async handleImport() {
-            if (location.hostname != 'localhost' && !this.userId) {
-                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to import settings.' });
-                return;
-            }
             const key = `feathernote-settings-${this.userId}`;
 
             try {
