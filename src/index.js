@@ -391,6 +391,7 @@ document.addEventListener('alpine:init', () => {
         syncIntervalId: null,
         editingNoteId: null, // New state to track which note is being edited
         deletedNoteIds: [],
+        lastSync: null,
 
         // --- Note Editor Data ---
         noteEditorNoteId: null,
@@ -462,6 +463,10 @@ document.addEventListener('alpine:init', () => {
             document.body.appendChild(script);
 
             // Note Manager Init
+            const lastSync = localStorage.getItem('feathernote-lastSync');
+            if (lastSync) {
+                this.lastSync = lastSync;
+            }
             this.fetchNotes();
             this.syncNotes();
             this.syncIntervalId = setInterval(() => {
@@ -803,7 +808,13 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
+                const syncTime = new Date().toISOString();
                 let localNotes = notes || await getNotesDB();
+
+                if (this.lastSync) {
+                    localNotes = localNotes.filter(note => new Date(note.updatedAt) > new Date(this.lastSync));
+                }
+
                 localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
 
                 const response = await fetch('/api/sync-notes', {
@@ -816,6 +827,7 @@ document.addEventListener('alpine:init', () => {
                         userId,
                         localNotes: localNotes,
                         deletedNoteIds: this.deletedNoteIds,
+                        lastSync: this.lastSync
                     }),
                 });
 
@@ -832,6 +844,8 @@ document.addEventListener('alpine:init', () => {
                     }
                     await this.fetchNotes();
                     this.deletedNoteIds = []; // Clear deleted notes after successful sync
+                    this.lastSync = syncTime;
+                    localStorage.setItem('feathernote-lastSync', syncTime);
 
                     if (!isSilent) {
                         this.showToast({

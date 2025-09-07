@@ -167,8 +167,6 @@ const deleteNoteFromS3 = async (noteId, creds) => {
         Key: key,
     });
 
-    console.dir({deleteNoteFromS3: key, command})
-
     try {
         const response = await s3Client.send(command);
 
@@ -188,7 +186,7 @@ const deleteNoteFromS3 = async (noteId, creds) => {
 
 // --- API Endpoints ---
 app.post('/api/sync-notes', async (req, res) => {
-    let { encryptedSettings, userId, localNotes, deletedNoteIds } = req.body;
+    let { encryptedSettings, userId, localNotes, deletedNoteIds, lastSync } = req.body;
 
     userId = userId || 'null'; // Debug for localhost
 
@@ -198,8 +196,6 @@ app.post('/api/sync-notes', async (req, res) => {
 
     try {
         const credentials = await decryptSettings(encryptedSettings, userId);
-
-
 
         if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
             return res.status(400).json({ error: 'Invalid or incomplete S3 credentials.' });
@@ -223,11 +219,8 @@ app.post('/api/sync-notes', async (req, res) => {
         
         // Upload local notes that are new or updated
         for (const localNote of localNotes) {
-            const remoteNote = remoteNoteIds.find(id => id === localNote.id) ? await downloadNoteFromS3(localNote.id, credentials).catch(() => null) : null;
-            if (!remoteNote || new Date(localNote.updatedAt) > new Date(remoteNote.updatedAt)) {
-                await uploadNoteToS3(localNote, credentials);
-                uploadedCount++;
-            }
+            await uploadNoteToS3(localNote, credentials);
+            uploadedCount++;
         }
 
         // Download remote notes that are new or updated
@@ -239,8 +232,10 @@ app.post('/api/sync-notes', async (req, res) => {
             const remoteNote = await downloadNoteFromS3(noteId, credentials);
             if (remoteNote) {
                 if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-                    updatedNotes.push(remoteNote);
-                    downloadedCount++;
+                    if (!lastSync || new Date(remoteNote.updatedAt) > new Date(lastSync)) {
+                        updatedNotes.push(remoteNote);
+                        downloadedCount++;
+                    }
                 }
             }
         }
