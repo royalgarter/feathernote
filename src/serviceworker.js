@@ -41,7 +41,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Handle the share target separately.
-  if (event.request.method === 'POST' && url.pathname.endsWith('/_share-target')) {
+    if (event.request.method === 'POST' && url.pathname === '/share') {
     event.respondWith(
       (async () => {
         const formData = await event.request.formData();

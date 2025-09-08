@@ -190,7 +190,7 @@ app.get('/', (req, res) => {
 });
 
 // Handle shared content from PWA
-app.post('/_share-target', upload.none(), (req, res) => {
+app.post('/share', upload.none(), (req, res) => {
     // The service worker will handle this, but we have a server-side route as a fallback.
     // In a real app, you might save this to a temporary session or user-specific store.
     console.log('Shared content received on server:', req.body);
