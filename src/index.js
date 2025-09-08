@@ -1164,7 +1164,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         async processSharedContent() {
-            // await navigator.locks.request('shared-content-lock', async lock => {
+            await navigator.locks.request('shared-content-lock', async lock => {
                 try {
                     const sharedItems = await getSharedContentDB();
 
@@ -1188,7 +1188,7 @@ document.addEventListener('alpine:init', () => {
                     console.error('Failed to process shared content', error);
                     this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
                 }
-            // });
+            });
         },
 
         prepareEasyMDE(id) {
