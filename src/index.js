@@ -268,7 +268,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 // Only download if the S3 object is newer than the client's last sync
-                if (!lastSync || s3LastModified > new Date(new Date(lastSync).getTime() - 60*60e3)) {
+                if (!lastSync || s3LastModified > new Date(lastSync)) {
                     const localNote = localNotesMap.get(noteId);
                     const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
                     if (remoteNote) {
@@ -1040,7 +1040,7 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
-                const syncTime = new Date().toISOString();
+
                 let localNotes = notes || await getNotesDB();
 
                 if (!notes?.length && this.lastSync) {
@@ -1084,8 +1084,9 @@ document.addEventListener('alpine:init', () => {
 
                     await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
                     this.deletedNoteIds = []; // Clear deleted notes after successful sync
-                    this.lastSync = syncTime;
-                    localStorage.setItem('feathernote-lastSync', syncTime);
+
+                    this.lastSync = new Date().toISOString();
+                    localStorage.setItem('feathernote-lastSync', this.lastSync);
 
                     if (!isSilent) {
                         this.showToast({
