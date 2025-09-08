@@ -268,7 +268,7 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 // Only download if the S3 object is newer than the client's last sync
-                if (!lastSync || s3LastModified > new Date(lastSync)) {
+                if (!lastSync || s3LastModified > new Date(new Date(lastSync).getTime() - 60*60e3)) {
                     const localNote = localNotesMap.get(noteId);
                     const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
                     if (remoteNote) {
@@ -930,7 +930,7 @@ document.addEventListener('alpine:init', () => {
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote);
                 this.scheduleNotification(newNote);
-                this.showToast({ title: 'Note Added', description: 'New note created.' });
+                // this.showToast({ title: 'Note Added', description: 'New note created.' });
                 this.syncNotes(false, 1, [newNote]);
                 return newNote;
             } catch (error) {
@@ -1128,9 +1128,8 @@ document.addEventListener('alpine:init', () => {
                 try {
                     const sharedItems = await getSharedContentDB();
 
-                    console.dir({sharedItems});
-
                     if (sharedItems.length > 0) {
+                        console.dir({sharedItems});
                         for (const item of sharedItems) {
                             await this.addNote(item.title || ('Share ' + new Date().toString().substr(0, 21)), item.content);
                         }
@@ -1143,6 +1142,7 @@ document.addEventListener('alpine:init', () => {
                         });
 
                         await this.fetchNotes();
+                        this.syncNotes(true);
                     }
                 } catch (error) {
                     console.error('Failed to process shared content', error);
