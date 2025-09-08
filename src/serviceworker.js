@@ -41,7 +41,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Handle the share target separately.
-    if (event.request.method === 'POST' && url.pathname === '/share') {
+  if (event.request.method === 'POST' && url.pathname === '/share') {
     event.respondWith(
       (async () => {
         const formData = await event.request.formData();
@@ -54,33 +54,34 @@ self.addEventListener('fetch', (event) => {
         }
         
         // Redirect to the home page after sharing
-        return Response.redirect('/', 303);
+        return Response.redirect(`/?title=${encodeURIComponent(title)}&text=${encodeURIComponent(text)}`, 303);
       })()
     );
-  } else {
-    // For all other requests, use the network-first strategy.
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          // Only cache successful GET requests with http/https schemes.
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            event.request.method === 'GET' &&
-            (event.request.url.startsWith('http') || event.request.url.startsWith('https'))
-          ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          return caches.match(event.request);
-        })
-    );
+    return;
   }
+
+  // For all other requests, use the network-first strategy.
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Only cache successful GET requests with http/https schemes.
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          event.request.method === 'GET' &&
+          (event.request.url.startsWith('http') || event.request.url.startsWith('https'))
+        ) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
+  );
 });
 
 function openDB() {
