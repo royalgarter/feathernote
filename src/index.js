@@ -233,7 +233,8 @@ document.addEventListener('alpine:init', () => {
             const credentials = await decryptSettings(encryptedSettings, userId);
 
             if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
-                throw new Error('Invalid or incomplete S3 credentials.');
+
+                return { success: false, error: 'Invalid or incomplete S3 credentials.' };
             }
 
             const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
@@ -301,7 +302,7 @@ document.addEventListener('alpine:init', () => {
             const credentials = await decryptSettings(encryptedSettings, userId);
 
             if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
-                throw new Error('Invalid or incomplete S3 credentials.');
+                return { success: false, error: 'Invalid or incomplete S3 credentials.' };
             }
 
             await deleteNoteFromS3V2(noteId, credentials);
@@ -1356,9 +1357,9 @@ document.addEventListener('alpine:init', () => {
                 if (parsed.salt && parsed.iv && parsed.content) {
                     localStorage.setItem(key, this.importString);
                     await this.loadSettingsFromStorage();
-                    this.importString = '';
                     this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
-                    this.syncNotes(true);
+                    await this.handleSave();
+                    this.importString = '';
                     this.showImportModal = false; // Close the modal after successful import
                 } else {
                     throw new Error('Invalid or incomplete settings data.');
