@@ -644,6 +644,12 @@ document.addEventListener('alpine:init', () => {
                 this.processSharedContent();
             });
 
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    this.processSharedContent();
+                }
+            });
+
             // Notifications Init
             this.initNotifications();
 
@@ -1118,15 +1124,18 @@ document.addEventListener('alpine:init', () => {
         },
 
         async processSharedContent() {
-            await navigator.locks.request('shared-content-lock', async lock => {
+            // await navigator.locks.request('shared-content-lock', async lock => {
                 try {
                     const sharedItems = await getSharedContentDB();
+                    console.dir({sharedItems});
+
                     if (sharedItems.length > 0) {
                         for (const item of sharedItems) {
                             await this.addNote('Share ' + new Date().toString().substr(0, 21), item.content);
                         }
-                        await clearSharedContentDB();
+                        // await clearSharedContentDB();
                         await this.fetchNotes();
+
                         this.showToast({
                             title: 'Content Imported',
                             description: `${sharedItems.length} item(s) have been added to your notes.`,
@@ -1136,7 +1145,7 @@ document.addEventListener('alpine:init', () => {
                     console.error('Failed to process shared content', error);
                     this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
                 }
-            });
+            // });
         },
 
         prepareEasyMDE(id) {
@@ -1233,6 +1242,7 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.cancelEdit();
+            this.fetchNotes();
         },
 
         cancelEdit() {
