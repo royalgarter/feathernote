@@ -102,7 +102,7 @@ document.addEventListener('alpine:init', () => {
             credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
             credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
-            console.log('decrypt', credentials);
+            // console.log('decrypt', credentials);
 
             return credentials;
         } catch (error) {
@@ -1127,19 +1127,22 @@ document.addEventListener('alpine:init', () => {
             // await navigator.locks.request('shared-content-lock', async lock => {
                 try {
                     const sharedItems = await getSharedContentDB();
+
                     console.dir({sharedItems});
 
                     if (sharedItems.length > 0) {
                         for (const item of sharedItems) {
-                            await this.addNote('Share ' + new Date().toString().substr(0, 21), item.content);
+                            await this.addNote(item.title || ('Share ' + new Date().toString().substr(0, 21)), item.content);
                         }
-                        // await clearSharedContentDB();
-                        await this.fetchNotes();
+
+                        await clearSharedContentDB();
 
                         this.showToast({
-                            title: 'Content Imported',
+                            title: 'Shared Content Imported',
                             description: `${sharedItems.length} item(s) have been added to your notes.`,
                         });
+
+                        await this.fetchNotes();
                     }
                 } catch (error) {
                     console.error('Failed to process shared content', error);
