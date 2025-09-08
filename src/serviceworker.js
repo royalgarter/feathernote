@@ -1,6 +1,7 @@
 // This is a basic service worker for offline caching and handling shared content.
 
 const CACHE_NAME = 'feathernote-cache-v2';
+const SHARED_CONTENT_DB_VERSION = 2;
 const SHARED_CONTENT_DB_NAME = 'FeatherNoteDB';
 const SHARED_CONTENT_STORE = 'shared-content';
 
@@ -86,7 +87,7 @@ self.addEventListener('fetch', (event) => {
 
 function openDB() {
     return new Promise((resolve, reject) => {
-        const request = self.indexedDB.open(SHARED_CONTENT_DB_NAME, 1);
+        const request = self.indexedDB.open(SHARED_CONTENT_DB_NAME, SHARED_CONTENT_DB_VERSION);
         request.onerror = (event) => {
             console.error('Error opening IndexedDB:', event.target.error);
             reject(`Error opening IndexedDB: ${event.target.error}`);
