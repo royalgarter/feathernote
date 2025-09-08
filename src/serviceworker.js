@@ -54,10 +54,9 @@ self.addEventListener('fetch', (event) => {
         }
         
         // Redirect to the home page after sharing
-        return Response.redirect(`/?title=${encodeURIComponent(title)}&content=${encodeURIComponent(text)}`, 303);
+        return Response.redirect(`/?title=${encodeURIComponent(title)}&content=${encodeURIComponent(content)}`, 303);
       })()
     );
-    return;
   }
 
   // For all other requests, use the network-first strategy.
