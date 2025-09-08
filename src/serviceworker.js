@@ -57,6 +57,7 @@ self.addEventListener('fetch', (event) => {
         return Response.redirect(`/?title=${encodeURIComponent(title)}&content=${encodeURIComponent(content)}`, 303);
       })()
     );
+    return;
   }
 
   // For all other requests, use the network-first strategy.
