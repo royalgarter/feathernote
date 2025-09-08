@@ -233,59 +233,87 @@ document.addEventListener('alpine:init', () => {
             const credentials = await decryptSettings(encryptedSettings, userId);
 
             if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
-
                 return { success: false, error: 'Invalid or incomplete S3 credentials.' };
             }
 
             const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
-            const remoteNoteMetadata = await listNotesInS3V2(credentials);
-            const remoteNoteIdsSet = new Set(remoteNoteMetadata.map(item => item.id));
-
-            let uploadedCount = 0;
-            let downloadedCount = 0;
+            
+            // Step 1: Handle local deletions. These take precedence.
             let deletedCount = 0;
-            let updatedNotes = [];
-
-            // Delete notes from S3 that were deleted locally
             if (deletedNoteIds && deletedNoteIds.length > 0) {
                 const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
                 await Promise.all(deletePromises);
                 deletedCount = deletedNoteIds.length;
             }
 
-            // Upload local notes that are new or updated
-            const uploadPromises = localNotes.map(localNote => uploadNoteToS3V2(localNote, credentials));
-            await Promise.all(uploadPromises);
-            uploadedCount = localNotes.length;
+            // Step 2: Get remote state
+            const remoteNoteMetadata = await listNotesInS3V2(credentials);
+            const remoteNoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
-            // Download remote notes that are new or updated
-            const downloadPromises = remoteNoteMetadata.map(async (remoteMeta) => {
-                const noteId = remoteMeta.id;
-                const s3LastModified = new Date(remoteMeta.lastModified);
+            const notesToUpload = [];
+            const notesToDownload = [];
 
+            const allNoteIds = new Set([...localNotesMap.keys(), ...remoteNoteMetaMap.keys()]);
+
+            // Step 3: Compare local and remote states to build upload/download queues
+            for (const noteId of allNoteIds) {
                 if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
-                    return null; // Skip notes that were just deleted
+                    continue; // Already processed as a deletion
                 }
 
-                // Only download if the S3 object is newer than the client's last sync
-                if (!lastSync || s3LastModified > new Date(lastSync)) {
-                    const localNote = localNotesMap.get(noteId);
-                    const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
-                    if (remoteNote) {
-                        // Also check the note's internal updatedAt, in case S3 LastModified is not perfectly aligned
-                        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-                            return remoteNote;
-                        }
+                const localNote = localNotesMap.get(noteId);
+                const remoteMeta = remoteNoteMetaMap.get(noteId);
+
+                if (localNote && !remoteMeta) {
+                    // Note exists only locally, so upload it.
+                    notesToUpload.push(localNote);
+                } else if (!localNote && remoteMeta) {
+                    // Note exists only remotely, so download it.
+                    notesToDownload.push(noteId);
+                } else if (localNote && remoteMeta) {
+                    // Note exists in both. Conflict resolution time.
+                    const localDate = new Date(localNote.updatedAt);
+                    const remoteDate = new Date(remoteMeta.lastModified);
+
+                    // Use a 2-second buffer to avoid sync loops due to small clock differences.
+                    if (localDate.getTime() > remoteDate.getTime() + 2000) {
+                        notesToUpload.push(localNote);
+                    } else if (remoteDate.getTime() > localDate.getTime() + 2000) {
+                        notesToDownload.push(noteId);
                     }
                 }
-                return null;
-            });
+            }
 
-            const downloadedNotes = (await Promise.all(downloadPromises)).filter(note => note !== null);
-            updatedNotes = downloadedNotes;
-            downloadedCount = downloadedNotes.length;
+            // Step 4: Execute downloads
+            const downloadedNotes = [];
+            if (notesToDownload.length > 0) {
+                const downloadPromises = notesToDownload.map(async (noteId) => {
+                    const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
+                    if (remoteNote) {
+                        // Final check on internal timestamp before accepting
+                        const localNote = localNotesMap.get(noteId);
+                        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+                            downloadedNotes.push(remoteNote);
+                        }
+                    }
+                });
+                await Promise.all(downloadPromises);
+            }
+            
+            // Step 5: Execute uploads
+            if (notesToUpload.length > 0) {
+                const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials));
+                await Promise.all(uploadPromises);
+            }
 
-            return { success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds: Array.from(remoteNoteIdsSet) };
+            return {
+                success: true,
+                uploadedCount: notesToUpload.length,
+                downloadedCount: downloadedNotes.length,
+                deletedCount,
+                updatedNotes: downloadedNotes,
+                remoteNoteIds: Array.from(remoteNoteMetaMap.keys())
+            };
 
         } catch (error) {
             console.error('Client-side sync error:', error);
@@ -1043,9 +1071,10 @@ document.addEventListener('alpine:init', () => {
 
                 let localNotes = notes || await getNotesDB();
 
-                if (!notes?.length && this.lastSync) {
-                    localNotes = localNotes.filter(note => new Date(note.updatedAt) > new Date(this.lastSync));
-                }
+                // The 'notes' parameter is for targeted sync of specific notes.
+                // For a general background sync, we now send all notes to the sync API
+                // to allow for proper conflict resolution. The old implementation could
+                // cause data loss by uploading notes without checking for remote changes first.
 
                 localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
 
