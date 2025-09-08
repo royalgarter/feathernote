@@ -87,7 +87,10 @@ self.addEventListener('fetch', (event) => {
 function openDB() {
     return new Promise((resolve, reject) => {
         const request = self.indexedDB.open(SHARED_CONTENT_DB_NAME, 1);
-        request.onerror = (event) => reject('Error opening IndexedDB');
+        request.onerror = (event) => {
+            console.error('Error opening IndexedDB:', event.target.error);
+            reject(`Error opening IndexedDB: ${event.target.error}`);
+        };
         request.onsuccess = (event) => resolve(event.target.result);
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
@@ -105,7 +108,10 @@ async function saveSharedContentToDB(content) {
     const transaction = db.transaction(SHARED_CONTENT_STORE, 'readwrite');
     const store = transaction.objectStore(SHARED_CONTENT_STORE);
     const request = store.add({ content: content });
-    request.onerror = () => reject('Error saving shared content');
+    request.onerror = (event) => {
+        console.error('Error saving shared content:', event.target.error);
+        reject('Error saving shared content: ' + event.target.error);
+    };
     request.onsuccess = () => resolve();
   });
 }
