@@ -237,8 +237,8 @@ document.addEventListener('alpine:init', () => {
             }
 
             const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
-            
-            // Step 1: Handle local deletions. These take precedence.
+
+            // Step 1: Handle local deletions on S3. These take precedence.
             let deletedCount = 0;
             if (deletedNoteIds && deletedNoteIds.length > 0) {
                 const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
@@ -252,10 +252,11 @@ document.addEventListener('alpine:init', () => {
 
             const notesToUpload = [];
             const notesToDownload = [];
+            const notesToDeleteLocally = [];
 
             const allNoteIds = new Set([...localNotesMap.keys(), ...remoteNoteMetaMap.keys()]);
 
-            // Step 3: Compare local and remote states to build upload/download queues
+            // Step 3: Compare local and remote states to build action queues
             for (const noteId of allNoteIds) {
                 if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
                     continue; // Already processed as a deletion
@@ -265,8 +266,14 @@ document.addEventListener('alpine:init', () => {
                 const remoteMeta = remoteNoteMetaMap.get(noteId);
 
                 if (localNote && !remoteMeta) {
-                    // Note exists only locally, so upload it.
-                    notesToUpload.push(localNote);
+                    // Note exists only locally. Is it new or was it deleted remotely?
+                    if (lastSync && new Date(localNote.createdAt) < new Date(lastSync)) {
+                        // Existed before last sync, but now gone from remote -> deleted remotely.
+                        notesToDeleteLocally.push(noteId);
+                    } else {
+                        // It's a new note created since last sync. Upload it.
+                        notesToUpload.push(localNote);
+                    }
                 } else if (!localNote && remoteMeta) {
                     // Note exists only remotely, so download it.
                     notesToDownload.push(noteId);
@@ -290,7 +297,6 @@ document.addEventListener('alpine:init', () => {
                 const downloadPromises = notesToDownload.map(async (noteId) => {
                     const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
                     if (remoteNote) {
-                        // Final check on internal timestamp before accepting
                         const localNote = localNotesMap.get(noteId);
                         if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
                             downloadedNotes.push(remoteNote);
@@ -299,7 +305,7 @@ document.addEventListener('alpine:init', () => {
                 });
                 await Promise.all(downloadPromises);
             }
-            
+
             // Step 5: Execute uploads
             if (notesToUpload.length > 0) {
                 const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials));
@@ -312,6 +318,7 @@ document.addEventListener('alpine:init', () => {
                 downloadedCount: downloadedNotes.length,
                 deletedCount,
                 updatedNotes: downloadedNotes,
+                notesToDeleteLocally, // Return IDs of notes to delete locally
                 remoteNoteIds: Array.from(remoteNoteMetaMap.keys())
             };
 
@@ -1087,6 +1094,7 @@ document.addEventListener('alpine:init', () => {
                 );
 
                 if (result.success) {
+                    // Handle downloaded notes
                     let downloadedCount = 0;
                     for (const remoteNote of result.updatedNotes) {
                         const localNote = await getNoteDB(remoteNote.id);
@@ -1096,19 +1104,10 @@ document.addEventListener('alpine:init', () => {
                         }
                     }
 
-                    // NEW LOGIC: Handle notes deleted remotely
-                    const remoteNoteIdsSet = new Set(result.remoteNoteIds);
-                    const notesToDeleteLocally = [];
-                    for (const localNote of this.notes) { // Use this.notes which is the current state
-                        if (!remoteNoteIdsSet.has(localNote.id)) {
-                            notesToDeleteLocally.push(localNote.id);
-                        }
-                    }
-
+                    // Handle notes that were deleted on the remote
+                    const notesToDeleteLocally = result.notesToDeleteLocally || [];
                     for (const noteIdToDelete of notesToDeleteLocally) {
                         await deleteNoteDB(noteIdToDelete);
-                        // No need to call deleteNoteFromS3 here, it's already deleted from S3
-                        // and we are just reflecting that deletion locally.
                     }
 
                     await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
@@ -1120,7 +1119,7 @@ document.addEventListener('alpine:init', () => {
                     if (!isSilent) {
                         this.showToast({
                             title: 'Sync Successful',
-                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`, // Add remotely deleted count
+                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
                         });
                     }
                 } else {
