@@ -625,11 +625,11 @@ document.addEventListener('alpine:init', () => {
                 return this.notes;
             }
             // Use minisearch for filtering
-            const searchResults = this.miniSearch.search(this.searchTag, {
+            const searchResults = this.miniSearch ? this.miniSearch.search(this.searchTag, {
                 prefix: true, // Search for prefixes
                 fuzzy: 0.2, // Allow some fuzziness
                 combineWith: 'AND' // All terms must match
-            });
+            }) : this.notes.filter(x => x.tags.includes(this.searchTag) || x.title.includes(this.searchTag));
             // minisearch returns an array of objects with 'id' and other stored fields.
             // We need to return the original note objects, so map them back.
             const resultIds = new Set(searchResults.map(result => result.id));
@@ -687,10 +687,10 @@ document.addEventListener('alpine:init', () => {
             if (lastSync) {
                 this.lastSync = lastSync;
             }
-            this.miniSearch = new MiniSearch({
+            this.miniSearch = window.MiniSearch ? new MiniSearch({
                 fields: ['title', 'content', 'tags'], // Fields to search!
                 storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
-            });
+            }) : null;
             this.fetchNotes();
             this.syncNotes();
             this.syncIntervalId = setInterval(() => {
@@ -699,8 +699,8 @@ document.addEventListener('alpine:init', () => {
 
             this.$watch('notes', (newNotes) => {
                 this.updateAppBadge();
-                this.miniSearch.removeAll();
-                this.miniSearch.addAll(newNotes);
+                this.miniSearch?.removeAll();
+                this.miniSearch?.addAll(newNotes);
             });
             this.$watch('searchTag', () => this.generateSuggestions());
 
@@ -895,11 +895,11 @@ document.addEventListener('alpine:init', () => {
                 this.suggestions = [];
                 return;
             }
-            this.suggestions = this.miniSearch.autoSuggest(this.searchTag, {
+            this.suggestions = this.miniSearch?.autoSuggest(this.searchTag, {
                 prefix: true,
                 fuzzy: 0.2,
                 combineWith: 'AND'
-            });
+            }) || [];
         },
         async fetchNotes() {
             this.loading = true;
