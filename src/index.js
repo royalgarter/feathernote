@@ -228,7 +228,7 @@ document.addEventListener('alpine:init', () => {
     };
 
     // --- New API Functions (Client-side) ---
-    async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync) {
+    async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, lastSyncedIds = []) {
         try {
             const credentials = await decryptSettings(encryptedSettings, userId);
 
@@ -266,12 +266,13 @@ document.addEventListener('alpine:init', () => {
                 const remoteMeta = remoteNoteMetaMap.get(noteId);
 
                 if (localNote && !remoteMeta) {
-                    // Note exists only locally. Is it new or was it deleted remotely?
-                    if (lastSync && new Date(localNote.createdAt) < new Date(lastSync)) {
-                        // Existed before last sync, but now gone from remote -> deleted remotely.
-                        notesToDeleteLocally.push(noteId);
+                    // Note exists only locally. Was it synced before or is it new?
+                    if (lastSyncedIds.includes(localNote.id)) {
+                        // This note was successfully synced before, but is now gone from remote.
+                        // It must have been deleted remotely.
+                        notesToDeleteLocally.push(localNote.id);
                     } else {
-                        // It's a new note created since last sync. Upload it.
+                        // This note was not in the last successful sync. It's a new note.
                         notesToUpload.push(localNote);
                     }
                 } else if (!localNote && remoteMeta) {
@@ -312,14 +313,19 @@ document.addEventListener('alpine:init', () => {
                 await Promise.all(uploadPromises);
             }
 
+            // Step 6: Calculate the final state of remote IDs for the next sync
+            const finalRemoteIds = new Set(remoteNoteMetaMap.keys());
+            notesToUpload.forEach(n => finalRemoteIds.add(n.id));
+            deletedNoteIds.forEach(id => finalRemoteIds.delete(id));
+
             return {
                 success: true,
                 uploadedCount: notesToUpload.length,
                 downloadedCount: downloadedNotes.length,
                 deletedCount,
                 updatedNotes: downloadedNotes,
-                notesToDeleteLocally, // Return IDs of notes to delete locally
-                remoteNoteIds: Array.from(remoteNoteMetaMap.keys())
+                notesToDeleteLocally,
+                finalRemoteIds: Array.from(finalRemoteIds)
             };
 
         } catch (error) {
@@ -1075,7 +1081,7 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
-
+                const lastSyncedIds = JSON.parse(localStorage.getItem('feathernote-synced-ids') || '[]');
                 let localNotes = notes || await getNotesDB();
 
                 // The 'notes' parameter is for targeted sync of specific notes.
@@ -1090,7 +1096,8 @@ document.addEventListener('alpine:init', () => {
                     userId,
                     localNotes,
                     this.deletedNoteIds,
-                    this.lastSync
+                    this.lastSync,
+                    lastSyncedIds
                 );
 
                 if (result.success) {
@@ -1113,6 +1120,10 @@ document.addEventListener('alpine:init', () => {
                     await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
                     this.deletedNoteIds = []; // Clear deleted notes after successful sync
 
+                    // Save the final state for the next sync
+                    if (result.finalRemoteIds) {
+                        localStorage.setItem('feathernote-synced-ids', JSON.stringify(result.finalRemoteIds));
+                    }
                     this.lastSync = new Date().toISOString();
                     localStorage.setItem('feathernote-lastSync', this.lastSync);
 
