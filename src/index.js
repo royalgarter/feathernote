@@ -698,11 +698,11 @@ document.addEventListener('alpine:init', () => {
             });
             this.$watch('searchTag', () => this.generateSuggestions());
 
-            this.$watch('$el', (el) => {
-                if (!el) {
-                    clearInterval(this.syncIntervalId);
-                }
-            });
+            // this.$watch('$el', (el) => {
+            //     if (!el) {
+            //         clearInterval(this.syncIntervalId);
+            //     }
+            // });
 
             if (window.location.hash === '#new_note') {
                 this.createNewNote();
@@ -761,7 +761,7 @@ document.addEventListener('alpine:init', () => {
                 this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
             } catch (error) {
                 console.error("Error processing credential:", error);
-                this.showToast({ variant: 'destructive', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
+                this.showToast({ variant: 'error', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
             }
         },
 
@@ -780,14 +780,14 @@ document.addEventListener('alpine:init', () => {
 
         signIn() {
             if (!this.GOOGLE_CLIENT_ID) {
-                this.showToast({ variant: 'destructive', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
+                this.showToast({ variant: 'error', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
                 return;
             }
             if (this.isGsiLoaded && window.google) {
                 this.initializeGoogleOneTap();
                 window.google.accounts.id.prompt();
             } else {
-                this.showToast({ variant: 'destructive', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
+                this.showToast({ variant: 'error', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
             }
         },
 
@@ -821,7 +821,7 @@ document.addEventListener('alpine:init', () => {
                     this.showToast({ title: 'Notifications Enabled', description: 'You can now set reminders on notes.' });
                     this.scheduleAllFutureReminders();
                 } else {
-                    this.showToast({ variant: 'destructive', title: 'Notifications Disabled', description: 'Permission was not granted.' });
+                    this.showToast({ variant: 'error', title: 'Notifications Disabled', description: 'Permission was not granted.' });
                 }
             } else {
                 this.showToast({ title: 'Permissions', description: 'To disable notifications, manage permissions in your browser settings.' });
@@ -903,7 +903,7 @@ document.addEventListener('alpine:init', () => {
                 this.scheduleAllFutureReminders();
             } catch (error) {
                 console.error('Error in fetchNotes:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not load notes.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
             } finally {
                 this.loading = false;
             }
@@ -929,7 +929,7 @@ document.addEventListener('alpine:init', () => {
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not create note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not create note.' });
                 return null;
             }
         },
@@ -947,7 +947,7 @@ document.addEventListener('alpine:init', () => {
                 this.syncNotes(false, 1, [updatedNote]);
             } catch (error) {
                 console.error('Error in updateNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not update note.' });
             }
         },
 
@@ -961,7 +961,7 @@ document.addEventListener('alpine:init', () => {
                 this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
             }
         },
 
@@ -970,7 +970,7 @@ document.addEventListener('alpine:init', () => {
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
             if (!isS3Configured) {
-                this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
+                this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 return;
             }
 
@@ -996,7 +996,7 @@ document.addEventListener('alpine:init', () => {
 
             } catch (error) {
                 console.error('Error deleting note from S3:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note from S3.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note from S3.' });
             }
         },
 
@@ -1005,7 +1005,7 @@ document.addEventListener('alpine:init', () => {
                 return await getNoteDB(id);
             } catch (error) {
                 console.error('Error in getNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not fetch note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not fetch note.' });
                 return undefined;
             }
         },
@@ -1016,7 +1016,7 @@ document.addEventListener('alpine:init', () => {
 
             if (!isS3Configured) {
                 if (!isSilent) {
-                    this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
+                    this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 }
                 return;
             }
@@ -1098,7 +1098,8 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 let errorMessage = 'An unknown error occurred.';
-                let errorTitle = 'Sync Failed';
+                let errorTitle = 'Incomplete Sync';
+
                 if (error instanceof TypeError) {
                     errorTitle = 'Network Error';
                     errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
@@ -1107,10 +1108,9 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.showToast({
-                    variant: 'destructive',
                     title: errorTitle,
                     description: errorMessage,
-                    duration: 9000,
+                    duration: 5000,
                 });
             } finally {
                 this.isSyncing = false;
@@ -1134,7 +1134,7 @@ document.addEventListener('alpine:init', () => {
                     }
                 } catch (error) {
                     console.error('Failed to process shared content', error);
-                    this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
+                    this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
                 }
             });
         },
@@ -1200,7 +1200,7 @@ document.addEventListener('alpine:init', () => {
                 this.noteEditorReminder = note.reminder || '';
                 this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
             } else {
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Note not found.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Note not found.' });
                 this.editingNoteId = null;
             }
 
@@ -1257,13 +1257,13 @@ document.addEventListener('alpine:init', () => {
         showImportModal: false,
         showExportModal: false,
 
-        initSettingsDialog() {
-            this.$watch('settingsDialogIsOpen', (value) => {
-                if (value) {
-                    this.loadSettingsFromStorage();
-                }
-            });
-        },
+        // initSettingsDialog() {
+        //     this.$watch('settingsDialogIsOpen', (value) => {
+        //         if (value) {
+        //             this.loadSettingsFromStorage();
+        //         }
+        //     });
+        // },
 
         get userId() {
             return this.user ? this.user.id : null;
@@ -1280,17 +1280,23 @@ document.addEventListener('alpine:init', () => {
         async loadSettingsFromStorage() {
             const key = `feathernote-settings-${this.userId}`;
             const encryptedSettings = localStorage.getItem(key);
-            if (encryptedSettings) {
-                const decrypted = await decryptSettings(encryptedSettings, this.userId);
-                if (decrypted) {
+
+            if (!encryptedSettings) return;
+
+            decryptSettings(encryptedSettings, this.userId)
+                .then(decrypted => {
+                    if (!decrypted) return;
+
                     this.s3Bucket = decrypted.s3Bucket || '';
                     this.s3Region = decrypted.s3Region || '';
                     this.s3Endpoint = decrypted.s3Endpoint || '';
                     this.s3Subfolder = decrypted.s3Subfolder || '';
                     this.accessKeyId = decrypted.accessKeyId || '';
                     this.secretAccessKey = decrypted.secretAccessKey || '';
-                }
-            }
+                })
+                .catch(error => {
+                    this.showToast({ title: 'Settings Decryption Error', description: error.message });
+                });
         },
 
         async handleSave() {
@@ -1339,21 +1345,32 @@ document.addEventListener('alpine:init', () => {
             if (encryptedString) {
                 this.exportString = encryptedString;
             } else {
-                this.showToast({ variant: 'destructive', title: 'Nothing to Export', description: 'No saved settings found.' });
+                this.showToast({ variant: 'error', title: 'Nothing to Export', description: 'No saved settings found.' });
             }
             this.showExportModal = true; // Ensure the modal opens
+            this.$nextTick(() => document.querySelector('[x-model="exportString"]').scrollIntoView());
         },
 
         copyExportStringToClipboard() {
+            var copyText = document.querySelector('[x-model="exportString"]');
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+
             navigator.clipboard.writeText(this.exportString);
             this.showToast({ title: 'Copied!', description: 'Encrypted settings string copied to clipboard.' });
+        },
+
+        async openImport() {
+            this.importString = '';
+            this.showImportModal = true;
+            this.$nextTick(() => document.querySelector('[x-model="importString"]').scrollIntoView());
         },
 
         async handleImport() {
             const key = `feathernote-settings-${this.userId}`;
 
             try {
-                const parsed = JSON.parse(this.importString);
+                const parsed = JSON.parse(this.importString?.trim());
                 if (parsed.salt && parsed.iv && parsed.content) {
                     localStorage.setItem(key, this.importString);
                     await this.loadSettingsFromStorage();
@@ -1366,7 +1383,7 @@ document.addEventListener('alpine:init', () => {
                 }
             } catch (error) {
                 console.error(error);
-                this.showToast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
+                this.showToast({ variant: 'error', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
             }
         }
     }));
