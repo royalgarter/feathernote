@@ -994,12 +994,12 @@ document.addEventListener('alpine:init', () => {
 
         async deleteNote(id) {
             try {
+                this.deletedNoteIds.push(id);
                 this.cancelNotification(id);
                 await deleteNoteDB(id);
                 await this.deleteNoteFromS3(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
-                this.deletedNoteIds.push(id);
-                this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                // this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
