@@ -1,6 +1,6 @@
 # FeatherNote
 
-FeatherNote is a feather weight, privacy-focused offline-first notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
+FeatherNote is a featherweight offline-first PWA Note with Markdown, S3 Sync, Share Target API, privacy-focused offline-first notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
 
 This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it fast, simple, and easy to maintain.
 

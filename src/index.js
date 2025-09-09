@@ -1352,6 +1352,9 @@ document.addEventListener('alpine:init', () => {
                     const fullUrl = window.location.origin + data.url;
                     this.showToast({ title: 'Note Published', description: 'A shareable link has been created.' });
                     // Use a prompt to make the URL easy to copy
+
+                    navigator.clipboard.writeText(fullUrl);
+
                     prompt('Share this URL:', fullUrl);
                 } else {
                     throw new Error(data.error || 'Failed to create shareable link.');

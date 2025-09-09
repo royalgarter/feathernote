@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -6,10 +7,12 @@ const crypto = require('crypto');
 const { TextEncoder, TextDecoder } = require('util');
 const multer = require('multer');
 const { marked } = require('marked');
+const { openKv } = require('@deno/kv');
 
 const app = express();
 const port = process.env.PORT || 7347;
 const upload = multer();
+const DENO_KV_SIZE_LIMIT = 65536;
 
 // Create a directory for published notes if it doesn't exist
 const publishedNotesDir = path.join(__dirname, 'published_notes');
@@ -24,45 +27,73 @@ app.use(express.static(path.join(__dirname)));
 
 // --- Share/Publish Endpoints ---
 
-app.post('/api/publish', (req, res) => {
+app.post('/api/publish', async (req, res) => {
     const { title, content } = req.body;
     if (!content) {
         return res.status(400).json({ error: 'Content cannot be empty.' });
     }
 
     const noteId = crypto.randomBytes(8).toString('hex');
-    const filePath = path.join(publishedNotesDir, `${noteId}.json`);
-    const noteData = JSON.stringify({ title: title || 'Untitled Note', content });
+    const noteData = { title: title || 'Untitled Note', content };
+    const noteString = JSON.stringify(noteData);
+    const noteSize = new TextEncoder().encode(noteString).length;
 
-    fs.writeFile(filePath, noteData, (err) => {
-        if (err) {
-            console.error('Failed to save note:', err);
-            return res.status(500).json({ error: 'Failed to save note.' });
+    try {
+        // Prioritize Deno KV if enabled and the note is within the size limit
+        if (process.env.PUBLISH_USE_DENOKV === 'true' && noteSize <= DENO_KV_SIZE_LIMIT) {
+            if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
+                throw new Error('Deno KV environment variables are not set.');
+            }
+            const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+            await kv.set(['published_notes', noteId], noteData);
+        } else {
+            // Fallback to filesystem for large notes or if Deno KV is not configured
+            const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+            fs.writeFileSync(filePath, noteString);
         }
         res.json({ url: `/publish/${noteId}` });
-    });
+    } catch (err) {
+        console.error('Failed to save note:', err);
+        res.status(500).json({ error: 'Failed to save note.' });
+    }
 });
 
-app.get('/publish/:noteId', (req, res) => {
+app.get('/publish/:noteId', async (req, res) => {
     const { noteId } = req.params;
-    // Basic input validation to prevent directory traversal
     if (!/^[a-f0-9]{16}$/.test(noteId)) {
         return res.status(400).send('Invalid note ID format.');
     }
 
-    const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+    try {
+        let note = null;
 
-    fs.readFile(filePath, 'utf8', (err, data) => {
-        if (err) {
+        // First, try to fetch from Deno KV if it's enabled
+        if (process.env.PUBLISH_USE_DENOKV === 'true') {
+            if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
+                throw new Error('Deno KV environment variables are not set.');
+            }
+            const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+            const result = await kv.get(['published_notes', noteId]);
+            if (result.value) {
+                note = result.value;
+            }
+        }
+
+        // If not found in Deno KV, or if Deno KV is not enabled, try the filesystem
+        if (!note) {
+            const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+            if (fs.existsSync(filePath)) {
+                const data = fs.readFileSync(filePath, 'utf8');
+                note = JSON.parse(data);
+            }
+        }
+
+        // If note is still not found, return 404
+        if (!note) {
             return res.status(404).send('Note not found.');
         }
 
-        const note = JSON.parse(data);
-        // IMPORTANT: In a real-world app, you MUST sanitize this output
-        // to prevent XSS attacks. Use a library like DOMPurify on the client
-        // or a server-side equivalent.
         const htmlContent = marked.parse(note.content);
-
         const html = `
             <!DOCTYPE html>
             <html lang="en">
@@ -79,6 +110,44 @@ app.get('/publish/:noteId', (req, res) => {
             <body>
                 <main class="container">
                     <h1>${note.title}</h1>
+                    <article>
+                        ${htmlContent}
+                    </article>
+                </main>
+            </body>
+            </html>
+        `;
+        res.send(html);
+    } catch (err) {
+        console.error('Failed to retrieve note:', err);
+        res.status(500).send('Failed to retrieve note.');
+    }
+});
+
+app.get('/about', (req, res) => {
+    const readmePath = path.join(__dirname, '..', 'README.md');
+    fs.readFile(readmePath, 'utf8', (err, markdown) => {
+        if (err) {
+            console.error('Failed to read README.md:', err);
+            return res.status(500).send('Could not load about page.');
+        }
+        const htmlContent = marked.parse(markdown);
+        const html = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>About FeatherNote</title>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+                <style>
+                    body { padding: 2rem; }
+                    main.container { max-width: 960px; }
+                    article img { max-width: 100%; }
+                </style>
+            </head>
+            <body>
+                <main class="container">
                     <article>
                         ${htmlContent}
                     </article>
