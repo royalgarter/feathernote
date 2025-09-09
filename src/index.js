@@ -631,6 +631,7 @@ document.addEventListener('alpine:init', () => {
         // --- App Data ---
         toasts: [],
         toastIdCounter: 0,
+        darkMode: false,
 
         // --- Auth Data ---
         user: null,
@@ -682,6 +683,9 @@ document.addEventListener('alpine:init', () => {
         // --- Main App Init ---
         init() {
             // App Init
+            this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
+            this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
+
             this.$nextTick(() => {
                 this.processSharedContent();
             });
@@ -777,7 +781,9 @@ document.addEventListener('alpine:init', () => {
             }, 300);
         },
 
-        // --- Auth Methods ---
+        toggleDarkMode() {
+            this.darkMode = !this.darkMode;
+        },
         async handleCredentialResponse(response) {
             try {
                 const decoded = await verifyGoogleJwt(response.credential, this.GOOGLE_CLIENT_ID);

@@ -20,6 +20,64 @@
         .EasyMDEContainer .editor-preview {
             padding-left: 40px;
         }
+
+        .dark {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .dark .bg-white {
+            background-color: #2d3748;
+        }
+        .dark .text-gray-900 {
+            color: #e2e8f0;
+        }
+        .dark .text-gray-800 {
+            color: #e2e8f0;
+        }
+        .dark .text-gray-700 {
+            color: #a0aec0;
+        }
+        .dark .text-gray-600 {
+            color: #a0aec0;
+        }
+        .dark .text-gray-500 {
+            color: #cbd5e0;
+        }
+        .dark .text-gray-400 {
+            color: #a0aec0;
+        }
+        .dark .border-gray-200 {
+            border-color: #4a5568;
+        }
+        .dark .border-gray-300 {
+            border-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-50:hover {
+            background-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-100:hover {
+            background-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-200:hover {
+            background-color: #4a5568;
+        }
+        .dark .bg-purple-100 {
+            background-color: #5a67d8;
+        }
+        .dark .text-purple-800 {
+            color: #e2e8f0;
+        }
+        .dark input {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
+        .dark .EasyMDEContainer .editor-preview {
+            background-color: #2d3748;
+        }
+        .dark .EasyMDEContainer .CodeMirror {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
     </style>
 
     <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
@@ -29,7 +87,7 @@
     <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script defer src="//sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
 </head>
-<body class="flex flex-col min-h-screen bg-gray-200 overflow-x-hidden" x-data="mainApp()" x-init="init()">
+<body class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
     <!-- AppShellHeader -->
     <header class="sticky top-0 z-10 w-full border-b bg-white">
         <div class="container mx-auto flex h-16 items-center justify-between p-4">
@@ -223,11 +281,20 @@
                     <span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
                 </div> -->
 
-
-                <!-- Notification Settings -->
                 <div class="border-t pt-4 mt-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm text-gray-600">Enable reminder notifications</p>
+                     <!-- Dark Mode Toggle -->
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm text-gray-600">Dark Mode</p>
+                        <button @click="toggleDarkMode()"
+                                :class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
+                                class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+                            <span :class="{ 'left-6': darkMode, 'left-1': !darkMode }"
+                                  class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+                        </button>
+                    </div>
+                    <!-- Notification Settings -->
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm text-gray-600">Reminder Notifications</p>
                         <button @click="togglePushNotifications()"
                                 :class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
                                 class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
