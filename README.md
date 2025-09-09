@@ -47,11 +47,12 @@ FeatherNote empowers you to use your own S3-compatible storage for syncing your 
 Here are some popular providers where you can create an S3 bucket:
 
 -   **[Amazon Web Services (AWS) S3](https://aws.amazon.com/s3/):** The original S3. AWS offers a free tier that includes 5GB of standard storage for new accounts.
--   **Google Cloud Storage:** Google's object storage solution, compatible with S3 APIs. Offers a free tier with 5GB of standard storage.
--   **Cloudflare R2:** A highly competitive S3-compatible storage offering with a generous free tier and no egress fees.
--   **Backblaze B2 Cloud Storage:** Known for its affordable pricing and S3 compatibility. Offers 10GB of free storage.
--   **Wasabi Hot Cloud Storage:** Offers a single tier of high-performance, S3-compatible storage with no egress fees. They often have trial periods.
--   **iDrive e2:** Another S3-compatible cloud storage provider with competitive pricing.
+-   **[Google Cloud Storage](https://cloud.google.com/storage):** Google's object storage solution, compatible with S3 APIs. Offers a free tier with 5GB of standard storage.
+-   **[Cloudflare R2](https://www.cloudflare.com/developer/r2/):** A highly competitive S3-compatible storage offering with a generous free tier and no egress fees.
+-   **[Backblaze B2 Cloud Storage](https://www.backblaze.com/cloud-storage/b2):** Known for its affordable pricing and S3 compatibility. Offers 10GB of free storage.
+-   **[Wasabi Hot Cloud Storage](https://wasabi.com/cloud-storage/hot-cloud-storage/):** Offers a single tier of high-performance, S3-compatible storage with no egress fees. They often have trial periods.
+-   **[iDrive e2](https://www.idrive.com/e2/):** Another S3-compatible cloud storage provider with competitive pricing.
+-   **[MinIO](https://min.io/):** For users who prefer to self-host their S3-compatible storage, MinIO provides high-performance, S3-compatible object storage that can be run on your own infrastructure. This is an excellent option for those who want complete control over their data, especially for AI/ML workloads where data locality and privacy are crucial.
 
 When choosing a provider, consider their free tier limits, pricing after the free tier, and ease of use. Once you have an S3 bucket, you'll need to generate Access Key ID and Secret Access Key credentials with appropriate permissions for FeatherNote to access it.
 
