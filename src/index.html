@@ -192,7 +192,7 @@
         <!-- Notes List View -->
         <template x-if="editingNoteId === null">
             <div class="px-4 py-6 sm:px-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <template x-for="note in filteredNotes" :key="note.id">
+                <template x-for="note in paginatedNotes" :key="note.id">
                     <div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
                         <div class="flex-grow" @click="editNote(note.id)">
                             <p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span></p>
@@ -221,6 +221,14 @@
                         </div>
                     </div>
                 </template>
+            </div>
+            <!-- Pagination Controls -->
+            <div class="flex justify-center items-center space-x-2 mt-4">
+                <button @click="prevPage()" :disabled="currentPage === 1" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                <template x-for="page in totalPages" :key="page">
+                    <button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
+                </template>
+                <button @click="nextPage()" :disabled="currentPage === totalPages" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
             </div>
         </template>
 

@@ -259,28 +259,38 @@ const uploadNoteToS3 = async (note, creds) => {
 const listNotesInS3 = async (creds) => {
     const s3Client = getS3Client(creds);
     const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
-    const command = new ListObjectsV2Command({
-        Bucket: creds.bucket,
-        Prefix: prefix
-    });
+    let allNoteMetadata = [];
+    let continuationToken = undefined;
 
-    try {
-        const response = await s3Client.send(command);
-        const noteMetadata = response.Contents?.map(item => {
-            if (!item.Key || item.Key.endsWith('/')) return null;
-            return {
-                id: item.Key.replace(prefix, '').replace('.json', ''),
-                lastModified: item.LastModified // S3's LastModified timestamp
-            };
-        }).filter(item => !!item) || [];
-        return noteMetadata;
-    } catch (error) {
-        console.error("S3 List Error:", error);
-        if (error instanceof Error) {
-            throw new Error(`Failed to list notes in S3: ${error.name} - ${error.message}`);
+    do {
+        const command = new ListObjectsV2Command({
+            Bucket: creds.bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+        });
+
+        try {
+            const response = await s3Client.send(command);
+            const noteMetadata = response.Contents?.map(item => {
+                if (!item.Key || item.Key.endsWith('/')) return null;
+                return {
+                    id: item.Key.replace(prefix, '').replace('.json', ''),
+                    lastModified: item.LastModified // S3's LastModified timestamp
+                };
+            }).filter(item => !!item) || [];
+            
+            allNoteMetadata = allNoteMetadata.concat(noteMetadata);
+            continuationToken = response.NextContinuationToken;
+        } catch (error) {
+            console.error("S3 List Error:", error);
+            if (error instanceof Error) {
+                throw new Error(`Failed to list notes in S3: ${error.name} - ${error.message}`);
+            }
+            throw new Error('An unknown error occurred during S3 list operation.');
         }
-        throw new Error('An unknown error occurred during S3 list operation.');
-    }
+    } while (continuationToken);
+
+    return allNoteMetadata;
 };
 
 const downloadNoteFromS3 = async (noteId, creds) => {

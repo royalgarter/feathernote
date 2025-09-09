@@ -155,28 +155,41 @@ document.addEventListener('alpine:init', () => {
     const listNotesInS3V2 = async (creds) => {
         const s3 = getS3ClientV2(creds);
         const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
-        const params = {
-            Bucket: creds.bucket,
-            Prefix: prefix,
-        };
+        let allNoteMetadata = [];
+        let continuationToken = undefined;
 
-        return new Promise((resolve, reject) => {
-            s3.listObjectsV2(params, (err, data) => {
-                if (err) {
-                    console.error("S3 List Error:", err);
-                    reject(new Error(`Failed to list notes in S3: ${err.code} - ${err.message}`));
-                } else {
-                    const noteMetadata = data.Contents?.map(item => {
-                        if (!item.Key || item.Key.endsWith('/')) return null;
-                        return {
-                            id: item.Key.replace(prefix, '').replace('.json', ''),
-                            lastModified: item.LastModified // S3's LastModified timestamp
-                        };
-                    }).filter(item => !!item) || [];
-                    resolve(noteMetadata);
-                }
-            });
-        });
+        do {
+            const params = {
+                Bucket: creds.bucket,
+                Prefix: prefix,
+                ContinuationToken: continuationToken,
+            };
+
+            try {
+                const data = await new Promise((resolve, reject) => {
+                    s3.listObjectsV2(params, (err, data) => {
+                        if (err) reject(err);
+                        else resolve(data);
+                    });
+                });
+
+                const noteMetadata = data.Contents?.map(item => {
+                    if (!item.Key || item.Key.endsWith('/')) return null;
+                    return {
+                        id: item.Key.replace(prefix, '').replace('.json', ''),
+                        lastModified: item.LastModified
+                    };
+                }).filter(item => !!item) || [];
+
+                allNoteMetadata = allNoteMetadata.concat(noteMetadata);
+                continuationToken = data.NextContinuationToken;
+            } catch (err) {
+                console.error("S3 List Error:", err);
+                throw new Error(`Failed to list notes in S3: ${err.code} - ${err.message}`);
+            }
+        } while (continuationToken);
+
+        return allNoteMetadata;
     };
 
     const downloadNoteFromS3V2 = async (noteId, creds) => {
@@ -649,6 +662,8 @@ document.addEventListener('alpine:init', () => {
         editingNoteId: null, // New state to track which note is being edited
         deletedNoteIds: [],
         lastSync: null,
+        currentPage: 1,
+        notesPerPage: 100,
 
         // --- Note Editor Data ---
         editorAutosaveIntervalId: null,
@@ -677,6 +692,32 @@ document.addEventListener('alpine:init', () => {
             // We need to return the original note objects, so map them back.
             const resultIds = new Set(searchResults.map(result => result.id));
             return this.notes.filter(note => resultIds.has(note.id));
+        },
+
+        get paginatedNotes() {
+            const start = (this.currentPage - 1) * this.notesPerPage;
+            const end = start + this.notesPerPage;
+            return this.filteredNotes.slice(start, end);
+        },
+
+        get totalPages() {
+            return Math.ceil(this.filteredNotes.length / this.notesPerPage);
+        },
+
+        nextPage() {
+            if (this.currentPage < this.totalPages) {
+                this.currentPage++;
+            }
+        },
+
+        prevPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+            }
+        },
+
+        goToPage(page) {
+            this.currentPage = page;
         },
 
 
