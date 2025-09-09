@@ -1,18 +1,95 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
 const { TextEncoder, TextDecoder } = require('util');
 const multer = require('multer');
+const { marked } = require('marked');
 
 const app = express();
 const port = process.env.PORT || 7347;
 const upload = multer();
 
+// Create a directory for published notes if it doesn't exist
+const publishedNotesDir = path.join(__dirname, 'published_notes');
+if (!fs.existsSync(publishedNotesDir)) {
+    fs.mkdirSync(publishedNotesDir);
+}
+
 app.use(express.json()); // Middleware to parse JSON request bodies
 
-// Serve static files from the 'v2' directory
+// Serve static files from the 'src' directory
 app.use(express.static(path.join(__dirname)));
+
+// --- Share/Publish Endpoints ---
+
+app.post('/api/publish', (req, res) => {
+    const { title, content } = req.body;
+    if (!content) {
+        return res.status(400).json({ error: 'Content cannot be empty.' });
+    }
+
+    const noteId = crypto.randomBytes(8).toString('hex');
+    const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+    const noteData = JSON.stringify({ title: title || 'Untitled Note', content });
+
+    fs.writeFile(filePath, noteData, (err) => {
+        if (err) {
+            console.error('Failed to save note:', err);
+            return res.status(500).json({ error: 'Failed to save note.' });
+        }
+        res.json({ url: `/publish/${noteId}` });
+    });
+});
+
+app.get('/publish/:noteId', (req, res) => {
+    const { noteId } = req.params;
+    // Basic input validation to prevent directory traversal
+    if (!/^[a-f0-9]{16}$/.test(noteId)) {
+        return res.status(400).send('Invalid note ID format.');
+    }
+
+    const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            return res.status(404).send('Note not found.');
+        }
+
+        const note = JSON.parse(data);
+        // IMPORTANT: In a real-world app, you MUST sanitize this output
+        // to prevent XSS attacks. Use a library like DOMPurify on the client
+        // or a server-side equivalent.
+        const htmlContent = marked.parse(note.content);
+
+        const html = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${note.title}</title>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+                <style>
+                    body { padding: 2rem; }
+                    article { white-space: pre-wrap; }
+                </style>
+            </head>
+            <body>
+                <main class="container">
+                    <h1>${note.title}</h1>
+                    <article>
+                        ${htmlContent}
+                    </article>
+                </main>
+            </body>
+            </html>
+        `;
+        res.send(html);
+    });
+});
+
 
 // --- Crypto Functions for server-side decryption ---
 

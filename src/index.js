@@ -650,6 +650,7 @@ document.addEventListener('alpine:init', () => {
         lastSync: null,
 
         // --- Note Editor Data ---
+        editorAutosaveIntervalId: null,
         noteEditorNoteId: null,
         noteEditorTitle: '',
         noteEditorContent: '',
@@ -683,12 +684,6 @@ document.addEventListener('alpine:init', () => {
             // App Init
             this.$nextTick(() => {
                 this.processSharedContent();
-            });
-
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
-                    this.processSharedContent();
-                }
             });
 
             // Notifications Init
@@ -738,11 +733,6 @@ document.addEventListener('alpine:init', () => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
 
-            this.$watch('notes', (newNotes) => {
-                this.updateAppBadge();
-                this.miniSearch?.removeAll();
-                this.miniSearch?.addAll(newNotes);
-            });
             this.$watch('searchTag', () => this.generateSuggestions());
 
             // this.$watch('$el', (el) => {
@@ -932,22 +922,25 @@ document.addEventListener('alpine:init', () => {
 
         // --- Note Manager Methods ---
         async generateSuggestions() {
-            if (this.searchTag.trim() === '') {
-                this.suggestions = [];
-                return;
-            }
+            if (!this.miniSearch || this.searchTag?.trim() === '') return (this.suggestions = []);
+
             this.suggestions = this.miniSearch?.autoSuggest(this.searchTag, {
                 prefix: true,
                 fuzzy: 0.2,
                 combineWith: 'AND'
             }) || [];
         },
+
         async fetchNotes() {
             this.loading = true;
             try {
                 const notesFromDB = await getNotesDB();
                 this.notes = notesFromDB;
                 this.scheduleAllFutureReminders();
+
+                this.updateAppBadge();
+                this.miniSearch?.removeAll();
+                this.miniSearch?.addAllAsync(this.notes);
             } catch (error) {
                 console.error('Error in fetchNotes:', error);
                 this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
@@ -971,6 +964,8 @@ document.addEventListener('alpine:init', () => {
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote);
                 this.scheduleNotification(newNote);
+                this.updateAppBadge();
+                this.miniSearch?.add(newNote);
                 // this.showToast({ title: 'Note Added', description: 'New note created.' });
                 this.syncNotes(false, 1, [newNote]);
                 return newNote;
@@ -981,7 +976,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        async updateNote(id, updates) {
+        async updateNote(id, updates, isSilent = false) {
             try {
                 const noteToUpdate = await getNoteDB(id);
                 if (!noteToUpdate) throw new Error('Note not found');
@@ -990,12 +985,49 @@ document.addEventListener('alpine:init', () => {
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.scheduleNotification(updatedNote);
-                this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
-                this.syncNotes(false, 1, [updatedNote]);
+                this.updateAppBadge();
+                this.miniSearch?.removeAll();
+                this.miniSearch?.addAllAsync(this.notes);
+                if (!isSilent) {
+                    this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
+                }
+                this.syncNotes(isSilent, 1, [updatedNote]);
             } catch (error) {
                 console.error('Error in updateNote:', error);
-                this.showToast({ variant: 'error', title: 'Error', description: 'Could not update note.' });
+                if (!isSilent) {
+                    this.showToast({ variant: 'error', title: 'Error', description: 'Could not update note.' });
+                }
             }
+        },
+
+        async autosaveCurrentNote() {
+            if (!this.editingNoteId || !this.noteEditorNoteId || this.noteEditorNoteId === 'new') {
+                return;
+            }
+
+            const id = this.noteEditorNoteId;
+            const noteInDb = await this.getNote(id);
+            if (!noteInDb) return;
+
+            const content = window.easyMDEInstance?.value();
+            if (content === null || content === undefined) return;
+
+            const noteData = {
+                title: this.noteEditorTitle.trim() || ('Note at ' + new Date().toString().substr(0, 21)),
+                content: content,
+                reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
+                tags: this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag),
+            };
+
+            if (noteInDb.title === noteData.title &&
+                noteInDb.content === noteData.content &&
+                (noteInDb.reminder || undefined) === noteData.reminder &&
+                JSON.stringify(noteInDb.tags || []) === JSON.stringify(noteData.tags)) {
+                return;
+            }
+
+            console.log(`Autosaving note ${id}...`);
+            await this.updateNote(id, noteData, true);
         },
 
         async deleteNote(id) {
@@ -1197,8 +1229,12 @@ document.addEventListener('alpine:init', () => {
                     element: document.getElementById('note-content'),
                     unorderedListStyle: "-",
                     lineNumbers: true,
+                    lineWrapping: true,
+                    promptURLs: true,
                     spellChecker: false,
                     nativeSpellcheck: false,
+                    minHeight: "500px",
+                    showIcons: ["code", "table"],
                     autosave: {
                         enabled: true,
                         uniqueId: id,
@@ -1208,7 +1244,7 @@ document.addEventListener('alpine:init', () => {
                             locale: 'en-US',
                             format: {
                                 year: 'numeric',
-                                month: 'long',
+                                month: 'short',
                                 day: '2-digit',
                                 hour: '2-digit',
                                 minute: '2-digit',
@@ -1216,7 +1252,7 @@ document.addEventListener('alpine:init', () => {
                         },
                         text: "Autosaved: "
                     },
-                    forceSync: true,
+                    // forceSync: true,
                     previewImagesInEditor: true,
                 });
             });
@@ -1237,8 +1273,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         async editNote(id) {
+            if (this.editorAutosaveIntervalId) {
+                clearInterval(this.editorAutosaveIntervalId);
+            }
             this.editingNoteId = id;
             await this.loadNoteIntoEditor(id);
+            this.editorAutosaveIntervalId = setInterval(() => {
+                this.autosaveCurrentNote();
+            }, 60 * 1000);
         },
 
         // --- Note Editor Methods (moved from noteEditor component) ---
@@ -1288,7 +1330,43 @@ document.addEventListener('alpine:init', () => {
             this.fetchNotes();
         },
 
+        async shareNote() {
+            const content = window.easyMDEInstance?.value();
+            if (!content || !content.trim()) {
+                this.showToast({ variant: 'error', title: 'Cannot Share', description: 'You cannot share an empty note.' });
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title: this.noteEditorTitle, content: content }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.url) {
+                    const fullUrl = window.location.origin + data.url;
+                    this.showToast({ title: 'Note Published', description: 'A shareable link has been created.' });
+                    // Use a prompt to make the URL easy to copy
+                    prompt('Share this URL:', fullUrl);
+                } else {
+                    throw new Error(data.error || 'Failed to create shareable link.');
+                }
+            } catch (error) {
+                console.error('Share error:', error);
+                this.showToast({ variant: 'error', title: 'Sharing Failed', description: error.message });
+            }
+        },
+
         cancelEdit() {
+            if (this.editorAutosaveIntervalId) {
+                clearInterval(this.editorAutosaveIntervalId);
+                this.editorAutosaveIntervalId = null;
+            }
             window.easyMDEInstance?.toTextArea?.();
             window.easyMDEInstance = null;
 

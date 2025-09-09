@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FeatherNote</title>
     <link rel="manifest" href="/manifest.json">
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
+    <!-- <script src="//cdn.tailwindcss.com"></script> -->
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
     <style>
         .line-clamp-3 {
             -webkit-line-clamp: 3;
@@ -16,12 +16,18 @@
             word-break: break-word;
             overflow: hidden;
         }
+
+        .EasyMDEContainer .editor-preview {
+            padding-left: 40px;
+        }
     </style>
-    <script async defer src="https://cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
-    <script defer src="https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
     <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
     <script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+
+    <script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
+    <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="//sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
 </head>
 <body class="flex flex-col min-h-screen bg-gray-200 overflow-x-hidden" x-data="mainApp()" x-init="init()">
     <!-- AppShellHeader -->
@@ -103,11 +109,9 @@
             <div class="bg-white rounded-lg h-4/5 p-4">
                 <!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2> -->
                 <div class="mb-4">
-                    <label for="note-title" class="block text-sm font-medium text-gray-700">Title</label>
                     <input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
                 </div>
                 <div class="mb-4">
-                    <label for="note-content" class="block text-sm font-medium font-mono text-gray-700">Content</label>
                     <textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
                 </div>
                 <div class="mb-4">
@@ -121,6 +125,7 @@
                 <div class="flex justify-end space-x-3">
                     <button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                     <button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Share</button>
                     <button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
                 </div>
             </div>
@@ -142,7 +147,7 @@
                         <div class="mt-4">
                             <div class="flex flex-wrap gap-1">
                                 <template x-for="tag in note.tags" :key="tag">
-                                    <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
+                                    <span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
                                 </template>
                             </div>
                         </div>
@@ -221,9 +226,8 @@
 
                 <!-- Notification Settings -->
                 <div class="border-t pt-4 mt-4">
-                    <h4 class="text-md font-semibold mb-2">Notifications</h4>
                     <div class="flex items-center justify-between">
-                        <p class="text-sm text-gray-600">Enable reminders for your notes.</p>
+                        <p class="text-sm text-gray-600">Enable reminder notifications</p>
                         <button @click="togglePushNotifications()"
                                 :class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
                                 class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
@@ -264,9 +268,9 @@
                 </fieldset>
 
                 <!-- Security Note Alert -->
-                <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 p-4 rounded relative" role="alert">
+                <!-- <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 p-4 rounded relative" role="alert">
                     <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
-                </div>
+                </div> -->
             </div>
 
             <!-- Buttons -->

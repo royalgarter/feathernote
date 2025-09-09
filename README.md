@@ -1,13 +1,14 @@
 # FeatherNote
 
-FeatherNote is a lightweight, privacy-focused offline-first notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
+FeatherNote is a feather weight, privacy-focused offline-first notetaking application that runs entirely in your browser. It uses your browser's local storage (IndexedDB) to save your notes, and it offers an optional feature to sync your notes to a private S3 bucket for backup and multi-device access.
 
 This version of FeatherNote is built with Alpine.js and Tailwind CSS, making it fast, simple, and easy to maintain.
 
 ## Features
 
 *   **Offline First:** Your notes are stored locally in your browser, so you can access them even without an internet connection.
-*   **Simple Note Management:** Create, edit, delete and set reminders for notes with a clean and intuitive interface.
+*   **Markdown Editor:** Create, edit, and format notes with a clean, intuitive interface and a side-by-side Markdown preview.
+*   **Reminder Notifications:** Set reminders for your notes and receive push notifications.
 *   **Optional S3 Sync:** For users who want to back up their notes or sync them across multiple devices, FeatherNote offers a secure S3 sync feature.
 *   **Privacy Focused:** Your notes are your own. If you choose to use the S3 sync feature, your S3 credentials are encrypted in your browser and are never sent to any server other than your own S3 bucket.
 *   **Google Sign-In:** Securely sign in with your Google account to associate your S3 settings with your identity.
