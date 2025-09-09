@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { TextEncoder, TextDecoder } = require('util');
 const multer = require('multer');
 const { marked } = require('marked');
-const { openKv } = require('@deno/kv');
+const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
 const app = express();
 const port = process.env.PORT || 7347;
