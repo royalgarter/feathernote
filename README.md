@@ -2,6 +2,8 @@
 
 A featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
 
+**Try FeatherNote now: [feathernote.deno.dev](https://feathernote.deno.dev)**
+
 **In a world of data breaches and ever-growing cloud subscriptions, haven't you ever wished for a note-taking app that puts you back in control?**
 
 That's the question that sparked the creation of FeatherNote. We were tired of our personal thoughts and important reminders being locked away in someone else's database, subject to their terms, their security, and their pricing. We wanted something simple, fast, and private. Something that worked offline as seamlessly as it worked online.
@@ -108,7 +110,7 @@ FeatherNote is designed to be deployed as a static web application, with all cli
 
 ### Normal NodeJS / Deno Hosting
 
-If you wish to utilize the full functionality of FeatherNote, including the PWA Share Target feature, you can deploy the application using a Node.js or Deno environment. The `server.js` file provides the necessary backend routes.
+If you wish to utilize the full functionality of FeatherNote, (such as `/publish` for publish your note), you can deploy the application using a Node.js or Deno environment. The `server.js` file provides the necessary backend routes.
 
 To deploy:
 
