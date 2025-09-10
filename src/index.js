@@ -948,6 +948,44 @@ document.addEventListener('alpine:init', () => {
                     },
                     forceSync: true,
                     previewImagesInEditor: true,
+                    toolbar: [
+                        "bold", "italic", "heading", "|",
+                        "quote", "unordered-list", "ordered-list", "|",
+                        "link", "image", "|",
+                        {
+                            name: "word-wrap",
+                            action: function(editor){
+                                const cm = editor.codemirror;
+                                cm.setOption("lineWrapping", !cm.getOption("lineWrapping"));
+                            },
+                            className: "fa fa-file-word-o",
+                            title: "Toggle Word Wrap",
+                        },
+                        "|",
+                        "preview", "side-by-side", "fullscreen", "|",
+                        "guide"
+                    ]
+                });
+
+                // Handle image pasting
+                const cm = window.easyMDEInstance.codemirror;
+                cm.on('paste', (cmInstance, event) => {
+                    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+                    for (const item of items) {
+                        if (item.kind === 'file' && item.type.startsWith('image/')) {
+                            event.preventDefault();
+                            const blob = item.getAsFile();
+                            const reader = new FileReader();
+                            reader.onload = (readerEvent) => {
+                                const dataUrl = readerEvent.target.result;
+                                const markdown = `
+![Pasted Image](${dataUrl})
+`;
+                                cm.replaceSelection(markdown);
+                            };
+                            reader.readAsDataURL(blob);
+                        }
+                    }
                 });
             });
         },
