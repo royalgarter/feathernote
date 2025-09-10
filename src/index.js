@@ -95,14 +95,281 @@ document.addEventListener('alpine:init', () => {
 
             const dec = new TextDecoder();
 
-            const json = JSON.parse(dec.decode(decryptedContent));
+            const credentials = JSON.parse(dec.decode(decryptedContent));
 
-            console.log('decrypt', json);
+            credentials.region = credentials.region || credentials.s3Region;
+            credentials.bucket = credentials.bucket || credentials.s3Bucket;
+            credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
+            credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 
-            return json;
+            // console.log('decrypt', credentials);
+
+            return credentials;
         } catch (error) {
             console.error('Decryption failed:', error);
             return null;
+        }
+    }
+
+    // --- S3 Functions (Client-side AWS SDK v2) ---
+    const getS3ClientV2 = (creds) => {
+        // AWS.config.update is generally not recommended for client-side in a single-page app
+        // as it's global. Instead, pass credentials directly to the S3 constructor.
+        return new AWS.S3({
+            region: creds.region || 'us-east-1',
+            endpoint: creds.endpoint,
+            accessKeyId: creds.accessKeyId,
+            secretAccessKey: creds.secretAccessKey,
+            s3ForcePathStyle: !!creds.endpoint, // Required for custom endpoints like R2
+        });
+    };
+
+    const getS3ObjectKey = (noteId, creds) => {
+        const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+        return `${path}${noteId}.json`;
+    };
+
+    const uploadNoteToS3V2 = async (note, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const noteJson = JSON.stringify(note, null, 2);
+
+        const params = {
+            Bucket: creds.bucket,
+            Key: getS3ObjectKey(note.id, creds),
+            Body: noteJson,
+            ContentType: 'application/json',
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.upload(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Upload Error for note ${note.id}:`, err);
+                    reject(new Error(`Failed to upload to S3: ${err.code} - ${err.message}`));
+                } else {
+                    resolve(data);
+                }
+            });
+        });
+    };
+
+    const listNotesInS3V2 = async (creds) => {
+        const s3 = getS3ClientV2(creds);
+        const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+        let allNoteMetadata = [];
+        let continuationToken = undefined;
+
+        do {
+            const params = {
+                Bucket: creds.bucket,
+                Prefix: prefix,
+                ContinuationToken: continuationToken,
+            };
+
+            try {
+                const data = await new Promise((resolve, reject) => {
+                    s3.listObjectsV2(params, (err, data) => {
+                        if (err) reject(err);
+                        else resolve(data);
+                    });
+                });
+
+                const noteMetadata = data.Contents?.map(item => {
+                    if (!item.Key || item.Key.endsWith('/')) return null;
+                    return {
+                        id: item.Key.replace(prefix, '').replace('.json', ''),
+                        lastModified: item.LastModified
+                    };
+                }).filter(item => !!item) || [];
+
+                allNoteMetadata = allNoteMetadata.concat(noteMetadata);
+                continuationToken = data.NextContinuationToken;
+            } catch (err) {
+                console.error("S3 List Error:", err);
+                throw new Error(`Failed to list notes in S3: ${err.code} - ${err.message}`);
+            }
+        } while (continuationToken);
+
+        return allNoteMetadata;
+    };
+
+    const downloadNoteFromS3V2 = async (noteId, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const key = getS3ObjectKey(noteId, creds);
+        const params = {
+            Bucket: creds.bucket,
+            Key: key,
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.getObject(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Download Error for note ${noteId}:`, err);
+                    reject(new Error(`Failed to download note from S3: ${err.code} - ${err.message}`));
+                } else {
+                    if (data.Body) {
+                        // AWS SDK v2 returns Body as a Buffer in Node.js, but a Blob/Uint8Array in browser
+                        // For browser, we need to convert it to text
+                        const str = new TextDecoder().decode(data.Body);
+                        resolve(JSON.parse(str));
+                    } else {
+                        reject(new Error('Downloaded note has no body'));
+                    }
+                }
+            });
+        });
+    };
+
+    const deleteNoteFromS3V2 = async (noteId, creds) => {
+        const s3 = getS3ClientV2(creds);
+        const key = getS3ObjectKey(noteId, creds);
+        const params = {
+            Bucket: creds.bucket,
+            Key: key,
+        };
+
+        return new Promise((resolve, reject) => {
+            s3.deleteObject(params, (err, data) => {
+                if (err) {
+                    console.error(`S3 Delete Error for note ${noteId}:`, err);
+                    reject(new Error(`Failed to delete note from S3: ${err.code} - ${err.message}`));
+                } else {
+                    console.log(`S3 Deleted note ${noteId}:`, data);
+                    resolve(data);
+                }
+            });
+        });
+    };
+
+    // --- New API Functions (Client-side) ---
+    async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, lastSyncedIds = []) {
+        try {
+            const credentials = await decryptSettings(encryptedSettings, userId);
+
+            if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+                return { success: false, error: 'Invalid or incomplete S3 credentials.' };
+            }
+
+            const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
+
+            // Step 1: Handle local deletions on S3. These take precedence.
+            let deletedCount = 0;
+            if (deletedNoteIds && deletedNoteIds.length > 0) {
+                const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
+                await Promise.all(deletePromises);
+                deletedCount = deletedNoteIds.length;
+            }
+
+            // Step 2: Get remote state
+            const remoteNoteMetadata = await listNotesInS3V2(credentials);
+            const remoteNoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
+
+            const notesToUpload = [];
+            const notesToDownload = [];
+            const notesToDeleteLocally = [];
+
+            const allNoteIds = new Set([...localNotesMap.keys(), ...remoteNoteMetaMap.keys()]);
+
+            // Step 3: Compare local and remote states to build action queues
+            for (const noteId of allNoteIds) {
+                if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
+                    continue; // Already processed as a deletion
+                }
+
+                const localNote = localNotesMap.get(noteId);
+                const remoteMeta = remoteNoteMetaMap.get(noteId);
+
+                if (localNote && !remoteMeta) {
+                    // Note exists only locally. Was it synced before or is it new?
+                    if (lastSyncedIds.includes(localNote.id)) {
+                        // This note was successfully synced before, but is now gone from remote.
+                        // It must have been deleted remotely.
+                        notesToDeleteLocally.push(localNote.id);
+                    } else {
+                        // This note was not in the last successful sync. It's a new note.
+                        notesToUpload.push(localNote);
+                    }
+                } else if (!localNote && remoteMeta) {
+                    // Note exists only remotely, so download it.
+                    notesToDownload.push(noteId);
+                } else if (localNote && remoteMeta) {
+                    // Note exists in both. Conflict resolution time.
+                    const localDate = new Date(localNote.updatedAt);
+                    const remoteDate = new Date(remoteMeta.lastModified);
+
+                    // Use a 2-second buffer to avoid sync loops due to small clock differences.
+                    if (localDate.getTime() > remoteDate.getTime() + 2000) {
+                        notesToUpload.push(localNote);
+                    } else if (remoteDate.getTime() > localDate.getTime() + 2000) {
+                        notesToDownload.push(noteId);
+                    }
+                }
+            }
+
+            // Step 4: Execute downloads
+            const downloadedNotes = [];
+            if (notesToDownload.length > 0) {
+                const downloadPromises = notesToDownload.map(async (noteId) => {
+                    const remoteNote = await downloadNoteFromS3V2(noteId, credentials);
+                    if (remoteNote) {
+                        const localNote = localNotesMap.get(noteId);
+                        if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+                            downloadedNotes.push(remoteNote);
+                        }
+                    }
+                });
+                await Promise.all(downloadPromises);
+            }
+
+            // Step 5: Execute uploads
+            if (notesToUpload.length > 0) {
+                const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials));
+                await Promise.all(uploadPromises);
+            }
+
+            // Step 6: Calculate the final state of remote IDs for the next sync
+            const finalRemoteIds = new Set(remoteNoteMetaMap.keys());
+            notesToUpload.forEach(n => finalRemoteIds.add(n.id));
+            deletedNoteIds.forEach(id => finalRemoteIds.delete(id));
+
+            return {
+                success: true,
+                uploadedCount: notesToUpload.length,
+                downloadedCount: downloadedNotes.length,
+                deletedCount,
+                updatedNotes: downloadedNotes,
+                notesToDeleteLocally,
+                finalRemoteIds: Array.from(finalRemoteIds)
+            };
+
+        } catch (error) {
+            console.error('Client-side sync error:', error);
+            let errorMessage = 'An unknown error occurred during sync.';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    async function apiDeleteNote(encryptedSettings, userId, noteId) {
+        try {
+            const credentials = await decryptSettings(encryptedSettings, userId);
+
+            if (!credentials || !credentials.bucket || !credentials.accessKeyId || !credentials.secretAccessKey) {
+                return { success: false, error: 'Invalid or incomplete S3 credentials.' };
+            }
+
+            await deleteNoteFromS3V2(noteId, credentials);
+
+            return { success: true, message: `Note ${noteId} deleted from S3.` };
+
+        } catch (error) {
+            console.error('Client-side delete error:', error);
+            let errorMessage = 'An unknown error occurred during deletion.';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            return { success: false, error: errorMessage };
         }
     }
 
@@ -377,6 +644,7 @@ document.addEventListener('alpine:init', () => {
         // --- App Data ---
         toasts: [],
         toastIdCounter: 0,
+        darkMode: false,
 
         // --- Auth Data ---
         user: null,
@@ -386,14 +654,19 @@ document.addEventListener('alpine:init', () => {
         // --- Note Manager Data ---
         notes: [],
         searchTag: '',
+        suggestions: [], // New property
         loading: true,
+        miniSearch: null,
         isSyncing: false,
         syncIntervalId: null,
         editingNoteId: null, // New state to track which note is being edited
         deletedNoteIds: [],
         lastSync: null,
+        currentPage: 1,
+        notesPerPage: 100,
 
         // --- Note Editor Data ---
+        editorAutosaveIntervalId: null,
         noteEditorNoteId: null,
         noteEditorTitle: '',
         noteEditorContent: '',
@@ -409,26 +682,51 @@ document.addEventListener('alpine:init', () => {
             if (!this.searchTag.trim()) {
                 return this.notes;
             }
-            const searchTagLower = this.searchTag.toLowerCase();
+            // Use minisearch for filtering
+            const searchResults = this.miniSearch ? this.miniSearch.search(this.searchTag, {
+                prefix: true, // Search for prefixes
+                fuzzy: 0.2, // Allow some fuzziness
+                combineWith: 'AND' // All terms must match
+            }) : this.notes.filter(x => x.tags.includes(this.searchTag) || x.title.includes(this.searchTag));
+            // minisearch returns an array of objects with 'id' and other stored fields.
+            // We need to return the original note objects, so map them back.
+            const resultIds = new Set(searchResults.map(result => result.id));
+            return this.notes.filter(note => resultIds.has(note.id));
+        },
 
-            return this.notes.filter(note => {
-                const tagMatch = note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTagLower));
-                if (tagMatch) return tagMatch;
+        get paginatedNotes() {
+            const start = (this.currentPage - 1) * this.notesPerPage;
+            const end = start + this.notesPerPage;
+            return this.filteredNotes.slice(start, end);
+        },
 
-                const titleMatch = note.title.toLowerCase().includes(searchTagLower);
-                if (titleMatch) return titleMatch;
+        get totalPages() {
+            return Math.ceil(this.filteredNotes.length / this.notesPerPage);
+        },
 
-                const contentMatch = note.content.toLowerCase().includes(searchTagLower);
-                if (contentMatch) return contentMatch;
+        nextPage() {
+            if (this.currentPage < this.totalPages) {
+                this.currentPage++;
+            }
+        },
 
-                return titleMatch || tagMatch || contentMatch;
-            });
+        prevPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+            }
+        },
+
+        goToPage(page) {
+            this.currentPage = page;
         },
 
 
         // --- Main App Init ---
         init() {
             // App Init
+            this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
+            this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
+
             this.$nextTick(() => {
                 this.processSharedContent();
             });
@@ -453,33 +751,40 @@ document.addEventListener('alpine:init', () => {
                 this.user = JSON.parse(storedUser);
             }
 
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => {
-                this.isGsiLoaded = true;
-            };
-            document.body.appendChild(script);
+            // Only append GSI script if it's not already in the DOM
+            if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+                const script = document.createElement('script');
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.async = true;
+                script.defer = true;
+                script.onload = () => {
+                    this.isGsiLoaded = true;
+                };
+                document.body.appendChild(script);
+            }
 
             // Note Manager Init
             const lastSync = localStorage.getItem('feathernote-lastSync');
             if (lastSync) {
                 this.lastSync = lastSync;
             }
+            this.miniSearch = window.MiniSearch ? new MiniSearch({
+                fields: ['title', 'content', 'tags'], // Fields to search!
+                storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
+            }) : null;
             this.fetchNotes();
             this.syncNotes();
             this.syncIntervalId = setInterval(() => {
                 this.syncNotes(true); // Run a silent sync
             }, 2 * 60 * 1000); // Every 2 minutes
 
-            this.$watch('notes', () => this.updateAppBadge());
+            this.$watch('searchTag', () => this.generateSuggestions());
 
-            this.$watch('$el', (el) => {
-                if (!el) {
-                    clearInterval(this.syncIntervalId);
-                }
-            });
+            // this.$watch('$el', (el) => {
+            //     if (!el) {
+            //         clearInterval(this.syncIntervalId);
+            //     }
+            // });
 
             if (window.location.hash === '#new_note') {
                 this.createNewNote();
@@ -493,7 +798,7 @@ document.addEventListener('alpine:init', () => {
             return new Date(isoString).toLocaleString();
         },
         getNotePreview(content) {
-            return content ? `${content.substring(0, 100)}...` : 'No content preview';
+            return content ? `${content.substring(0, 200)}...` : 'No content preview';
         },
 
         showToast({ title, description, variant = 'default', duration = 3000 }) {
@@ -517,7 +822,9 @@ document.addEventListener('alpine:init', () => {
             }, 300);
         },
 
-        // --- Auth Methods ---
+        toggleDarkMode() {
+            this.darkMode = !this.darkMode;
+        },
         async handleCredentialResponse(response) {
             try {
                 const decoded = await verifyGoogleJwt(response.credential, this.GOOGLE_CLIENT_ID);
@@ -538,7 +845,7 @@ document.addEventListener('alpine:init', () => {
                 this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
             } catch (error) {
                 console.error("Error processing credential:", error);
-                this.showToast({ variant: 'destructive', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
+                this.showToast({ variant: 'error', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
             }
         },
 
@@ -557,14 +864,14 @@ document.addEventListener('alpine:init', () => {
 
         signIn() {
             if (!this.GOOGLE_CLIENT_ID) {
-                this.showToast({ variant: 'destructive', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
+                this.showToast({ variant: 'error', title: 'Configuration Error', description: 'Google Client ID is not configured.' });
                 return;
             }
             if (this.isGsiLoaded && window.google) {
                 this.initializeGoogleOneTap();
                 window.google.accounts.id.prompt();
             } else {
-                this.showToast({ variant: 'destructive', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
+                this.showToast({ variant: 'error', title: 'Sign In Error', description: 'Google Identity Services not loaded or ready. Please try again.' });
             }
         },
 
@@ -598,7 +905,7 @@ document.addEventListener('alpine:init', () => {
                     this.showToast({ title: 'Notifications Enabled', description: 'You can now set reminders on notes.' });
                     this.scheduleAllFutureReminders();
                 } else {
-                    this.showToast({ variant: 'destructive', title: 'Notifications Disabled', description: 'Permission was not granted.' });
+                    this.showToast({ variant: 'error', title: 'Notifications Disabled', description: 'Permission was not granted.' });
                 }
             } else {
                 this.showToast({ title: 'Permissions', description: 'To disable notifications, manage permissions in your browser settings.' });
@@ -661,15 +968,29 @@ document.addEventListener('alpine:init', () => {
         },
 
         // --- Note Manager Methods ---
+        async generateSuggestions() {
+            if (!this.miniSearch || this.searchTag?.trim() === '') return (this.suggestions = []);
+
+            this.suggestions = this.miniSearch?.autoSuggest(this.searchTag, {
+                prefix: true,
+                fuzzy: 0.2,
+                combineWith: 'AND'
+            }) || [];
+        },
+
         async fetchNotes() {
             this.loading = true;
             try {
                 const notesFromDB = await getNotesDB();
                 this.notes = notesFromDB;
                 this.scheduleAllFutureReminders();
+
+                this.updateAppBadge();
+                this.miniSearch?.removeAll();
+                this.miniSearch?.addAllAsync(this.notes);
             } catch (error) {
                 console.error('Error in fetchNotes:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not load notes.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
             } finally {
                 this.loading = false;
             }
@@ -690,17 +1011,19 @@ document.addEventListener('alpine:init', () => {
                 await addNoteDB(newNote);
                 this.notes.unshift(newNote);
                 this.scheduleNotification(newNote);
-                this.showToast({ title: 'Note Added', description: 'New note created.' });
+                this.updateAppBadge();
+                this.miniSearch?.add(newNote);
+                // this.showToast({ title: 'Note Added', description: 'New note created.' });
                 this.syncNotes(false, 1, [newNote]);
                 return newNote;
             } catch (error) {
                 console.error('Error in addNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not create note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not create note.' });
                 return null;
             }
         },
 
-        async updateNote(id, updates) {
+        async updateNote(id, updates, isSilent = false) {
             try {
                 const noteToUpdate = await getNoteDB(id);
                 if (!noteToUpdate) throw new Error('Note not found');
@@ -709,25 +1032,62 @@ document.addEventListener('alpine:init', () => {
                 await updateNoteDB(updatedNote);
                 this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
                 this.scheduleNotification(updatedNote);
-                this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
-                this.syncNotes(false, 1, [updatedNote]);
+                this.updateAppBadge();
+                this.miniSearch?.removeAll();
+                this.miniSearch?.addAllAsync(this.notes);
+                if (!isSilent) {
+                    this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
+                }
+                this.syncNotes(isSilent, 1, [updatedNote]);
             } catch (error) {
                 console.error('Error in updateNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not update note.' });
+                if (!isSilent) {
+                    this.showToast({ variant: 'error', title: 'Error', description: 'Could not update note.' });
+                }
             }
+        },
+
+        async autosaveCurrentNote() {
+            if (!this.editingNoteId || !this.noteEditorNoteId || this.noteEditorNoteId === 'new') {
+                return;
+            }
+
+            const id = this.noteEditorNoteId;
+            const noteInDb = await this.getNote(id);
+            if (!noteInDb) return;
+
+            const content = window.easyMDEInstance?.value();
+            if (content === null || content === undefined) return;
+
+            const noteData = {
+                title: this.noteEditorTitle.trim() || ('Note at ' + new Date().toString().substr(0, 21)),
+                content: content,
+                reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
+                tags: this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag),
+            };
+
+            if (noteInDb.title === noteData.title &&
+                noteInDb.content === noteData.content &&
+                (noteInDb.reminder || undefined) === noteData.reminder &&
+                JSON.stringify(noteInDb.tags || []) === JSON.stringify(noteData.tags)) {
+                return;
+            }
+
+            console.log(`Autosaving note ${id}...`);
+            await this.updateNote(id, noteData, true);
         },
 
         async deleteNote(id) {
             try {
+                this.deletedNoteIds.push(id);
                 this.cancelNotification(id);
                 await deleteNoteDB(id);
                 await this.deleteNoteFromS3(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
-                this.deletedNoteIds.push(id);
-                this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                // this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
             }
         },
 
@@ -735,8 +1095,8 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
-                this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+            if (!isS3Configured) {
+                this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 return;
             }
 
@@ -746,23 +1106,15 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
-                const response = await fetch('/api/delete-note', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        encryptedSettings,
-                        userId,
-                        noteId,
-                    }),
-                });
-
-                const result = await response.json();
+                const result = await apiDeleteNote(
+                    encryptedSettings,
+                    userId,
+                    noteId
+                );
 
                 console.dir({deleteNoteFromS3: result})
 
-                if (response.ok) {
+                if (result.success) {
                     this.showToast({ title: 'Note Deleted from S3', description: `Note ${noteId} has been deleted from S3.` });
                 } else {
                     throw new Error(result.error || 'Server responded with an error.');
@@ -770,7 +1122,7 @@ document.addEventListener('alpine:init', () => {
 
             } catch (error) {
                 console.error('Error deleting note from S3:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not delete note from S3.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note from S3.' });
             }
         },
 
@@ -779,7 +1131,7 @@ document.addEventListener('alpine:init', () => {
                 return await getNoteDB(id);
             } catch (error) {
                 console.error('Error in getNote:', error);
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not fetch note.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Could not fetch note.' });
                 return undefined;
             }
         },
@@ -788,9 +1140,9 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if ((location.hostname != 'localhost') && (!isS3Configured || !userId)) {
+            if (!isS3Configured) {
                 if (!isSilent) {
-                    this.showToast({ variant: 'destructive', title: 'Sync Not Configured', description: 'S3 sync is not configured or you are not logged in.' });
+                    this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
                 }
                 return;
             }
@@ -808,32 +1160,27 @@ document.addEventListener('alpine:init', () => {
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
-                const syncTime = new Date().toISOString();
+                const lastSyncedIds = JSON.parse(localStorage.getItem('feathernote-synced-ids') || '[]');
                 let localNotes = notes || await getNotesDB();
 
-                if (this.lastSync) {
-                    localNotes = localNotes.filter(note => new Date(note.updatedAt) > new Date(this.lastSync));
-                }
+                // The 'notes' parameter is for targeted sync of specific notes.
+                // For a general background sync, we now send all notes to the sync API
+                // to allow for proper conflict resolution. The old implementation could
+                // cause data loss by uploading notes without checking for remote changes first.
 
                 localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
 
-                const response = await fetch('/api/sync-notes', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        encryptedSettings,
-                        userId,
-                        localNotes: localNotes,
-                        deletedNoteIds: this.deletedNoteIds,
-                        lastSync: this.lastSync
-                    }),
-                });
+                const result = await apiSyncNotes(
+                    encryptedSettings,
+                    userId,
+                    localNotes,
+                    this.deletedNoteIds,
+                    this.lastSync,
+                    lastSyncedIds
+                );
 
-                const result = await response.json();
-
-                if (response.ok) {
+                if (result.success) {
+                    // Handle downloaded notes
                     let downloadedCount = 0;
                     for (const remoteNote of result.updatedNotes) {
                         const localNote = await getNoteDB(remoteNote.id);
@@ -843,30 +1190,26 @@ document.addEventListener('alpine:init', () => {
                         }
                     }
 
-                    // NEW LOGIC: Handle notes deleted remotely
-                    const remoteNoteIdsSet = new Set(result.remoteNoteIds);
-                    const notesToDeleteLocally = [];
-                    for (const localNote of this.notes) { // Use this.notes which is the current state
-                        if (!remoteNoteIdsSet.has(localNote.id)) {
-                            notesToDeleteLocally.push(localNote.id);
-                        }
-                    }
-
+                    // Handle notes that were deleted on the remote
+                    const notesToDeleteLocally = result.notesToDeleteLocally || [];
                     for (const noteIdToDelete of notesToDeleteLocally) {
                         await deleteNoteDB(noteIdToDelete);
-                        // No need to call deleteNoteFromS3 here, it's already deleted from S3
-                        // and we are just reflecting that deletion locally.
                     }
 
                     await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
                     this.deletedNoteIds = []; // Clear deleted notes after successful sync
-                    this.lastSync = syncTime;
-                    localStorage.setItem('feathernote-lastSync', syncTime);
+
+                    // Save the final state for the next sync
+                    if (result.finalRemoteIds) {
+                        localStorage.setItem('feathernote-synced-ids', JSON.stringify(result.finalRemoteIds));
+                    }
+                    this.lastSync = new Date().toISOString();
+                    localStorage.setItem('feathernote-lastSync', this.lastSync);
 
                     if (!isSilent) {
                         this.showToast({
                             title: 'Sync Successful',
-                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`, // Add remotely deleted count
+                            description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
                         });
                     }
                 } else {
@@ -880,7 +1223,8 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 let errorMessage = 'An unknown error occurred.';
-                let errorTitle = 'Sync Failed';
+                let errorTitle = 'Incomplete Sync';
+
                 if (error instanceof TypeError) {
                     errorTitle = 'Network Error';
                     errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
@@ -889,10 +1233,9 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.showToast({
-                    variant: 'destructive',
                     title: errorTitle,
                     description: errorMessage,
-                    duration: 9000,
+                    duration: 5000,
                 });
             } finally {
                 this.isSyncing = false;
@@ -903,20 +1246,26 @@ document.addEventListener('alpine:init', () => {
             await navigator.locks.request('shared-content-lock', async lock => {
                 try {
                     const sharedItems = await getSharedContentDB();
+
                     if (sharedItems.length > 0) {
+                        console.dir({sharedItems});
                         for (const item of sharedItems) {
-                            await this.addNote('Share ' + new Date().toString().substr(0, 21), item.content);
+                            await this.addNote(item.title || ('Share ' + new Date().toString().substr(0, 21)), item.content);
                         }
+
                         await clearSharedContentDB();
-                        await this.fetchNotes();
+
                         this.showToast({
-                            title: 'Content Imported',
+                            title: 'Shared Content Imported',
                             description: `${sharedItems.length} item(s) have been added to your notes.`,
                         });
+
+                        await this.fetchNotes();
+                        this.syncNotes(true);
                     }
                 } catch (error) {
                     console.error('Failed to process shared content', error);
-                    this.showToast({ variant: 'destructive', title: 'Error', description: 'Could not import shared content.' });
+                    this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
                 }
             });
         },
@@ -927,8 +1276,12 @@ document.addEventListener('alpine:init', () => {
                     element: document.getElementById('note-content'),
                     unorderedListStyle: "-",
                     lineNumbers: true,
+                    lineWrapping: true,
+                    promptURLs: true,
                     spellChecker: false,
                     nativeSpellcheck: false,
+                    minHeight: "500px",
+                    showIcons: ["code", "table"],
                     autosave: {
                         enabled: true,
                         uniqueId: id,
@@ -938,7 +1291,7 @@ document.addEventListener('alpine:init', () => {
                             locale: 'en-US',
                             format: {
                                 year: 'numeric',
-                                month: 'long',
+                                month: 'short',
                                 day: '2-digit',
                                 hour: '2-digit',
                                 minute: '2-digit',
@@ -946,7 +1299,7 @@ document.addEventListener('alpine:init', () => {
                         },
                         text: "Autosaved: "
                     },
-                    forceSync: true,
+                    // forceSync: true,
                     previewImagesInEditor: true,
                     toolbar: [
                         "bold", "italic", "heading", "|",
@@ -1005,8 +1358,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         async editNote(id) {
+            if (this.editorAutosaveIntervalId) {
+                clearInterval(this.editorAutosaveIntervalId);
+            }
             this.editingNoteId = id;
             await this.loadNoteIntoEditor(id);
+            this.editorAutosaveIntervalId = setInterval(() => {
+                this.autosaveCurrentNote();
+            }, 60 * 1000);
         },
 
         // --- Note Editor Methods (moved from noteEditor component) ---
@@ -1020,7 +1379,7 @@ document.addEventListener('alpine:init', () => {
                 this.noteEditorReminder = note.reminder || '';
                 this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
             } else {
-                this.showToast({ variant: 'destructive', title: 'Error', description: 'Note not found.' });
+                this.showToast({ variant: 'error', title: 'Error', description: 'Note not found.' });
                 this.editingNoteId = null;
             }
 
@@ -1053,9 +1412,49 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.cancelEdit();
+            this.fetchNotes();
+        },
+
+        async shareNote() {
+            const content = window.easyMDEInstance?.value();
+            if (!content || !content.trim()) {
+                this.showToast({ variant: 'error', title: 'Cannot Share', description: 'You cannot share an empty note.' });
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title: this.noteEditorTitle, content: content }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.url) {
+                    const fullUrl = window.location.origin + data.url;
+                    this.showToast({ title: 'Note Published', description: 'A shareable link has been created.' });
+                    // Use a prompt to make the URL easy to copy
+
+                    navigator.clipboard.writeText(fullUrl);
+
+                    prompt('Share this URL:', fullUrl);
+                } else {
+                    throw new Error(data.error || 'Failed to create shareable link.');
+                }
+            } catch (error) {
+                console.error('Share error:', error);
+                this.showToast({ variant: 'error', title: 'Sharing Failed', description: error.message });
+            }
         },
 
         cancelEdit() {
+            if (this.editorAutosaveIntervalId) {
+                clearInterval(this.editorAutosaveIntervalId);
+                this.editorAutosaveIntervalId = null;
+            }
             window.easyMDEInstance?.toTextArea?.();
             window.easyMDEInstance = null;
 
@@ -1077,20 +1476,20 @@ document.addEventListener('alpine:init', () => {
         showImportModal: false,
         showExportModal: false,
 
-        initSettingsDialog() {
-            this.$watch('settingsDialogIsOpen', (value) => {
-                if (value) {
-                    this.loadSettingsFromStorage();
-                }
-            });
-        },
+        // initSettingsDialog() {
+        //     this.$watch('settingsDialogIsOpen', (value) => {
+        //         if (value) {
+        //             this.loadSettingsFromStorage();
+        //         }
+        //     });
+        // },
 
         get userId() {
             return this.user ? this.user.id : null;
         },
 
         get isSyncConfigured() {
-            return (location.hostname == 'localhost') ||  (!!this.user);
+            return true;
         },
 
         get isSyncButtonDisabled() {
@@ -1098,27 +1497,28 @@ document.addEventListener('alpine:init', () => {
         },
 
         async loadSettingsFromStorage() {
-            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedSettings = localStorage.getItem(key);
-            if (encryptedSettings) {
-                const decrypted = await decryptSettings(encryptedSettings, this.userId);
-                if (decrypted) {
+
+            if (!encryptedSettings) return;
+
+            decryptSettings(encryptedSettings, this.userId)
+                .then(decrypted => {
+                    if (!decrypted) return;
+
                     this.s3Bucket = decrypted.s3Bucket || '';
                     this.s3Region = decrypted.s3Region || '';
                     this.s3Endpoint = decrypted.s3Endpoint || '';
                     this.s3Subfolder = decrypted.s3Subfolder || '';
                     this.accessKeyId = decrypted.accessKeyId || '';
                     this.secretAccessKey = decrypted.secretAccessKey || '';
-                }
-            }
+                })
+                .catch(error => {
+                    this.showToast({ title: 'Settings Decryption Error', description: error.message });
+                });
         },
 
         async handleSave() {
-            if (location.hostname != 'localhost' && !this.userId) {
-                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to save settings.' });
-                return;
-            }
             const key = `feathernote-settings-${this.userId}`;
 
             // Get existing settings to preserve the secret key if not changed
@@ -1154,49 +1554,55 @@ document.addEventListener('alpine:init', () => {
 
         async handleSync() {
             this.isManualSyncing = true;
-            this.syncNotes(false);
+            await this.syncNotes(false);
             this.isManualSyncing = false;
         },
 
         async handleExport() {
-            if (location.hostname != 'localhost' && !this.userId) return;
             const key = `feathernote-settings-${this.userId}`;
             const encryptedString = localStorage.getItem(key);
             if (encryptedString) {
                 this.exportString = encryptedString;
             } else {
-                this.showToast({ variant: 'destructive', title: 'Nothing to Export', description: 'No saved settings found.' });
+                this.showToast({ variant: 'error', title: 'Nothing to Export', description: 'No saved settings found.' });
             }
             this.showExportModal = true; // Ensure the modal opens
+            this.$nextTick(() => document.querySelector('[x-model="exportString"]').scrollIntoView());
         },
 
         copyExportStringToClipboard() {
+            var copyText = document.querySelector('[x-model="exportString"]');
+            copyText.select();
+            copyText.setSelectionRange(0, 99999);
+
             navigator.clipboard.writeText(this.exportString);
             this.showToast({ title: 'Copied!', description: 'Encrypted settings string copied to clipboard.' });
         },
 
+        async openImport() {
+            this.importString = '';
+            this.showImportModal = true;
+            this.$nextTick(() => document.querySelector('[x-model="importString"]').scrollIntoView());
+        },
+
         async handleImport() {
-            if (location.hostname != 'localhost' && !this.userId) {
-                this.showToast({ variant: 'destructive', title: 'Not Logged In', description: 'You must be logged in to import settings.' });
-                return;
-            }
             const key = `feathernote-settings-${this.userId}`;
 
             try {
-                const parsed = JSON.parse(this.importString);
+                const parsed = JSON.parse(this.importString?.trim());
                 if (parsed.salt && parsed.iv && parsed.content) {
                     localStorage.setItem(key, this.importString);
                     await this.loadSettingsFromStorage();
-                    this.importString = '';
                     this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
-                    this.syncNotes(true);
+                    await this.handleSave();
+                    this.importString = '';
                     this.showImportModal = false; // Close the modal after successful import
                 } else {
                     throw new Error('Invalid or incomplete settings data.');
                 }
             } catch (error) {
                 console.error(error);
-                this.showToast({ variant: 'destructive', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
+                this.showToast({ variant: 'error', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
             }
         }
     }));

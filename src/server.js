@@ -1,18 +1,164 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const crypto = require('crypto');
 const { TextEncoder, TextDecoder } = require('util');
 const multer = require('multer');
+const { marked } = require('marked');
+const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
 const app = express();
 const port = process.env.PORT || 7347;
 const upload = multer();
+const DENO_KV_SIZE_LIMIT = 65536;
+
+// Create a directory for published notes if it doesn't exist
+const publishedNotesDir = path.join(__dirname, 'published_notes');
+if (!fs.existsSync(publishedNotesDir)) {
+    fs.mkdirSync(publishedNotesDir);
+}
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
-// Serve static files from the 'v2' directory
+// Serve static files from the 'src' directory
 app.use(express.static(path.join(__dirname)));
+
+// --- Share/Publish Endpoints ---
+
+app.post('/api/publish', async (req, res) => {
+    const { title, content } = req.body;
+    if (!content) {
+        return res.status(400).json({ error: 'Content cannot be empty.' });
+    }
+
+    const noteId = crypto.randomBytes(8).toString('hex');
+    const noteData = { title: title || 'Untitled Note', content };
+    const noteString = JSON.stringify(noteData);
+    const noteSize = new TextEncoder().encode(noteString).length;
+
+    try {
+        // Prioritize Deno KV if enabled and the note is within the size limit
+        if (process.env.PUBLISH_USE_DENOKV === 'true' && noteSize <= DENO_KV_SIZE_LIMIT) {
+            if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
+                throw new Error('Deno KV environment variables are not set.');
+            }
+            const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+            await kv.set(['published_notes', noteId], noteData);
+        } else {
+            // Fallback to filesystem for large notes or if Deno KV is not configured
+            const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+            fs.writeFileSync(filePath, noteString);
+        }
+        res.json({ url: `/publish/${noteId}` });
+    } catch (err) {
+        console.error('Failed to save note:', err);
+        res.status(500).json({ error: 'Failed to save note.' });
+    }
+});
+
+app.get('/publish/:noteId', async (req, res) => {
+    const { noteId } = req.params;
+    if (!/^[a-f0-9]{16}$/.test(noteId)) {
+        return res.status(400).send('Invalid note ID format.');
+    }
+
+    try {
+        let note = null;
+
+        // First, try to fetch from Deno KV if it's enabled
+        if (process.env.PUBLISH_USE_DENOKV === 'true') {
+            if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
+                throw new Error('Deno KV environment variables are not set.');
+            }
+            const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+            const result = await kv.get(['published_notes', noteId]);
+            if (result.value) {
+                note = result.value;
+            }
+        }
+
+        // If not found in Deno KV, or if Deno KV is not enabled, try the filesystem
+        if (!note) {
+            const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+            if (fs.existsSync(filePath)) {
+                const data = fs.readFileSync(filePath, 'utf8');
+                note = JSON.parse(data);
+            }
+        }
+
+        // If note is still not found, return 404
+        if (!note) {
+            return res.status(404).send('Note not found.');
+        }
+
+        const htmlContent = marked.parse(note.content);
+        const html = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${note.title}</title>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+                <style>
+                    body { padding: 2rem; }
+                    article { white-space: pre-wrap; }
+                </style>
+            </head>
+            <body>
+                <main class="container">
+                    <h1>${note.title}</h1>
+                    <article>
+                        ${htmlContent}
+                    </article>
+                </main>
+            </body>
+            </html>
+        `;
+        res.send(html);
+    } catch (err) {
+        console.error('Failed to retrieve note:', err);
+        res.status(500).send('Failed to retrieve note.');
+    }
+});
+
+app.get('/about', (req, res) => {
+    const readmePath = path.join(__dirname, '..', 'README.md');
+    fs.readFile(readmePath, 'utf8', (err, markdown) => {
+        if (err) {
+            console.error('Failed to read README.md:', err);
+            return res.status(500).send('Could not load about page.');
+        }
+        const htmlContent = marked.parse(markdown);
+        const html = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>About FeatherNote</title>
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+                <style>
+                    body { padding: 2rem; }
+                    main.container { max-width: 960px; }
+                    article img { max-width: 100%; }
+                </style>
+            </head>
+            <body>
+                <main class="container">
+                    <article>
+                        ${htmlContent}
+                    </article>
+                </main>
+            </body>
+            </html>
+        `;
+        res.send(html);
+    });
+});
+
 
 // --- Crypto Functions for server-side decryption ---
 
@@ -113,26 +259,38 @@ const uploadNoteToS3 = async (note, creds) => {
 const listNotesInS3 = async (creds) => {
     const s3Client = getS3Client(creds);
     const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
-    const command = new ListObjectsV2Command({
-        Bucket: creds.bucket,
-        Prefix: prefix
-    });
+    let allNoteMetadata = [];
+    let continuationToken = undefined;
 
-    try {
-        const response = await s3Client.send(command);
-        const noteIds = response.Contents?.map(item => {
-            if (!item.Key) return null;
-            if (item.Key.endsWith('/')) return null; 
-            return item.Key.replace(prefix, '').replace('.json', '');
-        }).filter(id => !!id); 
-        return noteIds || [];
-    } catch (error) {
-        console.error("S3 List Error:", error);
-        if (error instanceof Error) {
-            throw new Error(`Failed to list notes in S3: ${error.name} - ${error.message}`);
+    do {
+        const command = new ListObjectsV2Command({
+            Bucket: creds.bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+        });
+
+        try {
+            const response = await s3Client.send(command);
+            const noteMetadata = response.Contents?.map(item => {
+                if (!item.Key || item.Key.endsWith('/')) return null;
+                return {
+                    id: item.Key.replace(prefix, '').replace('.json', ''),
+                    lastModified: item.LastModified // S3's LastModified timestamp
+                };
+            }).filter(item => !!item) || [];
+            
+            allNoteMetadata = allNoteMetadata.concat(noteMetadata);
+            continuationToken = response.NextContinuationToken;
+        } catch (error) {
+            console.error("S3 List Error:", error);
+            if (error instanceof Error) {
+                throw new Error(`Failed to list notes in S3: ${error.name} - ${error.message}`);
+            }
+            throw new Error('An unknown error occurred during S3 list operation.');
         }
-        throw new Error('An unknown error occurred during S3 list operation.');
-    }
+    } while (continuationToken);
+
+    return allNoteMetadata;
 };
 
 const downloadNoteFromS3 = async (noteId, creds) => {
@@ -170,9 +328,7 @@ const deleteNoteFromS3 = async (noteId, creds) => {
     try {
         const response = await s3Client.send(command);
 
-        if (response.ok) {
-            console.log(`S3 Deleted note ${noteId}:`, await response.json());
-        }
+        console.log(`S3 Deleted note ${noteId}:`, response);
 
         return response;
     } catch (error) {
@@ -190,7 +346,7 @@ app.get('/', (req, res) => {
 });
 
 // Handle shared content from PWA
-app.post('/_share-target', upload.none(), (req, res) => {
+app.post('/share', upload.none(), (req, res) => {
     // The service worker will handle this, but we have a server-side route as a fallback.
     // In a real app, you might save this to a temporary session or user-specific store.
     console.log('Shared content received on server:', req.body);
@@ -215,7 +371,8 @@ app.post('/api/sync-notes', async (req, res) => {
         }
 
         const localNotesMap = new Map(localNotes.map(n => [n.id, n]));
-        const remoteNoteIds = await listNotesInS3(credentials);
+        const remoteNoteMetadata = await listNotesInS3(credentials);
+        const remoteNoteIdsSet = new Set(remoteNoteMetadata.map(item => item.id)); // For client-side deletion check
         
         let uploadedCount = 0;
         let downloadedCount = 0;
@@ -237,15 +394,21 @@ app.post('/api/sync-notes', async (req, res) => {
         }
 
         // Download remote notes that are new or updated
-        for (const noteId of remoteNoteIds) {
+        for (const remoteMeta of remoteNoteMetadata) {
+            const noteId = remoteMeta.id;
+            const s3LastModified = new Date(remoteMeta.lastModified); // Convert to Date object
+
             if (deletedNoteIds && deletedNoteIds.includes(noteId)) {
                 continue; // Skip notes that were just deleted
             }
-            const localNote = localNotesMap.get(noteId);
-            const remoteNote = await downloadNoteFromS3(noteId, credentials);
-            if (remoteNote) {
-                if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-                    if (!lastSync || new Date(remoteNote.updatedAt) > new Date(lastSync)) {
+
+            // Only download if the S3 object is newer than the client's last sync
+            if (!lastSync || s3LastModified > new Date(lastSync)) {
+                const localNote = localNotesMap.get(noteId);
+                const remoteNote = await downloadNoteFromS3(noteId, credentials);
+                if (remoteNote) {
+                    // Also check the note's internal updatedAt, in case S3 LastModified is not perfectly aligned
+                    if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
                         updatedNotes.push(remoteNote);
                         downloadedCount++;
                     }
@@ -253,7 +416,7 @@ app.post('/api/sync-notes', async (req, res) => {
             }
         }
 
-        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds });
+        res.json({ success: true, uploadedCount, downloadedCount, deletedCount, updatedNotes, remoteNoteIds: Array.from(remoteNoteIdsSet) });
 
     } catch (error) {
         console.error('Server-side sync error:', error);

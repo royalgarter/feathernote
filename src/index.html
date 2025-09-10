@@ -5,34 +5,106 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FeatherNote</title>
     <link rel="manifest" href="/manifest.json">
-    <!-- TailwindCSS CDN -->
-    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
-    <!-- AlpineJS CDN -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- <script src="//cdn.tailwindcss.com"></script> -->
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
+    <style>
+        .line-clamp-3 {
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            display: -webkit-box;
+            text-overflow: ellipsis;
+            word-break: break-word;
+            overflow: hidden;
+        }
+
+        .EasyMDEContainer .editor-preview {
+            padding-left: 40px;
+        }
+
+        .dark {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .dark .bg-white {
+            background-color: #2d3748;
+        }
+        .dark .text-gray-900 {
+            color: #e2e8f0;
+        }
+        .dark .text-gray-800 {
+            color: #e2e8f0;
+        }
+        .dark .text-gray-700 {
+            color: #a0aec0;
+        }
+        .dark .text-gray-600 {
+            color: #a0aec0;
+        }
+        .dark .text-gray-500 {
+            color: #cbd5e0;
+        }
+        .dark .text-gray-400 {
+            color: #a0aec0;
+        }
+        .dark .border-gray-200 {
+            border-color: #4a5568;
+        }
+        .dark .border-gray-300 {
+            border-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-50:hover {
+            background-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-100:hover {
+            background-color: #4a5568;
+        }
+        .dark .hover\:bg-gray-200:hover {
+            background-color: #4a5568;
+        }
+        .dark .bg-purple-100 {
+            background-color: #5a67d8;
+        }
+        .dark .text-purple-800 {
+            color: #e2e8f0;
+        }
+        .dark input {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
+        .dark .EasyMDEContainer .editor-preview {
+            background-color: #2d3748;
+        }
+        .dark .EasyMDEContainer .CodeMirror {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
+    </style>
+
     <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
     <script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-    <!-- Heroicons (optional, for icons) -->
-    <!-- You might need to include a specific Heroicons library or use them as SVG directly -->
+
+    <script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
+    <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
 </head>
-<body class="flex flex-col min-h-screen bg-gray-100" x-data="mainApp()" x-init="init()">
+<body class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
     <!-- AppShellHeader -->
-    <header class="sticky top-0 z-40 w-full border-b bg-white">
+    <header class="sticky top-0 z-10 w-full border-b bg-white">
         <div class="container mx-auto flex h-16 items-center justify-between p-4">
             <a href="#" class="flex items-center gap-2">
                 <!-- FeatherIcon Placeholder -->
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-purple-500"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><path d="m5 19-2 2"></path><path d="m15 9-2 2"></path></svg>
                 <span class="font-bold text-lg font-sans text-gray-900">FeatherNote</span>
             </a>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
                 <!-- SyncStatus -->
                 <div>
                     <template x-if="isSyncing">
                         <span class="text-sm text-gray-300 animate-pulse">Syncing...</span>
                     </template>
-                    <template x-if="!isSyncing">
+                    <!-- <template x-if="!isSyncing">
                         <span class="text-sm text-gray-400">Synced</span>
-                    </template>
+                    </template> -->
                 </div>
                 <!-- SettingsDialog Trigger -->
                 <button @click="loadSettingsFromStorage();settingsDialogIsOpen = true" class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Settings">
@@ -45,13 +117,22 @@
                 <div class="cursor-pointer p-2 rounded-full hover:bg-gray-200">
                     <template x-if="user">
                         <div @click="signOut()" class="flex items-center gap-2">
-                            <img :src="user.picture || 'https://cdn.jsdelivr.net/npm/heroicons/24/outline/user-circle.svg'" alt="User Picture" class="h-6 w-6 rounded-full" />
+                            <template x-if="user.picture">
+                                <img :src="user.picture" alt="User Picture" class="h-6 w-6 rounded-full" />
+                            </template>
+                            <template x-if="!user.picture">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6">
+                                  <path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
+                                </svg>
+                            </template>
                             <!-- <button @click="signOut()" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Sign Out</button> -->
                         </div>
                     </template>
                     <template x-if="!user">
                         <div @click="signIn()" class="flex items-center gap-2">
-                            <img src="https://cdn.jsdelivr.net/npm/heroicons/24/solid/user-circle.svg" alt="User Picture" class="h-6 w-6 rounded-full" />
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            </svg>
                             <!-- <button @click="signOut()" class="px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Sign Out</button> -->
                         </div>
                         <!-- <button @click="signIn()" class="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700">Sign In</button> -->
@@ -62,25 +143,61 @@
     </header>
 
     <!-- AppShellContent -->
-    <main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 w-full">
-        <div class="flex justify-between items-center mb-4 px-4 gap-4">
-            <div class="relative w-full max-w-xs">
-                <input type="text" id="searchInput" x-model="searchTag" @input.debounce.300ms="filteredNotes" class="w-full border border-gray-300 rounded-md shadow-sm py-2 px-4" placeholder="🔍 Search notes..." />
+    <main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-4 sm:px-6 lg:px-8 w-full">
+
+        <!-- Search Box & Add Note -->
+        <template x-if="editingNoteId === null">
+            <div class="flex justify-between items-center mb-4 px-4 gap-4">
+                <div class="relative w-full max-w-xs">
+                    <input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="w-full border border-gray-300 rounded-md py-2 px-4" placeholder="🔍 Search notes..." />
+                    <div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-60 overflow-y-auto">
+                        <template x-for="suggestion in suggestions" :key="suggestion.id">
+                            <div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:bg-gray-100">
+                                <span x-text="suggestion.suggestion"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 rounded-md bg-green-600 text-white hover:bg-green-700">Add Note</button>
             </div>
-            <button @click="createNewNote()" class="cursor-pointer font-bold px-4 py-2 w-28 rounded-md bg-green-600 text-white hover:bg-green-700">
-                + Note
-            </button>
-        </div>
+        </template>
+
+        <!-- Note Editor View -->
+        <template x-if="editingNoteId !== null">
+            <div class="bg-white rounded-lg h-4/5 p-4">
+                <!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2> -->
+                <div class="mb-4">
+                    <input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
+                </div>
+                <div class="mb-4">
+                    <textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
+                    <input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="e.g. work, personal, ideas" />
+                </div>
+                <div class="mb-4">
+                    <label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
+                    <input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md p-2" />
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+                    <button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">Share</button>
+                    <button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </template>
 
         <!-- Notes List View -->
         <template x-if="editingNoteId === null">
             <div class="px-4 py-6 sm:px-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <template x-for="note in filteredNotes" :key="note.id">
-                    <div class="flex flex-col justify-between transition-shadow hover:shadow-lg cursor-pointer h-full bg-white rounded-lg shadow-md p-4">
+                <template x-for="note in paginatedNotes" :key="note.id">
+                    <div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
                         <div class="flex-grow" @click="editNote(note.id)">
-                            <h3 class="font-bold text-lg truncate mb-2" x-text="note.title"></h3>
-                            <p class="text-xs text-gray-500 mb-2 pl-1"><span x-text="formatDate(note.updatedAt)"></span></p>
-                            <p class="text-sm text-gray-700 line-clamp-3 truncate" x-text="getNotePreview(note.content)"></p>
+                            <p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span></p>
+                            <h4 class="text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
+                            <p class="text-sm text-gray-600 line-clamp-3 pl-1" x-text="getNotePreview(note.content)"></p>
                             <template x-if="note.reminder">
                                 <p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
                             </template>
@@ -88,11 +205,11 @@
                         <div class="mt-4">
                             <div class="flex flex-wrap gap-1">
                                 <template x-for="tag in note.tags" :key="tag">
-                                    <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
+                                    <span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
                                 </template>
                             </div>
                         </div>
-                        <div class="flex justify-end items-center gap-2 mt-4">
+                        <div class="flex justify-end items-center gap-2 mt-2">
                             <button class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
                                 <!-- Edit Icon -->
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
@@ -105,35 +222,17 @@
                     </div>
                 </template>
             </div>
-        </template>
-
-        <!-- Note Editor View -->
-        <template x-if="editingNoteId !== null">
-            <div class="bg-white rounded-lg shadow-md p-4">
-                <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
-                <div class="mb-4">
-                    <label for="note-title" class="block text-sm font-medium text-gray-700">Title</label>
-                    <input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Note Title" />
-                </div>
-                <div class="mb-4">
-                    <label for="note-content" class="block text-sm font-medium text-gray-700">Content</label>
-                    <textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="The palest ink is better than the best memory"></textarea>
-                </div>
-                <div class="mb-4">
-                    <label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
-                    <input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="e.g. work, personal, ideas" />
-                </div>
-                <div class="mb-4">
-                    <label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
-                    <input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
-                    <button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
-                </div>
+            <!-- Pagination Controls -->
+            <div class="flex justify-center items-center space-x-2 mt-4">
+                <button @click="prevPage()" :disabled="currentPage === 1" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                <template x-for="page in totalPages" :key="page">
+                    <button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
+                </template>
+                <button @click="nextPage()" :disabled="currentPage === totalPages" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
             </div>
         </template>
+
+
 
         <!-- Loading State -->
         <template x-if="!notes.length && loading">
@@ -149,19 +248,11 @@
              @open-delete-modal.window="showModal = true; noteToDelete = $event.detail"
              @close-delete-modal.window="showModal = false"
              x-show="showModal"
-             x-transition:enter="ease-out duration-300"
-             x-transition:leave="ease-in duration-200"
-             class="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+             class="fixed inset-0 z-40 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
              style="display: none;"
         >
             <div class="relative bg-white p-6 w-full mx-auto"
                  @click.away="showModal = false"
-                 x-transition:enter="ease-out duration-300"
-                 x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                 x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                 x-transition:leave="ease-in duration-200"
-                 x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                 x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
                 <h3 class="text-lg font-bold mb-4">Are you sure?</h3>
                 <p class="text-sm text-gray-600 mb-6">
@@ -178,53 +269,49 @@
 
     <!-- Settings Dialog -->
     <div x-show="settingsDialogIsOpen"
-         x-transition:enter="ease-out duration-300"
-         x-transition:leave="ease-in duration-200"
-         class="fixed inset-0 z-50 w-full h-full bg-gray-900 opacity-90 flex items-center justify-center"
-         style="display: none;"
+         class="fixed inset-0 z-10 w-full h-full flex items-center justify-center overflow-x-hidden"
+         style="display: none;background-color: #0e0e0ee6;"
     >
-        <div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-6 rounded-lg shadow-xl overflow-y-auto bg-white backdrop:bg-transparent"
+        <div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-6 rounded-lg overflow-y-auto bg-white backdrop:bg-transparent"
              @click.away="settingsDialogIsOpen = false"
-             x-transition:enter="ease-out duration-300"
-             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-             x-transition:leave="ease-in duration-200"
-             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         >
-            <div class="flex justify-between items-center mb-2">
+            <div class="flex justify-between items-center">
                 <h3 class="text-lg font-bold">Settings</h3>
                 <button @click="settingsDialogIsOpen = false" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
 
-            <div class="grid gap-4 py-4">
+            <div class="grid gap-4 py-2">
                 <!-- Login Required Alert -->
-                <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
+                <!-- <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
                     <strong class="font-bold">Login Required:</strong>
                     <span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
-                </div>
-                <!-- Security Note Alert -->
-                <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 px-4 py-3 rounded relative" role="alert">
-                    <strong class="font-bold">Security Note:</strong>
-                    <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
-                </div>
+                </div> -->
 
-                <!-- Notification Settings -->
                 <div class="border-t pt-4 mt-4">
-                    <h4 class="text-md font-semibold mb-2">Notifications</h4>
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm text-gray-600">Enable reminders for your notes.</p>
+                     <!-- Dark Mode Toggle -->
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm text-gray-600">Dark Mode</p>
+                        <button @click="toggleDarkMode()"
+                                :class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
+                                class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+                            <span :class="{ 'left-6': darkMode, 'left-1': !darkMode }"
+                                  class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+                        </button>
+                    </div>
+                    <!-- Notification Settings -->
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm text-gray-600">Reminder Notifications</p>
                         <button @click="togglePushNotifications()"
                                 :class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
-                                class="relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+                                class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
                             <span :class="{ 'left-6': notificationsEnabled, 'left-1': !notificationsEnabled }"
                                   class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
                         </button>
                     </div>
                     <p x-show="notificationPermissionStatus !== 'granted' && notificationPermissionStatus !== 'default'" class="text-xs text-red-500 mt-2">
-                        Notification permission is <span x-text="notificationPermissionStatus"></span>. Please enable it in your browser settings.
+                        Notification permission is <span x-text="notificationPermissionStatus"></span>. Enable it in your browser settings.
                     </p>
                 </div>
 
@@ -243,52 +330,49 @@
                     </div>
                     <div class="grid grid-cols-4 items-center gap-2">
                         <label for="s3-endpoint" class="text-right">Endpoint</label>
-                        <input id="s3-endpoint" x-model="s3Endpoint" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing value" autocomplete="off" />
+                        <input id="s3-endpoint" x-model="s3Endpoint" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing" autocomplete="off" />
                     </div>
                     <div class="grid grid-cols-4 items-center gap-2">
                         <label for="access-key" class="text-right">Access Key</label>
-                        <input id="access-key" x-model="accessKeyId" class="cursor-pointer col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing value"/>
+                        <input id="access-key" x-model="accessKeyId" class="cursor-pointer col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing"/>
                     </div>
                     <div class="grid grid-cols-4 items-center gap-2">
                         <label for="secret-key" class="text-right">Secret Key</label>
-                        <input id="secret-key" type="password" x-model="secretAccessKey" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing value" autocomplete="new-password" />
+                        <input id="secret-key" type="password" x-model="secretAccessKey" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing" autocomplete="new-password" />
                     </div>
                 </fieldset>
+
+                <!-- Security Note Alert -->
+                <!-- <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 p-4 rounded relative" role="alert">
+                    <span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
+                </div> -->
             </div>
 
-            <div class="flex justify-end gap-2">
-                    <button @click="showImportModal = true; importString = ''" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
-                    <button @click="handleExport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
-                    <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
-                        <svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync')"></span>
-                    </button>
-                    <button @click="handleSave()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
-                </div>
+            <!-- Buttons -->
+            <div class="flex justify-end gap-2 mt-2">
+                <button @click="openImport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+                <button @click="handleExport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
+                <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
+                    <svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync')"></span>
+                </button>
+                <button @click="handleSave()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
+            </div>
+
 
             <!-- Import Dialog -->
             <div x-show="showImportModal"
-                 x-transition:enter="ease-out duration-300"
-                 x-transition:leave="ease-in duration-200"
-                 class="absolute inset-0 z-10 bg-white rounded-lg"
+                 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
                  style="display: none;"
             >
-                <div class="relative bg-white p-6 w-full mx-auto"
+                <div class="relative bg-white p-2 mx-auto"
                      @click.away="showImportModal = false"
-                     x-transition:enter="ease-out duration-300"
-                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                     x-transition:leave="ease-in duration-200"
-                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
-                    <h3 class="text-lg font-bold mb-4">Import S3 Settings</h3>
-                    <p class="text-sm text-gray-600 mb-6">Paste the encrypted settings string from another device to import your S3 configuration.</p>
-                    <textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste your encrypted settings string here..."></textarea>
-                    <div class="flex justify-end gap-2 mt-4">
+                    <textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste the encrypted settings string from another device to import your S3 configuration..."></textarea>
+                    <div class="flex justify-end gap-2">
                         <button @click="showImportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
                         <button @click="handleImport()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
                     </div>
@@ -297,22 +381,13 @@
 
             <!-- Export Dialog -->
             <div x-show="showExportModal"
-                 x-transition:enter="ease-out duration-300"
-                 x-transition:leave="ease-in duration-200"
-                 class="absolute inset-0 z-10 bg-white rounded-lg"
+                 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
                  style="display: none;"
             >
-                <div class="relative bg-white p-6 w-full mx-auto"
+                <div class="relative bg-white p-2 mx-auto"
                      @click.away="showExportModal = false"
-                     x-transition:enter="ease-out duration-300"
-                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                     x-transition:leave="ease-in duration-200"
-                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
-                    <h3 class="text-lg font-bold mb-4">Export S3 Settings</h3>
-                    <p class="text-sm text-gray-600 mb-6">Copy this encrypted string and import it on another device to transfer your S3 configuration.</p>
+                    <p class="text-sm text-gray-600 my-4">Copy this encrypted string and import it on another device to transfer your S3 configuration.</p>
                     <div class="relative">
                         <textarea readonly x-model="exportString" class="w-full border rounded-md p-2" rows="5"></textarea>
                         <button @click="copyExportStringToClipboard()" class="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200" aria-label="Copy">
@@ -321,30 +396,25 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="flex justify-end gap-2 mt-4">
+                    <div class="flex justify-end gap-2">
                         <button @click="showExportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Close</button>
                     </div>
                 </div>
             </div>
+
         </div>
-    </main>
+    </div>
 
     <!-- Toasts Container -->
-    <div class="fixed bottom-4 right-4 z-[100] flex flex-col space-y-2">
+    <div class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2">
         <template x-for="toast in toasts" :key="toast.id">
             <div
                 x-show="toast.show"
-                x-transition:enter="transition ease-out duration-300"
-                x-transition:enter-start="opacity-0 translate-y-full"
-                x-transition:enter-end="opacity-100 translate-y-0"
-                x-transition:leave="transition ease-in duration-200"
-                x-transition:leave-start="opacity-100 translate-y-0"
-                x-transition:leave-end="opacity-0 translate-y-full"
                 :class="{
                     'bg-white border border-gray-200 text-gray-900': toast.variant === 'default',
-                    'bg-red-600 border border-red-700 text-white': toast.variant === 'destructive'
+                    'bg-red-600 border border-red-700 text-white': toast.variant === 'error'
                 }"
-                class="relative w-full max-w-xs p-4 rounded-md shadow-lg flex items-center justify-between"
+                class="relative w-full max-w-xs p-4 rounded-md flex items-center justify-between"
             >
                 <div>
                     <h4 class="font-semibold" x-text="toast.title"></h4>
@@ -358,6 +428,7 @@
             </div>
         </template>
     </div>
+
 
     <script src="index.js"></script>
 </body>
