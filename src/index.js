@@ -661,6 +661,7 @@ document.addEventListener('alpine:init', () => {
         syncIntervalId: null,
         editingNoteId: null, // New state to track which note is being edited
         deletedNoteIds: [],
+        deletedNotesStack: [], // For session-only undo
         lastSync: null,
         currentPage: 1,
         notesPerPage: 100,
@@ -780,17 +781,29 @@ document.addEventListener('alpine:init', () => {
 
             this.$watch('searchTag', () => this.generateSuggestions());
 
-            // this.$watch('$el', (el) => {
-            //     if (!el) {
-            //         clearInterval(this.syncIntervalId);
-            //     }
-            // });
-
             if (window.location.hash === '#new_note') {
                 this.createNewNote();
             } else if (window.location.hash === '#search') {
                 this.$nextTick(() => document.getElementById('searchInput')?.focus());
             }
+
+            // Add the keyboard shortcut listener
+            window.addEventListener('keydown', (event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+                    event.preventDefault();
+                    if (this.editingNoteId) {
+                        this.saveNote();
+                    } else {
+                        this.syncNotes(false);
+                    }
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+                    if (!this.editingNoteId) {
+                        event.preventDefault();
+                        this.revertDelete();
+                    }
+                }
+            });
         },
 
         // --- App Methods ---
@@ -1077,14 +1090,38 @@ document.addEventListener('alpine:init', () => {
             await this.updateNote(id, noteData, true);
         },
 
+        async revertDelete() {
+            if (this.deletedNotesStack.length === 0) {
+                this.showToast({ title: 'Nothing to Undo', description: '' });
+                return;
+            }
+
+            const noteToRestore = this.deletedNotesStack.pop();
+            if (!noteToRestore) return;
+
+            // Add back to local state and DB
+            this.notes.unshift(noteToRestore);
+            await addNoteDB(noteToRestore);
+
+            // Remove from the S3 deletion queue
+            this.deletedNoteIds = this.deletedNoteIds.filter(id => id !== noteToRestore.id);
+
+            this.showToast({ title: 'Note Restored', description: `"${noteToRestore.title}" has been restored.` });
+        },
+
         async deleteNote(id) {
             try {
+                const noteToDelete = this.notes.find(note => note.id === id);
+                if (noteToDelete) {
+                    this.deletedNotesStack.push({ ...noteToDelete }); // Push a copy
+                }
+
                 this.deletedNoteIds.push(id);
                 this.cancelNotification(id);
                 await deleteNoteDB(id);
                 await this.deleteNoteFromS3(id);
                 this.notes = this.notes.filter((note) => note.id !== id);
-                // this.showToast({ title: 'Note Deleted', description: 'Your note has been successfully deleted.' });
+                this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
             } catch (error) {
                 console.error('Error in deleteNote:', error);
                 this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
@@ -1305,14 +1342,15 @@ document.addEventListener('alpine:init', () => {
                         "bold", "italic", "heading", "|",
                         "quote", "unordered-list", "ordered-list", "|",
                         "link", "image", "|",
+                        "code", "table", "|",
                         {
                             name: "word-wrap",
                             action: function(editor){
                                 const cm = editor.codemirror;
                                 cm.setOption("lineWrapping", !cm.getOption("lineWrapping"));
                             },
-                            className: "fa fa-file-word-o",
-                            title: "Toggle Word Wrap",
+                            className: "fa fa-text-width",
+                            title: "Word Wrap",
                         },
                         "|",
                         "preview", "side-by-side", "fullscreen", "|",
@@ -1331,9 +1369,7 @@ document.addEventListener('alpine:init', () => {
                             const reader = new FileReader();
                             reader.onload = (readerEvent) => {
                                 const dataUrl = readerEvent.target.result;
-                                const markdown = `
-![Pasted Image](${dataUrl})
-`;
+                                const markdown = `\n![Pasted Image](${dataUrl})\n`;
                                 cm.replaceSelection(markdown);
                             };
                             reader.readAsDataURL(blob);
