@@ -21,6 +21,10 @@
             padding-left: 40px;
         }
 
+        .EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
+            display: none;
+        }
+
         .dark {
             background-color: #1a202c;
             color: #e2e8f0;
@@ -104,7 +108,7 @@
                 <!-- SyncStatus -->
                 <div>
                     <template x-if="isSyncing">
-                        <span class="text-sm text-gray-300 animate-pulse">Syncing...</span>
+                        <span class="text-sm text-gray-300 animate-pulse" x-text="isSyncing"></span>
                     </template>
                     <!-- <template x-if="!isSyncing">
                         <span class="text-sm text-gray-400">Synced</span>
@@ -169,7 +173,17 @@
         <!-- Note Editor View -->
         <template x-if="editingNoteId !== null">
             <div class="bg-white rounded-lg h-4/5 p-4">
-                <!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2> -->
+                <!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
+                <button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button> -->
+
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
+                    <button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
                 <div class="mb-4">
                     <input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
                 </div>
@@ -361,7 +375,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing ? 'Syncing...' : 'Sync')"></span>
+                    <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing || 'Sync')"></span>
                 </button>
                 <button @click="handleSave()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
             </div>

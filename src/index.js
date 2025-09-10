@@ -803,7 +803,19 @@ document.addEventListener('alpine:init', () => {
                         this.revertDelete();
                     }
                 }
+                if (event.key === 'Escape') {
+                    if (this.editingNoteId) {
+                        event.preventDefault();
+                        this.cancelEdit();
+                    }
+                }
             });
+
+            // window.addEventListener('popstate', (event) => {
+            //     if (this.editingNoteId) {
+            //         this.cancelEdit();
+            //     }
+            // });
         },
 
         // --- App Methods ---
@@ -1087,7 +1099,11 @@ document.addEventListener('alpine:init', () => {
             }
 
             console.log(`Autosaving note ${id}...`);
+            
+            this.isSyncing = `Saving ${id}...`;
             await this.updateNote(id, noteData, true);
+            this.isSyncing = `Saved ${id}`;
+            setTimeout(() => {this.isSyncing = false}, 1e3);
         },
 
         async revertDelete() {
@@ -1177,23 +1193,17 @@ document.addEventListener('alpine:init', () => {
             const userId = this.user ? this.user.id : null;
             const isS3Configured = localStorage.getItem('s3Configured') === 'true';
 
-            if (!isS3Configured) {
-                if (!isSilent) {
-                    this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
-                }
-                return;
-            }
-
             if (this.isSyncing) {
                 iterator++;
                 // setTimeout(() => this.syncNotes(true, iterator, notes), 5e3 * iterator);
                 return;
             }
 
-            this.isSyncing = true;
+            this.isSyncing = 'Syncing...';
             try {
                 const encryptedSettings = localStorage.getItem(`feathernote-settings-${userId}`);
                 if (!encryptedSettings) {
+                    isSilent = true;
                     throw new Error('S3 credentials not found in local storage.');
                 }
 
@@ -1254,26 +1264,23 @@ document.addEventListener('alpine:init', () => {
                 }
 
             } catch (error) {
-                if (isSilent) {
-                    console.error('Silent sync failed:', error);
-                    return;
+                if (!isSilent) {
+                    let errorMessage = 'An unknown error occurred.';
+                    let errorTitle = 'Incomplete Sync';
+
+                    if (error instanceof TypeError) {
+                        errorTitle = 'Network Error';
+                        errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
+                    } else if (error instanceof Error) {
+                        errorMessage = error.message;
+                    }
+
+                    this.showToast({
+                        title: errorTitle,
+                        description: errorMessage,
+                        duration: 5000,
+                    });
                 }
-
-                let errorMessage = 'An unknown error occurred.';
-                let errorTitle = 'Incomplete Sync';
-
-                if (error instanceof TypeError) {
-                    errorTitle = 'Network Error';
-                    errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
-                } else if (error instanceof Error) {
-                    errorMessage = error.message;
-                }
-
-                this.showToast({
-                    title: errorTitle,
-                    description: errorMessage,
-                    duration: 5000,
-                });
             } finally {
                 this.isSyncing = false;
             }
@@ -1308,7 +1315,9 @@ document.addEventListener('alpine:init', () => {
         },
 
         prepareEasyMDE(id) {
-            this.$nextTick(() => {
+            setTimeout(() => {
+                if (!window.EasyMDE) return;
+
                 window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
                     element: document.getElementById('note-content'),
                     unorderedListStyle: "-",
@@ -1358,9 +1367,8 @@ document.addEventListener('alpine:init', () => {
                     ]
                 });
 
-                // Handle image pasting
                 const cm = window.easyMDEInstance.codemirror;
-                cm.on('paste', (cmInstance, event) => {
+                cm?.on('paste', (cmInstance, event) => {
                     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
                     for (const item of items) {
                         if (item.kind === 'file' && item.type.startsWith('image/')) {
@@ -1369,14 +1377,14 @@ document.addEventListener('alpine:init', () => {
                             const reader = new FileReader();
                             reader.onload = (readerEvent) => {
                                 const dataUrl = readerEvent.target.result;
-                                const markdown = `\n![Pasted Image](${dataUrl})\n`;
+                                const markdown = `\n![Pasted Image ${Date.now()}](${dataUrl})\n`;
                                 cm.replaceSelection(markdown);
                             };
                             reader.readAsDataURL(blob);
                         }
                     }
                 });
-            });
+            }, 100);
         },
 
         createNewNote() {
@@ -1402,6 +1410,7 @@ document.addEventListener('alpine:init', () => {
             this.editorAutosaveIntervalId = setInterval(() => {
                 this.autosaveCurrentNote();
             }, 60 * 1000);
+            window.location.hash = '#edit_note-' + id;
         },
 
         // --- Note Editor Methods (moved from noteEditor component) ---
@@ -1494,8 +1503,11 @@ document.addEventListener('alpine:init', () => {
             window.easyMDEInstance?.toTextArea?.();
             window.easyMDEInstance = null;
 
+            if (window.location.hash.includes('_note')) {
+                window.location.hash = '';
+            }
+
             this.editingNoteId = null;
-            window.location.hash = '';
         },
 
         // --- Settings Dialog Data & Methods (moved from settingsDialog component) ---
