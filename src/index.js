@@ -459,9 +459,10 @@ document.addEventListener('alpine:init', () => {
 
     // IndexedDB Functions
     const DB_NAME = 'FeatherNoteDB';
-    const DB_VERSION = 2;
+    const DB_VERSION = 3;
     const NOTE_STORE = 'notes';
     const SHARED_CONTENT_STORE = 'shared-content';
+    const IMAGE_STORE = 'images';
 
     let dbPromise;
 
@@ -512,9 +513,50 @@ document.addEventListener('alpine:init', () => {
                         }
                     };
                 }
+
+                if (event.oldVersion < 3) {
+                    if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+                        db.createObjectStore(IMAGE_STORE, { keyPath: 'id' });
+                        console.log(`Object store '${IMAGE_STORE}' created.`);
+                    }
+                }
             };
         });
         return dbPromise;
+    };
+
+    const addImageDB = async (image) => {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([IMAGE_STORE], 'readwrite');
+            const store = transaction.objectStore(IMAGE_STORE);
+            const request = store.add(image);
+
+            request.onsuccess = () => {
+                resolve(image);
+            };
+            request.onerror = (event) => {
+                console.error('Error adding image to DB:', event.target.error);
+                reject('Error adding image');
+            };
+        });
+    };
+
+    const getImageDB = async (id) => {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction([IMAGE_STORE], 'readonly');
+            const store = transaction.objectStore(IMAGE_STORE);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+            request.onerror = (event) => {
+                console.error('Error fetching image from DB:', event.target.error);
+                reject('Error fetching image');
+            };
+        });
     };
 
     const getNotesDB = async () => {
@@ -1346,7 +1388,7 @@ document.addEventListener('alpine:init', () => {
                         text: "Autosaved: "
                     },
                     // forceSync: true,
-                    previewImagesInEditor: true,
+                    previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
                     toolbar: [
                         "bold", "italic", "heading", "|",
                         "quote", "unordered-list", "ordered-list", "|",
@@ -1374,13 +1416,18 @@ document.addEventListener('alpine:init', () => {
                         if (item.kind === 'file' && item.type.startsWith('image/')) {
                             event.preventDefault();
                             const blob = item.getAsFile();
-                            const reader = new FileReader();
-                            reader.onload = (readerEvent) => {
-                                const dataUrl = readerEvent.target.result;
-                                const markdown = `\n![Pasted Image ${Date.now()}](${dataUrl})\n`;
+                            if (!blob) continue;
+
+                            const imageId = crypto.randomUUID();
+                            const imageRecord = { id: imageId, blob: blob, synced: false };
+
+                            addImageDB(imageRecord).then(() => {
+                                const markdown = `\n![Pasted Image](/images/${imageId})\n`;
                                 cm.replaceSelection(markdown);
-                            };
-                            reader.readAsDataURL(blob);
+                            }).catch(err => {
+                                console.error("Failed to save image to IndexedDB", err);
+                                // Fallback or error message
+                            });
                         }
                     }
                 });

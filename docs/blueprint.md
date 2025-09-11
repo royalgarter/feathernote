@@ -24,13 +24,32 @@
 
 ### Paste Image from Clipboard
 
-- **Goal:** Allow users to paste images from their clipboard directly into the EasyMDE editor.
-- **Implementation Strategy:**
-    1.  **Event Listener:** Attach a `paste` event listener to the CodeMirror instance within EasyMDE.
-    2.  **Clipboard Processing:** In the listener, check the clipboard for items of type `file` and `image/*`.
-    3.  **Offline-First (Base64):** Read the image file as a Base64 `data:` URL using the `FileReader` API.
-    4.  **Markdown Insertion:** Insert the Base64 string into the editor at the cursor position as a Markdown image tag (`![](data:image/png;base64,...)`).
-- **Future Enhancement:** If S3 is configured, provide an option to automatically upload the image to S3 and insert the public URL instead of using Base64.
+- **Goal:** Allow users to paste images from their clipboard directly into the editor, with a robust offline-first approach and optional S3 backup.
+- **Implementation Strategy (Hybrid Approach):**
+
+    1.  **Event Listener & Local Storage:**
+        - Attach a `paste` event listener to the editor.
+        - On paste, check the clipboard for image files.
+        - Generate a unique ID (e.g., UUID) for each pasted image.
+        - Store the image Blob in **IndexedDB** with its unique ID as the key. This makes the paste operation instant and fully available offline.
+        - Insert a Markdown image tag with a local, interceptable URL into the editor (e.g., `![](/images/your-unique-image-id)`).
+
+    2.  **Service Worker for Local Serving:**
+        - The application's **Service Worker** will intercept `fetch` requests for the `/images/*` path.
+        - When a request is caught, the service worker retrieves the corresponding image Blob from IndexedDB.
+        - It then constructs and returns a `Response` with the image data and the correct `Content-Type` header, effectively serving the image from the local database.
+
+    3.  **S3 Background Sync (Enhancement):**
+        - If the user has configured S3 credentials, a background process will manage synchronization.
+        - This process will periodically check IndexedDB for images that have not yet been uploaded to S3.
+        - For each unsynced image, it will request a **presigned PUT URL** from a backend service.
+        - The client-side background process will use this URL to upload the image file directly to the private S3 bucket.
+        - Once the upload is successful, the image's status is marked as "synced" in IndexedDB.
+
+    4.  **Cross-Device/Remote Access:**
+        - When a note is opened, if an image's local URL points to an image not found in the local IndexedDB (e.g., on a different device), the application will attempt to fetch it from S3.
+        - This will be done by requesting a **presigned GET URL** from the backend, which allows the client to download and view the image from the private bucket.
+        - For a better offline experience, the fetched image will then be cached in the local IndexedDB.
 
 ## References
 
