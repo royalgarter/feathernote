@@ -1108,27 +1108,23 @@ document.addEventListener('alpine:init', () => {
 
 			const encryptedSettings = storedData.encryptedSettings;
 
-			decryptSettings(encryptedSettings, this.userId)
-				.then(decrypted => {
-					if (!decrypted) return;
+			decrypted = await decryptSettings(encryptedSettings, this.userId).catch(error => {
+				this.showToast({ title: 'Settings Decryption Error', description: error.message });
+			});
+			if (!decrypted) return;
 
-					this.s3Bucket = decrypted.s3Bucket || '';
-					this.s3Region = decrypted.s3Region || '';
-					this.s3Endpoint = decrypted.s3Endpoint || '';
-					this.s3Subfolder = decrypted.s3Subfolder || '';
-					this.accessKeyId = decrypted.accessKeyId || '';
-					this.secretAccessKey = decrypted.secretAccessKey || '';
-				})
-				.catch(error => {
-					this.showToast({ title: 'Settings Decryption Error', description: error.message });
-				});
+			this.s3Bucket = decrypted.s3Bucket || '';
+			this.s3Region = decrypted.s3Region || '';
+			this.s3Endpoint = decrypted.s3Endpoint || '';
+			this.s3Subfolder = decrypted.s3Subfolder || '';
+			this.accessKeyId = decrypted.accessKeyId || '';
+			this.secretAccessKey = decrypted.secretAccessKey || '';
 		},
 
 		async handleSave() {
-			const key = `feathernote-settings-${this.userId}`;
-
 			// Get existing settings to preserve the secret key if not changed
-			const existingEncrypted = localStorage.getItem(key);
+			const storedData = await getEncryptedSettingsDB();
+			const existingEncrypted = storedData ? storedData.encryptedSettings : null;
 			let existingSettings = {};
 			if (existingEncrypted) {
 				const decrypted = await decryptSettings(existingEncrypted, this.userId);
@@ -1167,8 +1163,8 @@ document.addEventListener('alpine:init', () => {
 		},
 
 		async handleExport() {
-			const key = `feathernote-settings-${this.userId}`;
-			const encryptedString = localStorage.getItem(key);
+			const storedData = await getEncryptedSettingsDB();
+			const encryptedString = storedData ? storedData.encryptedSettings : null;
 			if (encryptedString) {
 				this.exportString = encryptedString;
 			} else {
