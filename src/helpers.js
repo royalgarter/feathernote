@@ -266,6 +266,33 @@ const downloadImageFromS3V2 = async (imageId, creds) => {
 	}
 };
 
+const listImagesInS3V2 = async (creds) => {
+	const s3 = getS3ClientV2(creds);
+	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/`;
+	let allImageKeys = [];
+	let continuationToken = undefined;
+
+	do {
+		const params = {
+			Bucket: creds.bucket,
+			Prefix: prefix,
+			ContinuationToken: continuationToken,
+		};
+
+		try {
+			const data = await s3.listObjectsV2(params).promise();
+			const imageKeys = data.Contents?.map(item => item.Key).filter(key => !!key) || [];
+			allImageKeys = allImageKeys.concat(imageKeys);
+			continuationToken = data.NextContinuationToken;
+		} catch (err) {
+			console.error("S3 List Images Error:", err);
+			throw new Error(`Failed to list images in S3: ${err.code} - ${err.message}`);
+		}
+	} while (continuationToken);
+
+	return allImageKeys;
+};
+
 
 // --- IndexedDB Functions ---
 const DB_NAME = 'FeatherNoteDB';

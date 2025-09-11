@@ -6,6 +6,7 @@ document.addEventListener('alpine:init', () => {
 				throw new Error('Failed to decrypt credentials.');
 			}
 
+			// 1. Upload unsynced local images to S3
 			let uploadedImageCount = 0;
 			const unsyncedImages = await getUnsyncedImagesDB();
 			for (const image of unsyncedImages) {
@@ -14,9 +15,39 @@ document.addEventListener('alpine:init', () => {
 				uploadedImageCount++;
 			}
 
-			// TODO: Implement logic to download images from S3 if needed (e.g., if a note references an image not in local DB)
+			// 2. Download missing images from S3
+			let downloadedImageCount = 0;
+			const allNotes = await getNotesDB();
+			const remoteImageKeys = await listImagesInS3V2(credentials);
+			const remoteImageIds = new Set(remoteImageKeys.map(key => key.split('/').pop().split('.').shift()));
 
-			return { success: true, uploadedImageCount };
+			const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
+			const referencedImageIds = new Set();
+
+			for (const note of allNotes) {
+				let match;
+				while ((match = imageIdRegex.exec(note.content)) !== null) {
+					referencedImageIds.add(match[1]);
+				}
+			}
+
+			for (const imageId of referencedImageIds) {
+				const localImage = await getImageDB(imageId);
+				if (!localImage && remoteImageIds.has(imageId)) {
+					console.log(`Image ${imageId} not found locally, downloading from S3...`);
+					try {
+						const imageBlob = await downloadImageFromS3V2(imageId, credentials);
+						if (imageBlob) {
+							await addImageDB({ id: imageId, blob: imageBlob, synced: true });
+							downloadedImageCount++;
+						}
+					} catch (downloadError) {
+						console.error(`Failed to download image ${imageId} from S3:`, downloadError);
+					}
+				}
+			}
+
+			return { success: true, uploadedImageCount, downloadedImageCount };
 		} catch (error) {
 			console.error('apiSyncImages error:', error);
 			return { success: false, error: error.message };
@@ -639,6 +670,7 @@ document.addEventListener('alpine:init', () => {
 				await this.deleteNoteFromS3(id);
 				this.notes = this.notes.filter((note) => note.id !== id);
 				this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
+				this.cancelEdit();
 			} catch (error) {
 				console.error('Error in deleteNote:', error);
 				this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
@@ -759,11 +791,11 @@ document.addEventListener('alpine:init', () => {
 						console.log('syncNotes: S3 is configured, attempting image sync.');
 						const imageSyncResult = await apiSyncImages(encryptedSettings, userId);
 						if (imageSyncResult.success) {
-							console.log(`syncNotes: Image sync successful. Uploaded: ${imageSyncResult.uploadedImageCount}`);
-							if (!isSilent && imageSyncResult.uploadedImageCount > 0) {
+							console.log(`syncNotes: Image sync successful. Uploaded: ${imageSyncResult.uploadedImageCount}, Downloaded: ${imageSyncResult.downloadedImageCount}`);
+							if (!isSilent && (imageSyncResult.uploadedImageCount > 0 || imageSyncResult.downloadedImageCount > 0)) {
 								this.showToast({
 									title: 'Image Sync Complete',
-									description: `${imageSyncResult.uploadedImageCount} new images synced to S3.`,
+									description: `${imageSyncResult.uploadedImageCount} images uploaded, ${imageSyncResult.downloadedImageCount} images downloaded.`,
 								});
 							}
 						} else {
