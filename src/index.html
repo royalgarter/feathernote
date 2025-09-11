@@ -333,7 +333,7 @@
                     </p>
                 </div>
 
-                <fieldset :disabled="!isSyncConfigured" class="grid gap-2">
+                <fieldset __disabled="!isSyncConfigured" class="grid gap-2">
                     <div class="grid grid-cols-4 items-center gap-2">
                         <label for="s3-region" class="text-right">Region</label>
                         <input id="s3-region" x-model="s3Region" class="cursor-pointer col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
@@ -368,16 +368,16 @@
 
             <!-- Buttons -->
             <div class="flex justify-end gap-2 mt-2">
-                <button @click="openImport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
-                <button @click="handleExport()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
-                <button @click="handleSync()" :disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
+                <button @click="openImport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+                <button @click="handleExport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
+                <button @click="handleSync()" __disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
                     <svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span x-text="isManualSyncing ? 'Syncing...' : (isSyncing || 'Sync')"></span>
                 </button>
-                <button @click="handleSave()" :disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
+                <button @click="handleSave()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
             </div>
 
 
@@ -447,7 +447,7 @@
         </template>
     </div>
 
-
+    <script src="helpers.js"></script>
     <script src="index.js"></script>
 </body>
 </html>

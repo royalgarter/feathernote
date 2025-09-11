@@ -48,8 +48,6 @@
 
     4.  **Cross-Device/Remote Access:**
         - When a note is opened, if an image's local URL points to an image not found in the local IndexedDB (e.g., on a different device), the application will attempt to fetch it from S3.
-        - This will be done by requesting a **presigned GET URL** from the backend, which allows the client to download and view the image from the private bucket.
-        - For a better offline experience, the fetched image will then be cached in the local IndexedDB.
 
 ## References
 
