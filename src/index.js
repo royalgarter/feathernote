@@ -324,7 +324,7 @@ document.addEventListener('alpine:init', () => {
 				if ((event.ctrlKey || event.metaKey) && event.key === 's') {
 					event.preventDefault();
 					if (this.editingNoteId) {
-						this.saveNote();
+						this.saveNote(true);
 					} else {
 						this.syncNotes(false);
 					}
@@ -995,7 +995,7 @@ document.addEventListener('alpine:init', () => {
 			this.prepareEasyMDE(id);
 		},
 
-		async saveNote() {
+		async saveNote(isAuto) {
 			let finalTitle = this.noteEditorTitle.trim();
 			if (!finalTitle) {
 				// If title is empty or just whitespace, use a default title
@@ -1020,8 +1020,10 @@ document.addEventListener('alpine:init', () => {
 				}
 			}
 
-			this.cancelEdit();
-			this.fetchNotes();
+			if (!isAuto) {
+				this.cancelEdit();
+				this.fetchNotes();
+			}
 		},
 
 		async shareNote() {
