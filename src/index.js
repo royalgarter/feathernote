@@ -1098,7 +1098,7 @@ document.addEventListener('alpine:init', () => {
 				const note = await this.getNote(noteId);
 				if (!note || !note.content) throw new Error("Note not found or is empty.");
 
-				const urlRegex = /(https?:\]\[^\]+)/;
+				const urlRegex = /(https?:\/\/[^\s]+)/;
 				const match = note.content.match(urlRegex);
 				if (!match) throw new Error("No URL found in the note to clip.");
 
