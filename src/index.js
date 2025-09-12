@@ -19,7 +19,7 @@ document.addEventListener('alpine:init', () => {
 			let downloadedImageCount = 0;
 			const allNotes = await getNotesDB();
 			const remoteImageKeys = await listImagesInS3V2(credentials, nostrPrivateKey, nostrRelays);
-			const remoteImageIds = new Set(remoteImageKeys.map(key => key.split('/').pop().split('.').shift()));
+			const remoteImageIds = new Set(remoteImageKeys.map(x => x.id));
 
 			const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
 			const referencedImageIds = new Set();
