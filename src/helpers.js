@@ -149,7 +149,7 @@ const getS3ObjectKey = (noteId, creds) => {
 };
 
 const uploadNoteToS3V2 = async (note, creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const noteJson = JSON.stringify(note, null, 2);
 
 	const params = {
@@ -163,7 +163,7 @@ const uploadNoteToS3V2 = async (note, creds) => {
 };
 
 const listNotesInS3V2 = async (creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
 	let allNoteMetadata = [];
 	let continuationToken = undefined;
@@ -215,7 +215,7 @@ const downloadNoteFromS3V2 = async (noteId, creds) => {
 };
 
 const deleteNoteFromS3V2 = async (noteId, creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
 		Bucket: creds.bucket,
@@ -232,7 +232,7 @@ const getImageS3ObjectKey = (imageId, imageType, creds) => {
 };
 
 const uploadImageToS3V2 = async (imageRecord, creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const key = getImageS3ObjectKey(imageRecord.id, imageRecord.blob.type, creds);
 
 	const params = {
@@ -245,7 +245,7 @@ const uploadImageToS3V2 = async (imageRecord, creds) => {
 };
 
 const downloadImageFromS3V2 = async (imageId, creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/${imageId}`;
 
 	try {
@@ -280,7 +280,7 @@ const downloadImageFromS3V2 = async (imageId, creds) => {
 };
 
 const listImagesInS3V2 = async (creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/`;
 	let allImageKeys = [];
 	let continuationToken = undefined;
