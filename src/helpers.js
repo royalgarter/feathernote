@@ -148,7 +148,7 @@ const getS3ObjectKey = (noteId, creds) => {
 	return noteId.includes('images/') ? `${path}${noteId}` : `${path}${noteId}.json` ;
 };
 
-const uploadNoteToS3V2 = async (note, creds) => {
+const uploadNoteToS3V2 = async (note, creds, nostrPrivateKey, nostrRelays) => {
 	const s3 = await getS3ClientV2(creds);
 	const noteJson = JSON.stringify(note, null, 2);
 
@@ -159,7 +159,14 @@ const uploadNoteToS3V2 = async (note, creds) => {
 		ContentType: 'application/json',
 	};
 
-	return s3.upload(params).promise();
+	const s3Promise = s3.upload(params).promise();
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		await Promise.all([s3Promise, window.publishNoteToRelays(relays, nostrPrivateKey, note)]);
+	} else {
+		await s3Promise;
+	}
 };
 
 const listNotesInS3V2 = async (creds) => {
@@ -214,14 +221,22 @@ const downloadNoteFromS3V2 = async (noteId, creds) => {
 	}
 };
 
-const deleteNoteFromS3V2 = async (noteId, creds) => {
+const deleteNoteFromS3V2 = async (noteId, creds, nostrPrivateKey, nostrRelays) => {
 	const s3 = await getS3ClientV2(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,
 	};
-	return s3.deleteObject(params).promise();
+
+	const s3Promise = s3.deleteObject(params).promise();
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		await Promise.all([s3Promise, window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId)]);
+	} else {
+		await s3Promise;
+	}
 };
 
 // --- S3 Functions for Images ---
@@ -231,7 +246,7 @@ const getImageS3ObjectKey = (imageId, imageType, creds) => {
 	return `${path}images/${imageId}.${extension}`;
 };
 
-const uploadImageToS3V2 = async (imageRecord, creds) => {
+const uploadImageToS3V2 = async (imageRecord, creds, nostrPrivateKey, nostrRelays) => {
 	const s3 = await getS3ClientV2(creds);
 	const key = getImageS3ObjectKey(imageRecord.id, imageRecord.blob.type, creds);
 
@@ -241,7 +256,16 @@ const uploadImageToS3V2 = async (imageRecord, creds) => {
 		Body: imageRecord.blob,
 		ContentType: imageRecord.blob.type,
 	};
-	return s3.upload(params).promise();
+	const s3Promise = s3.upload(params).promise();
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		const imageUrl = s3.getSignedUrl('getObject', { Bucket: creds.bucket, Key: key });
+		const imageRecordWithUrl = { ...imageRecord, url: imageUrl };
+		await Promise.all([s3Promise, window.publishImageToRelays(relays, nostrPrivateKey, imageRecordWithUrl)]);
+	} else {
+		await s3Promise;
+	}
 };
 
 const downloadImageFromS3V2 = async (imageId, creds) => {

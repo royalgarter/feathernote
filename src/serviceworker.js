@@ -7,6 +7,7 @@ const urlsToCache = [
 	'/index.html',
 	'/index.js',
 	'/helpers.js',
+	'/nostr.js',
 	'/manifest.json',
 	'/favicon.ico',
 	'/favicon.png',
@@ -20,6 +21,7 @@ const urlsToCache = [
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css',
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js',
 	'https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js',
+	'https://cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js,'
 	// 'https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js',
 ];
 

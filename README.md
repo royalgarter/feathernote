@@ -25,6 +25,7 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 -   🔔 **Stay on Track:** Set reminders for your notes and get push notifications so you never miss a beat.
 -   📲 **Installable & Shareable:** As a PWA, you can install FeatherNote on your desktop or mobile device for a native-app feel. You can even share content directly to it from other apps!
 -   🚀 **Feather-light & Fast:** Built with Alpine.js and Tailwind CSS, the interface is snappy, responsive, and a joy to use.
+-   **Nostr Integration:** Sync your notes with the decentralized Nostr protocol, in addition to S3.
 
 ## Philosophy
 
@@ -41,6 +42,7 @@ Welcome to a new era of note-taking. Welcome to FeatherNote.
 -   **S3:** [AWS SDK for JavaScript](https://aws.amazon.com/sdk-for-javascript/)
 -   **Authentication:** [Google Identity Services](https://developers.google.com/identity/gsi/web/guides/display-google-one-tap) (for client-side authentication)
 -   **Encryption:** Web Crypto API (for encrypting S3 credentials)
+-   **Nostr:** [nostr-tools](https://github.com/nbd-wtf/nostr-tools)
 
 ## Your Own S3 Bucket
 
@@ -103,6 +105,17 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
 4.  Click "Save Credentials".
 
 Your notes will now automatically sync every 2 minutes, and you can trigger a manual sync at any time.
+
+### Nostr Sync Configuration
+
+FeatherNote also supports syncing with the Nostr protocol. To use this feature, you will need a Nostr private key and a list of relays.
+
+1.  Click on the "Settings" icon in the top right corner of the app.
+2.  Enter your Nostr private key (in `nsec...` format) or generate a new one.
+3.  Enter a comma-separated list of Nostr relays (e.g., `wss://relay.damus.io,wss://relay.primal.net`).
+4.  Click "Save".
+
+Your notes will now be synced with the configured Nostr relays in addition to S3.
 
 ### Sync Logic
 

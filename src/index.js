@@ -1,5 +1,5 @@
 document.addEventListener('alpine:init', () => {
-	async function apiSyncImages(encryptedSettings, userId) {
+	async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRelays) {
 		try {
 			const credentials = await decryptSettings(encryptedSettings, userId);
 			if (!credentials) {
@@ -10,7 +10,7 @@ document.addEventListener('alpine:init', () => {
 			let uploadedImageCount = 0;
 			const unsyncedImages = await getUnsyncedImagesDB();
 			for (const image of unsyncedImages) {
-				await uploadImageToS3V2(image, credentials);
+				await uploadImageToS3V2(image, credentials, nostrPrivateKey, nostrRelays);
 				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
 				uploadedImageCount++;
 			}
@@ -54,7 +54,7 @@ document.addEventListener('alpine:init', () => {
 		}
 	}
 
-	async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, lastSyncedIds) {
+	async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, lastSyncedIds, nostrPrivateKey, nostrRelays) {
 		try {
 			const credentials = await decryptSettings(encryptedSettings, userId);
 			if (!credentials) {
@@ -82,10 +82,10 @@ document.addEventListener('alpine:init', () => {
 				return localDate > remoteDate;
 			});
 
-			const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials));
+			const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials, nostrPrivateKey, nostrRelays));
 
 			// --- Step 3: Determine which notes to delete from S3 ---
-			const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
+			const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays));
 
 			// --- Step 4: Execute uploads and deletes ---
 			const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
@@ -188,13 +188,13 @@ document.addEventListener('alpine:init', () => {
 		}
 	}
 
-	async function apiDeleteNote(encryptedSettings, userId, noteId) {
+	async function apiDeleteNote(encryptedSettings, userId, noteId, nostrPrivateKey, nostrRelays) {
 		try {
 			const credentials = await decryptSettings(encryptedSettings, userId);
 			if (!credentials) {
 				throw new Error('Failed to decrypt credentials.');
 			}
-			await deleteNoteFromS3V2(noteId, credentials);
+			await deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays);
 			return { success: true };
 		} catch (error) {
 			console.error('apiDeleteNote error:', error);
@@ -290,6 +290,12 @@ document.addEventListener('alpine:init', () => {
 			// App Init
 			this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
 			this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
+
+			this.nostrPrivateKey = localStorage.getItem('feathernote-nostr-private-key') || '';
+			this.$watch('nostrPrivateKey', (value) => { localStorage.setItem('feathernote-nostr-private-key', value); });
+
+			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || '';
+			this.$watch('nostrRelays', (value) => { localStorage.setItem('feathernote-nostr-relays', value); });
 
 			this.$nextTick(() => {
 				this.processSharedContent();
@@ -704,7 +710,7 @@ document.addEventListener('alpine:init', () => {
 				this.deletedNoteIds.push(id);
 				this.cancelNotification(id);
 				await deleteNoteDB(id);
-				await this.deleteNoteFromS3(id);
+				await this.deleteNoteFromS3(id, this.nostrPrivateKey, this.nostrRelays);
 				this.notes = this.notes.filter((note) => note.id !== id);
 				this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
 				this.cancelEdit();
@@ -714,7 +720,7 @@ document.addEventListener('alpine:init', () => {
 			}
 		},
 
-		async deleteNoteFromS3(noteId) {
+		async deleteNoteFromS3(noteId, nostrPrivateKey, nostrRelays) {
 			const userId = this.user ? this.user.id : null;
 			const storedData = await getEncryptedSettingsDB();
 			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
@@ -729,7 +735,9 @@ document.addEventListener('alpine:init', () => {
 				const result = await apiDeleteNote(
 					encryptedSettings,
 					userId,
-					noteId
+					noteId,
+					nostrPrivateKey,
+					nostrRelays
 				);
 
 				console.dir({deleteNoteFromS3: result})
@@ -793,7 +801,9 @@ document.addEventListener('alpine:init', () => {
 					localNotes,
 					this.deletedNoteIds,
 					this.lastSync,
-					lastSyncedIds
+					lastSyncedIds,
+					this.nostrPrivateKey,
+					this.nostrRelays
 				);
 
 				if (result.success) {
@@ -826,7 +836,7 @@ document.addEventListener('alpine:init', () => {
 					// After notes are synced, sync images
 					if (encryptedSettings) {
 						console.log('syncNotes: S3 is configured, attempting image sync.');
-						const imageSyncResult = await apiSyncImages(encryptedSettings, userId);
+						const imageSyncResult = await apiSyncImages(encryptedSettings, userId, this.nostrPrivateKey, this.nostrRelays);
 						if (imageSyncResult.success) {
 							console.log(`syncNotes: Image sync successful. Uploaded: ${imageSyncResult.uploadedImageCount}, Downloaded: ${imageSyncResult.downloadedImageCount}`);
 							if (!isSilent && (imageSyncResult.uploadedImageCount > 0 || imageSyncResult.downloadedImageCount > 0)) {
@@ -848,6 +858,8 @@ document.addEventListener('alpine:init', () => {
 					} else {
 						console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
 					}
+
+					
 
 					if (!isSilent) {
 						this.showToast({
@@ -1291,6 +1303,9 @@ document.addEventListener('alpine:init', () => {
 		showImportModal: false,
 		showExportModal: false,
 
+		nostrPrivateKey: '',
+		nostrRelays: '',
+
 		// initSettingsDialog() {
 		//     this.$watch('settingsDialogIsOpen', (value) => {
 		//         if (value) {
@@ -1411,6 +1426,6 @@ document.addEventListener('alpine:init', () => {
 				console.error(error);
 				this.showToast({ variant: 'error', title: 'Import Failed', description: 'The provided string is not a valid encrypted settings configuration.' });
 			}
-		}
+		},
 	}));
 });
