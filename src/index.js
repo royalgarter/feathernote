@@ -468,13 +468,15 @@ document.addEventListener('alpine:init', () => {
 		},
 
 		signOut() {
-			this.user = null;
-			localStorage.removeItem('feathernote-user');
-			localStorage.removeItem('feathernote-has-logged-in');
-			if (window.google && window.google.accounts) {
-				window.google.accounts.id.disableAutoSelect();
+			if (confirm('Are you sure you want to sign out?')) {
+				this.user = null;
+				localStorage.removeItem('feathernote-user');
+				localStorage.removeItem('feathernote-has-logged-in');
+				if (window.google && window.google.accounts) {
+					window.google.accounts.id.disableAutoSelect();
+				}
+				this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
 			}
-			this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
 		},
 
 

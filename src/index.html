@@ -296,7 +296,7 @@
              @click.away="settingsDialogIsOpen = false"
         >
             <div class="flex justify-between items-center">
-                <h3 class="text-lg font-bold">Settings</h3>
+                <h3 class="text-lg font-bold">Settings <span class="text-sm font-light text-gray-400" x-text="'v.'+appVersion"></span></h3>
                 <button @click="settingsDialogIsOpen = false" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
@@ -382,7 +382,7 @@
                 <button @click="handleSave()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
             </div>
 
-            <p class="text-center text-xs text-gray-400 mt-4">v<span x-text="appVersion"></span></p>
+
 
             <!-- Import Dialog -->
             <div x-show="showImportModal"
