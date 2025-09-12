@@ -104,6 +104,28 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
 
 Your notes will now automatically sync every 2 minutes, and you can trigger a manual sync at any time.
 
+### Sync Logic
+
+FeatherNote employs a robust synchronization strategy to ensure your notes are kept up-to-date across multiple devices while protecting against common data loss scenarios like conflicts and race conditions. The sync process can be thought of as a three-way merge between the client's local database, the remote S3 bucket, and a list of notes pending deletion.
+
+The core strategy is **"last-write-wins,"** determined by comparing timestamps. Here’s how it works each time a sync is triggered:
+
+1.  **Fetch Remote State:** The first and most crucial step is that the client fetches a complete list of all notes currently stored in your S3 bucket, along with their last modification times. This provides a clear picture of the server's state *before* any changes are made.
+
+2.  **Compare and Decide (Uploads):** The client then iterates through its local notes and compares each one against the remote state:
+    *   If a local note does not exist on the server, it is marked for **upload**.
+    *   If a note exists in both places, the client compares the local note's `updatedAt` timestamp with the server's `lastModified` timestamp. The local note is only marked for **upload** if it is demonstrably newer. This is the key step that prevents an older, offline change from overwriting a newer change that was synced from a different device.
+
+3.  **Compare and Decide (Downloads):** Next, the client examines the list of remote notes fetched in step 1:
+    *   If a note on the server does not exist in the local database, it is marked for **download**.
+    *   If a note exists in both places, it is only marked for **download** if the server's version is newer than the local version. This ensures your device always gets the most up-to-date copy.
+
+4.  **Handle Deletions:** Notes that you delete in the app are tracked in a temporary deletion queue. During the sync, these notes are permanently deleted from the S3 bucket. When another device syncs, it will see that the note is no longer on the server and will delete it from its own local database, keeping everything consistent.
+
+5.  **Execute:** Finally, the client executes all the planned uploads, downloads, and deletions in an efficient, parallel process.
+
+This "fetch-then-compare" methodology ensures that the most recent version of any note always wins, providing a reliable and consistent note-taking experience across all your devices without silently losing your work.
+
 ## Deployment
 
 FeatherNote is designed to be deployed as a static web application, with all client-side logic residing in the `src/` directory.

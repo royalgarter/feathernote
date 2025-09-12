@@ -380,6 +380,8 @@ app.post('/share', upload.none(), (req, res) => {
 
 // --- API Endpoints ---
 app.post('/api/sync-notes', async (req, res) => {
+    return res.status(400).json({ error: 'This route is deprecated. Using the client-side S3 instead.'});
+
     let { encryptedSettings, userId, localNotes, deletedNoteIds, lastSync } = req.body;
 
     userId = userId || 'null'; // Debug for localhost
@@ -454,6 +456,8 @@ app.post('/api/sync-notes', async (req, res) => {
 });
 
 app.post('/api/delete-note', async (req, res) => {
+    return res.status(400).json({ error: 'This route is deprecated. Using the client-side S3 instead.'});
+
     let { encryptedSettings, userId, noteId } = req.body;
 
     userId = userId || 'null'; // Debug for localhost

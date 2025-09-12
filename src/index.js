@@ -61,58 +61,88 @@ document.addEventListener('alpine:init', () => {
 				throw new Error('Failed to decrypt credentials.');
 			}
 
-			const updatedNotes = [];
-			const notesToDeleteLocally = [];
+			// --- Step 1: Get remote state FIRST ---
+			const remoteNoteMetadata = await listNotesInS3V2(credentials);
+			const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
-			// 1. Upload local notes to S3
-			const uploadPromises = localNotes.map(note => uploadNoteToS3V2(note, credentials));
+			// --- Step 2: Determine which notes to upload ---
+			const notesToUpload = localNotes.filter(localNote => {
+				// Don't upload notes that are slated for deletion.
+				if (deletedNoteIds.includes(localNote.id)) return false;
 
-			// 2. Delete notes from S3 that are in deletedNoteIds
+				const remoteMeta = remoteMetaMap.get(localNote.id);
+				if (!remoteMeta) {
+					// Note doesn't exist remotely, so it's new. Upload it.
+					return true;
+				}
+
+				// Note exists remotely. Only upload if local is newer.
+				const remoteDate = new Date(remoteMeta.lastModified);
+				const localDate = new Date(localNote.updatedAt);
+				return localDate > remoteDate;
+			});
+
+			const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials));
+
+			// --- Step 3: Determine which notes to delete from S3 ---
 			const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials));
 
-			// Combine upload and delete promises
+			// --- Step 4: Execute uploads and deletes ---
 			const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
 			const uploadAndDeleteResults = await Promise.allSettled(uploadAndDeletePromises);
 
-			let uploadedCount = 0;
-			let deletedCount = 0;
-
+			let successfulUploadedCount = 0;
+			let successfulDeletedCount = 0;
 			uploadAndDeleteResults.forEach((result, index) => {
 				if (result.status === 'fulfilled') {
 					if (index < uploadPromises.length) {
-						uploadedCount++;
+						successfulUploadedCount++;
 					} else {
-						deletedCount++;
+						successfulDeletedCount++;
 					}
 				} else {
-					// Log the error but continue
 					console.error('Sync error during upload/delete:', result.reason);
 				}
 			});
 
 
-			// 3. List notes from S3 and identify remote changes
-			const remoteNoteMetadata = await listNotesInS3V2(credentials);
-			const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+			// --- Step 5: Determine which notes to download or delete locally ---
+			const notesToDownload = [];
+			const notesToDeleteLocally = [];
+			const allLocalNotesMap = new Map(localNotes.map(n => [n.id, n]));
 
-			// Identify notes deleted remotely
-			const currentLocalNoteIds = new Set(localNotes.map(n => n.id));
-			for (const localNoteId of currentLocalNoteIds) {
+			// Find notes updated remotely
+			for (const remoteMeta of remoteNoteMetadata) {
+				const localNote = allLocalNotesMap.get(remoteMeta.id);
+				if (!localNote) {
+					// Note exists on remote but not local, and isn't in the local delete list. Download it.
+					if (!deletedNoteIds.includes(remoteMeta.id)) {
+						notesToDownload.push(remoteMeta);
+					}
+				} else {
+					// Note exists on both. Download if remote is newer.
+					const remoteDate = new Date(remoteMeta.lastModified);
+					const localDate = new Date(localNote.updatedAt);
+					if (remoteDate > localDate) {
+						notesToDownload.push(remoteMeta);
+					}
+				}
+			}
+
+			// Find notes deleted remotely
+			const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+			for (const localNoteId of allLocalNotesMap.keys()) {
 				if (!remoteNoteIds.has(localNoteId) && !deletedNoteIds.includes(localNoteId)) {
+					// This note exists locally but not remotely, and we didn't delete it.
+					// It must have been deleted on another device. Delete it locally.
 					notesToDeleteLocally.push(localNoteId);
 				}
 			}
 
-			// Identify notes updated/added remotely and create download promises
-			const downloadPromises = remoteNoteMetadata
-				.filter(remoteMeta => {
-					const localNote = localNotes.find(n => n.id === remoteMeta.id);
-					return !localNote || new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt);
-				})
-				.map(remoteMeta => downloadNoteFromS3V2(remoteMeta.id, credentials));
-
+			const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3V2(remoteMeta.id, credentials));
 			const downloadResults = await Promise.allSettled(downloadPromises);
 
+			const updatedNotes = [];
 			downloadResults.forEach(result => {
 				if (result.status === 'fulfilled' && result.value) {
 					updatedNotes.push(result.value);
@@ -123,9 +153,9 @@ document.addEventListener('alpine:init', () => {
 
 			return {
 				success: true,
-				uploadedCount,
-				deletedCount,
-				updatedNotes,
+				uploadedCount: successfulUploadedCount,
+				deletedCount: successfulDeletedCount,
+				updatedNotes, // downloaded notes
 				notesToDeleteLocally,
 				finalRemoteIds: Array.from(remoteNoteIds)
 			};
