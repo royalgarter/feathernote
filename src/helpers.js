@@ -56,12 +56,14 @@ async function getKey(userId, salt) {
 }
 
 // Encrypts a JSON-stringifiable object.
-async function encryptSettings(settings, userId) {
+async function encryptSettings(settings, userId, nostrPrivateKey) {
 	const salt = CRYPTO.getRandomValues(new Uint8Array(16));
 	const key = await getKey(userId, salt);
 	const iv = CRYPTO.getRandomValues(new Uint8Array(12));
 	const enc = new TEXT_ENCODER();
-	const encodedSettings = enc.encode(JSON.stringify(settings));
+
+	const settingsToEncrypt = { ...settings, nostrPrivateKey };
+	const encodedSettings = enc.encode(JSON.stringify(settingsToEncrypt));
 
 	const encryptedContent = await CRYPTO.subtle.encrypt(
 		{
@@ -108,6 +110,7 @@ async function decryptSettings(encryptedString, userId) {
 		credentials.bucket = credentials.bucket || credentials.s3Bucket;
 		credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
 		credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
+		credentials.nostrPrivateKey = credentials.nostrPrivateKey || '';
 
 		return credentials;
 	} catch (error) {

@@ -291,11 +291,7 @@ document.addEventListener('alpine:init', () => {
 			this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
 			this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
 
-			this.nostrPrivateKey = localStorage.getItem('feathernote-nostr-private-key') || '';
-			this.$watch('nostrPrivateKey', (value) => { localStorage.setItem('feathernote-nostr-private-key', value); });
-
 			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || '';
-			this.$watch('nostrRelays', (value) => { localStorage.setItem('feathernote-nostr-relays', value); });
 
 			this.$nextTick(() => {
 				this.processSharedContent();
@@ -1337,9 +1333,12 @@ document.addEventListener('alpine:init', () => {
 			this.s3Subfolder = decrypted.s3Subfolder || '';
 			this.accessKeyId = decrypted.accessKeyId || '';
 			this.secretAccessKey = decrypted.secretAccessKey || '';
+			this.nostrPrivateKey = decrypted.nostrPrivateKey || '';
 		},
 
 		async handleSave() {
+			localStorage.setItem('feathernote-nostr-relays', this.nostrRelays);
+
 			// Get existing settings to preserve the secret key if not changed
 			const storedData = await getEncryptedSettingsDB();
 			const existingEncrypted = storedData ? storedData.encryptedSettings : null;
@@ -1355,7 +1354,8 @@ document.addEventListener('alpine:init', () => {
 				s3Endpoint: this.s3Endpoint,
 				s3Subfolder: this.s3Subfolder,
 				accessKeyId: this.accessKeyId,
-				secretAccessKey: existingSettings.secretAccessKey || ''
+				secretAccessKey: existingSettings.secretAccessKey || '',
+				nostrPrivateKey: this.nostrPrivateKey
 			};
 
 			if (this.secretAccessKey) {
@@ -1363,7 +1363,7 @@ document.addEventListener('alpine:init', () => {
 				settingsToStore.secretAccessKey = this.secretAccessKey;
 			}
 
-			const encryptedSettings = await encryptSettings(settingsToStore, this.userId);
+			const encryptedSettings = await encryptSettings(settingsToStore, this.userId, this.nostrPrivateKey);
 
 			// Save encrypted settings to IndexedDB
 			await saveEncryptedSettingsDB(encryptedSettings, this.userId);
