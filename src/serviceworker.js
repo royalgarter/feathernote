@@ -103,52 +103,63 @@ self.addEventListener('fetch', (event) => {
 	if (event.request.method === 'POST' && url.pathname === '/share') {
 		event.respondWith(
 			(async () => {
-				const formData = await event.request.formData();
-				const text = formData.get('text') || '';
-				const sharedUrl = formData.get('url') || '';
-				let title = formData.get('title') || '';
-				let content;
+				try {
+					const formData = await event.request.formData();
+					const text = formData.get('text') || '';
+					const sharedUrl = formData.get('url') || '';
+					let title = formData.get('title') || '';
+					let content;
 
-				if (text && sharedUrl) {
-					content = `${text}\n-\n${sharedUrl}`;
-				} else {
-					content = text || sharedUrl;
-				}
-
-				let urlToFetch = sharedUrl;
-				if (!urlToFetch) {
-					const urlRegex = /(https?:\/\/[^\s]+)/;
-					const match = text.match(urlRegex);
-					if (match) {
-						urlToFetch = match[0];
+					if (text && sharedUrl) {
+						content = `${text}\n-\n${sharedUrl}`;
+					} else {
+						content = text || sharedUrl;
 					}
-				}
 
-				if (urlToFetch) {
-					try {
-						const response = await fetch(urlToFetch);
-						if (response.ok) {
-							const html = await response.text();
-							const doc = new self.DOMParser().parseFromString(html, "text/html");
-							const reader = new Readability(doc);
-							const article = reader.parse();
-
-							if (article && article.content) {
-								title = title || article.title;
-								content = `${urlToFetch}\n\n${article.textContent}`;
-							}
+					let urlToFetch = sharedUrl;
+					if (!urlToFetch) {
+						const urlRegex = /(https?:\/\/[^\s]+)/;
+						const match = text.match(urlRegex);
+						if (match) {
+							urlToFetch = match[0];
 						}
-					} catch (e) {
-						console.error('Error fetching or parsing URL for share:', e);
 					}
-				}
 
-				if (content) {
-					await saveSharedContentToDB(title, content);
-				}
+					if (urlToFetch) {
+						try {
+							// Explicitly check for DOMParser availability
+							if (typeof self.DOMParser === 'undefined') {
+								console.warn('DOMParser is not available in this Service Worker context. Cannot parse article.');
+							} else {
+								const response = await fetch(urlToFetch);
+								if (response.ok) {
+									const html = await response.text();
+									const doc = new self.DOMParser().parseFromString(html, "text/html");
+									const reader = new Readability(doc);
+									const article = reader.parse();
 
-				// Redirect to the home page after sharing
-				return Response.redirect('/', 303);
+									if (article && article.content) {
+										title = title || article.title;
+										content = `Source: [${article.title || urlToFetch}](${urlToFetch})\n\n---\n\n${article.textContent}`;
+									}
+								}
+							}
+						} catch (e) {
+							console.error('Error fetching or parsing URL for share:', e);
+						}
+					}
+
+					if (content) {
+						await saveSharedContentToDB(title, content);
+					}
+
+					// Redirect to the home page after sharing
+					return Response.redirect('/', 303);
+				} catch (criticalError) {
+					console.error('A critical error occurred in the /share handler:', criticalError);
+					// Still attempt to redirect the user back to the app to prevent a hanging screen.
+					return Response.redirect('/', 303);
+				}
 			})()
 		);
 		return;
