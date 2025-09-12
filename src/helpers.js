@@ -420,4 +420,5 @@ const updateNoteDB = (note) => performDBOperation(NOTE_STORE, 'readwrite', 'put'
 const deleteNoteDB = (id) => performDBOperation(NOTE_STORE, 'readwrite', 'delete', id);
 
 const getSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readonly', 'getAll');
+const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'add', item);
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
