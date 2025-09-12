@@ -946,7 +946,27 @@ document.addEventListener('alpine:init', () => {
 					toolbar: [
 						"bold", "italic", "heading", "|",
 						"quote", "unordered-list", "ordered-list", "|",
-						"link", "image", "|",
+						"link", "image",
+						{
+							name: "excalidraw",
+							action: function(editor) {
+								const excalidrawWindow = window.open("https://excalidraw.com", "_blank");
+
+								const checkWindowClosed = setInterval(() => {
+									if (excalidrawWindow.closed) {
+										clearInterval(checkWindowClosed);
+										const shareLink = prompt("Please paste the Excalidraw share link here:");
+										if (shareLink) {
+											const cm = editor.codemirror;
+											cm.replaceSelection(`\n![Drawing](${shareLink})\n`);
+										}
+									}
+								}, 1000);
+							},
+							className: "fa fa-pencil-ruler",
+							title: "Excalidraw",
+						},
+						"|",
 						"code", "table", "|",
 						{
 							name: "word-wrap",
@@ -989,7 +1009,7 @@ document.addEventListener('alpine:init', () => {
 						const imageRecord = { id: imageId, blob: blob, synced: false };
 
 						addImageDB(imageRecord).then(() => {
-							const markdown = `\n![Pasted Image](/images/${imageId})\n`;
+							const markdown = `\n![Image](/images/${imageId})\n`;
 							cm.replaceSelection(markdown);
 						}).catch(err => {
 							console.error("Failed to save image to IndexedDB", err);
