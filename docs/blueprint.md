@@ -39,6 +39,28 @@
     4.  **Cross-Device/Remote Access:**
         - When a note is opened, if an image's local URL points to an image not found in the local IndexedDB (e.g., on a different device), the application will attempt to fetch it from S3.
 
+### Nostr Implementation - Potential Issues
+
+#### 1. Insecure Private Key Storage
+*   **Issue**: The Nostr private key is stored in `localStorage`, which is not a secure location. Malicious browser extensions or scripts on the same page could potentially access the private key.
+*   **Priority**: High
+*   **Complexity**: Medium
+
+#### 2. Lack of Granular Error Handling for Nostr Publications
+*   **Issue**: The application does not provide specific feedback if publishing a note to a Nostr relay fails. The S3 upload might succeed while the Nostr publication fails silently.
+*   **Priority**: High
+*   **Complexity**: Medium
+
+#### 3. Implicit Nostr Publishing
+*   **Issue**: Notes are published to Nostr automatically as a side-effect of S3 synchronization. The user may not be fully aware that their notes are being broadcast to a public network.
+*   **Priority**: Medium
+*   **Complexity**: Low
+
+#### 4. Non-standard Nostr Content Formatting
+*   **Issue**: The entire note object is published as a JSON string. This makes the note content difficult to read for other Nostr clients, limiting interoperability.
+*   **Priority**: Low
+*   **Complexity**: Medium
+
 ## References
 
 ### SilverBullet

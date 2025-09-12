@@ -18,7 +18,7 @@ document.addEventListener('alpine:init', () => {
 			// 2. Download missing images from S3
 			let downloadedImageCount = 0;
 			const allNotes = await getNotesDB();
-			const remoteImageKeys = await listImagesInS3V2(credentials);
+			const remoteImageKeys = await listImagesInS3V2(credentials, nostrPrivateKey, nostrRelays);
 			const remoteImageIds = new Set(remoteImageKeys.map(key => key.split('/').pop().split('.').shift()));
 
 			const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
@@ -62,7 +62,7 @@ document.addEventListener('alpine:init', () => {
 			}
 
 			// --- Step 1: Get remote state FIRST ---
-			const remoteNoteMetadata = await listNotesInS3V2(credentials);
+			const remoteNoteMetadata = await listNotesInS3V2(credentials, nostrPrivateKey, nostrRelays);
 			const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 			// --- Step 2: Determine which notes to upload ---

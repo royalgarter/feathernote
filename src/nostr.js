@@ -13,12 +13,16 @@ async function publishNoteToRelays(relays, privateKey, note) {
 	const pool = new window.NostrTools.SimplePool();
 	const publicKey = window.NostrTools.getPublicKey(privateKey);
 
+	const encryptedContent = await window.NostrTools.nip04.encrypt(privateKey, publicKey, JSON.stringify(note));
+
 	const event = {
-	kind: 1,
-	pubkey: publicKey,
-	created_at: Math.floor(Date.now() / 1000),
-	tags: note.tags.map(tag => ['t', tag]),
-	content: JSON.stringify(note),
+		kind: 4,
+		pubkey: publicKey,
+		created_at: Math.floor(Date.now() / 1000),
+		tags: [
+			['p', publicKey]
+		],
+		content: encryptedContent,
 	};
 
 	event.id = window.NostrTools.getEventHash(event);
@@ -33,6 +37,37 @@ async function publishNoteToRelays(relays, privateKey, note) {
 }
 
 
+
+async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
+	const pool = new window.NostrTools.SimplePool();
+	const publicKey = window.NostrTools.getPublicKey(privateKey);
+	const decryptedEvents = [];
+
+	const sub = pool.sub(relays, [
+		{
+			kinds: [4],
+			'#p': [publicKey],
+			authors: [publicKey],
+		}
+	]);
+
+	sub.on('event', async event => {
+		try {
+			const decryptedContent = await window.NostrTools.nip04.decrypt(privateKey, event.pubkey, event.content);
+			const parsedContent = JSON.parse(decryptedContent);
+			decryptedEvents.push(parsedContent);
+		} catch (error) {
+			console.error("Error decrypting or parsing event:", error);
+		}
+	});
+
+	await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for events to come in
+
+	sub.unsub();
+	pool.close(relays);
+
+	return decryptedEvents;
+}
 
 async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
 	const pool = new window.NostrTools.SimplePool();
@@ -62,15 +97,16 @@ async function publishImageToRelays(relays, privateKey, imageRecord) {
 	const pool = new window.NostrTools.SimplePool();
 	const publicKey = window.NostrTools.getPublicKey(privateKey);
 
+	const encryptedContent = await window.NostrTools.nip04.encrypt(privateKey, publicKey, JSON.stringify(imageRecord));
+
 	const event = {
-		kind: 1063, // Image
+		kind: 4,
 		pubkey: publicKey,
 		created_at: Math.floor(Date.now() / 1000),
 		tags: [
-			['u', imageRecord.url],
-			['x', imageRecord.id]
+			['p', publicKey]
 		],
-		content: 'Image uploaded',
+		content: encryptedContent,
 	};
 
 	event.id = window.NostrTools.getEventHash(event);
