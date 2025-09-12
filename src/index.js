@@ -1061,6 +1061,76 @@ document.addEventListener('alpine:init', () => {
 			}, 100);
 		},
 
+		async extractArticle(url) {
+			let html;
+			try {
+				console.log('Attempting direct fetch...');
+				const response = await fetch(url);
+				if (!response.ok) throw new Error('Direct fetch failed with status: ' + response.status);
+				html = await response.text();
+				console.log('Direct fetch successful.');
+			} catch (e) {
+				console.log('Direct fetch failed, falling back to proxy...', e.message);
+				const proxyResponse = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+				if (!proxyResponse.ok) throw new Error('Proxy fetch also failed with status: ' + proxyResponse.status);
+				html = await proxyResponse.text();
+				console.log('Proxy fetch successful.');
+			}
+
+			if (typeof Readability === 'undefined') {
+				throw new Error("Readability.js script not loaded.");
+			}
+			const doc = new DOMParser().parseFromString(html, 'text/html');
+			const reader = new Readability(doc);
+			const article = reader.parse();
+
+			if (article && article.content) {
+				return article;
+			} else {
+				throw new Error("Readability could not parse the article.");
+			}
+		},
+
+		async clipNoteContent(noteId) {
+			if (!noteId) return;
+			document.body.style.cursor = 'wait';
+			try {
+				const note = await this.getNote(noteId);
+				if (!note || !note.content) throw new Error("Note not found or is empty.");
+
+				const urlRegex = /(https?:\]\[^\]+)/;
+				const match = note.content.match(urlRegex);
+				if (!match) throw new Error("No URL found in the note to clip.");
+
+				const urlToClip = match[0];
+				const article = await this.extractArticle(urlToClip);
+
+				const newContent = `Source: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}`;
+
+				// Remove the #needs-clipping tag
+				const newTags = (note.tags || []).filter(tag => tag !== 'needs-clipping');
+
+				// Update the note in the editor if it's currently being edited
+				this.noteEditorContent = newContent;
+				this.noteEditorTags = newTags.join(', ');
+
+				// Save the note
+				await this.updateNote(noteId, {
+					title: note.title || article.title,
+					content: newContent,
+					tags: newTags
+				});
+
+				this.showToast({ title: 'Content Clipped', description: 'Article content has been successfully extracted.' });
+
+			} catch (error) {
+				console.error('Failed to clip content:', error);
+				this.showToast({ variant: 'error', title: 'Clipping Failed', description: error.message });
+			} finally {
+				document.body.style.cursor = 'default';
+			}
+		},
+
 		createNewNote() {
 			this.editingNoteId = new Date().toString().substr(0, 18);
 			this.noteEditorNoteId = null;

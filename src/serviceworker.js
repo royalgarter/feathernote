@@ -126,11 +126,9 @@ self.addEventListener('fetch', (event) => {
 					}
 
 					if (urlToFetch) {
+						let articleParsed = false;
 						try {
-							// Explicitly check for DOMParser availability
-							if (typeof self.DOMParser === 'undefined') {
-								console.warn('DOMParser is not available in this Service Worker context. Cannot parse article.');
-							} else {
+							if (typeof self.DOMParser !== 'undefined') {
 								const response = await fetch(urlToFetch);
 								if (response.ok) {
 									const html = await response.text();
@@ -141,11 +139,19 @@ self.addEventListener('fetch', (event) => {
 									if (article && article.content) {
 										title = title || article.title;
 										content = `Source: [${article.title || urlToFetch}](${urlToFetch})\n\n---\n\n${article.textContent}`;
-									}
+										articl<ctrl62><ctrl61>eParsed = true;
 								}
+							}
+							} else {
+								console.warn('DOMParser is not available in this Service Worker context. Cannot parse article.');
 							}
 						} catch (e) {
 							console.error('Error fetching or parsing URL for share:', e);
+						}
+
+						if (!articleParsed) {
+							// If parsing failed or wasn't possible, save the URL and add the tag.
+							content = `${urlToFetch}\n#needs-clipping`;
 						}
 					}
 
