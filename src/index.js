@@ -207,6 +207,7 @@ document.addEventListener('alpine:init', () => {
 		toasts: [],
 		toastIdCounter: 0,
 		darkMode: false,
+		appVersion: '',
 
 		// --- Auth Data ---
 		user: null,
@@ -292,6 +293,10 @@ document.addEventListener('alpine:init', () => {
 
 			this.$nextTick(() => {
 				this.processSharedContent();
+			});
+
+			fetch('/api/version').then(res => res.json()).then(data => {
+				this.appVersion = data.version;
 			});
 
 			// Notifications Init

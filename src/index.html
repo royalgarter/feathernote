@@ -382,6 +382,7 @@
                 <button @click="handleSave()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
             </div>
 
+            <p class="text-center text-xs text-gray-400 mt-4">v<span x-text="appVersion"></span></p>
 
             <!-- Import Dialog -->
             <div x-show="showImportModal"

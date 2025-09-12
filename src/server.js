@@ -9,6 +9,36 @@ const multer = require('multer');
 const { marked } = require('marked');
 const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
+const getAppVersion = async () => {
+    try {
+        const hash = crypto.createHash('sha1');
+        const keyFiles = ['index.html', 'index.js', 'helpers.js', 'serviceworker.js', 'manifest.json'];
+        
+        for (const fileName of keyFiles) {
+            const filePath = path.join(__dirname, fileName);
+            const content = await fs.promises.readFile(filePath);
+            hash.update(content);
+        }
+        
+        return hash.digest('hex').slice(0, 7);
+    } catch (error) {
+        console.error('Failed to generate version hash:', error);
+        return 'unknown';
+    }
+};
+
+let appVersion;
+(async () => {
+    appVersion = await getAppVersion();
+
+    if (process.argv[2] === '--version') {
+        console.log(appVersion);
+        process.exit(0);
+    }
+
+    console.log(`App Version: ${appVersion}`);
+})();
+
 const app = express();
 const port = process.env.PORT || 7347;
 const upload = multer();
@@ -485,6 +515,10 @@ app.post('/api/delete-note', async (req, res) => {
         }
         res.status(500).json({ error: errorMessage });
     }
+});
+
+app.get('/api/version', (req, res) => {
+    res.json({ version: appVersion || 'unknown' });
 });
 
 app.listen(port, () => {
