@@ -1,5 +1,4 @@
 importScripts('./helpers.js');
-importScripts('https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js');
 
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
 
@@ -125,38 +124,7 @@ self.addEventListener('fetch', (event) => {
 						}
 					}
 
-					let tags = undefined;
-
-					if (urlToFetch) {
-						let articleParsed = false;
-						try {
-							if (typeof self.DOMParser !== 'undefined') {
-								const response = await fetch(urlToFetch);
-								if (response.ok) {
-									const html = await response.text();
-									const doc = new self.DOMParser().parseFromString(html, "text/html");
-									const reader = new Readability(doc);
-									const article = reader.parse();
-
-									if (article && article.content) {
-										title = title || article.title;
-										content = `Source: [${article.title || urlToFetch}](${urlToFetch})\n\n---\n\n${article.textContent}`;
-										articl<ctrl62><ctrl61>eParsed = true;
-								}
-							}
-							} else {
-								console.warn('DOMParser is not available in this Service Worker context. Cannot parse article.');
-							}
-						} catch (e) {
-							console.error('Error fetching or parsing URL for share:', e);
-						}
-
-						if (!articleParsed) {
-							// If parsing failed or wasn't possible, save the URL and add the tag.
-							content = urlToFetch;
-							tags = [`#needs-clipping`];
-						}
-					}
+					let tags = urlToFetch ? [`#needs-clipping`] : undefined;
 
 					if (content) {
 						await saveSharedContentToDB(title, content, tags);
