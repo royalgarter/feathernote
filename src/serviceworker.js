@@ -1,4 +1,5 @@
 importScripts('./helpers.js');
+importScripts('https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js');
 
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
 
@@ -19,6 +20,7 @@ const urlsToCache = [
 	'https://cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js',
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css',
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js',
+	'https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js',
 	// 'https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js',
 ];
 
@@ -102,8 +104,44 @@ self.addEventListener('fetch', (event) => {
 		event.respondWith(
 			(async () => {
 				const formData = await event.request.formData();
-				const content = [formData.get('text'), formData.get('url')].filter(x => x).join('\n-\n');
-				const title = formData.get('title') || '';
+				const text = formData.get('text') || '';
+				const sharedUrl = formData.get('url') || '';
+				let title = formData.get('title') || '';
+				let content;
+
+				if (text && sharedUrl) {
+					content = `${text}\n-\n${sharedUrl}`;
+				} else {
+					content = text || sharedUrl;
+				}
+
+				let urlToFetch = sharedUrl;
+				if (!urlToFetch) {
+					const urlRegex = /(https?:\/\/[^\s]+)/;
+					const match = text.match(urlRegex);
+					if (match) {
+						urlToFetch = match[0];
+					}
+				}
+
+				if (urlToFetch) {
+					try {
+						const response = await fetch(urlToFetch);
+						if (response.ok) {
+							const html = await response.text();
+							const doc = new self.DOMParser().parseFromString(html, "text/html");
+							const reader = new Readability(doc);
+							const article = reader.parse();
+
+							if (article && article.content) {
+								title = title || article.title;
+								content = `${urlToFetch}\n\n${article.textContent}`;
+							}
+						}
+					} catch (e) {
+						console.error('Error fetching or parsing URL for share:', e);
+					}
+				}
 
 				if (content) {
 					await saveSharedContentToDB(title, content);

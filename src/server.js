@@ -22,6 +22,31 @@ if (!fs.existsSync(publishedNotesDir)) {
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
+app.get('/api/proxy', async (req, res) => {
+    const urlToFetch = req.query.url;
+    if (!urlToFetch) {
+        return res.status(400).json({ error: 'URL parameter is required.' });
+    }
+
+    try {
+        // Use the built-in fetch in modern Node.js
+        const response = await fetch(urlToFetch, {
+            headers: { 'User-Agent': 'FeatherNote/1.0' } // Set a user-agent
+        });
+
+        if (!response.ok) {
+            // Forward the status and statusText from the target server
+            return res.status(response.status).send(response.statusText);
+        }
+
+        const html = await response.text();
+        res.send(html);
+    } catch (error) {
+        console.error(`Proxy error for ${urlToFetch}:`, error);
+        res.status(500).json({ error: 'Failed to fetch the URL through proxy.' });
+    }
+});
+
 // Serve static files from the 'src' directory
 app.use(express.static(path.join(__dirname)));
 

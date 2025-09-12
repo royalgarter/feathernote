@@ -119,7 +119,20 @@ async function decryptSettings(encryptedString, userId) {
 
 // --- S3 Functions (Client-side AWS SDK v2) ---
 // Assumes AWS SDK is loaded globally
-const getS3ClientV2 = (creds) => {
+const getS3ClientV2 = async (creds) => {
+	const maxWaitTime = 30000; // 30 seconds
+	const interval = 1000; // 1 second
+	let elapsedTime = 0;
+
+	while (!self.AWS && elapsedTime < maxWaitTime) {
+		await new Promise(resolve => setTimeout(resolve, interval));
+		elapsedTime += interval;
+	}
+
+	if (!self.AWS) {
+		throw new Error('AWS SDK failed to load within 30 seconds.');
+	}
+
 	// The AWS object will be in the global scope (window or self)
 	return new self.AWS.S3({
 		region: creds.region || 'us-east-1',
@@ -185,7 +198,7 @@ const listNotesInS3V2 = async (creds) => {
 };
 
 const downloadNoteFromS3V2 = async (noteId, creds) => {
-	const s3 = getS3ClientV2(creds);
+	const s3 = await getS3ClientV2(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
 		Bucket: creds.bucket,

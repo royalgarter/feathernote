@@ -91,6 +91,8 @@
     <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
     <script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 
+    <script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
+
     <script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
     <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
@@ -424,7 +426,7 @@
     </div>
 
     <!-- Toasts Container -->
-    <div class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2">
+    <div class="fixed bottom-2 right-2 z-50 flex flex-col space-y-2">
         <template x-for="toast in toasts" :key="toast.id">
             <div
                 x-show="toast.show"
@@ -432,11 +434,11 @@
                     'bg-white border border-gray-200 text-gray-900': toast.variant === 'default',
                     'bg-red-600 border border-red-700 text-white': toast.variant === 'error'
                 }"
-                class="relative w-full max-w-xs p-4 rounded-md flex items-center justify-between"
+                class="relative w-full max-w-xs p-2 rounded-md flex items-center justify-between"
             >
                 <div>
-                    <h4 class="font-semibold" x-text="toast.title"></h4>
-                    <p class="text-sm" x-text="toast.description"></p>
+                    <h4 class="font-semibold text-sm" x-text="toast.title"></h4>
+                    <p class="text-xs" x-text="toast.description"></p>
                 </div>
                 <button @click="dismissToast(toast.id)" class="absolute top-1 right-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

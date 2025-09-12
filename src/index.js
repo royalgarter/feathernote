@@ -929,23 +929,96 @@ document.addEventListener('alpine:init', () => {
 				const cm = window.easyMDEInstance.codemirror;
 				cm?.on('paste', (cmInstance, event) => {
 					const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-					for (const item of items) {
-						if (item.kind === 'file' && item.type.startsWith('image/')) {
-							event.preventDefault();
-							const blob = item.getAsFile();
-							if (!blob) continue;
+					let textItem = null;
+					let imageItem = null;
 
-							const imageId = crypto.randomUUID();
-							const imageRecord = { id: imageId, blob: blob, synced: false };
-
-							addImageDB(imageRecord).then(() => {
-								const markdown = `\n![Pasted Image](/images/${imageId})\n`;
-								cm.replaceSelection(markdown);
-							}).catch(err => {
-								console.error("Failed to save image to IndexedDB", err);
-								// Fallback or error message
-							});
+					// Separate items
+					for (let i = 0; i < items.length; i++) {
+						if (items[i].kind === 'string' && items[i].type === 'text/plain') {
+							textItem = items[i];
 						}
+						if (items[i].kind === 'file' && items[i].type.startsWith('image/')) {
+							imageItem = items[i];
+						}
+					}
+
+					// Handle images first
+					if (imageItem) {
+						event.preventDefault();
+						const blob = imageItem.getAsFile();
+						if (!blob) return;
+
+						const imageId = crypto.randomUUID();
+						const imageRecord = { id: imageId, blob: blob, synced: false };
+
+						addImageDB(imageRecord).then(() => {
+							const markdown = `\n![Pasted Image](/images/${imageId})\n`;
+							cm.replaceSelection(markdown);
+						}).catch(err => {
+							console.error("Failed to save image to IndexedDB", err);
+						});
+						return;
+					}
+
+					// Handle text, potentially a URL
+					if (textItem) {
+						event.preventDefault(); // Prevent default paste to handle it async
+						textItem.getAsString(async (pastedString) => {
+							const urlRegex = /^(https?:\/\/[^\s]+)$/;
+							const urlToParse = pastedString.trim();
+
+							if (urlToParse.length < 2083 && urlRegex.test(urlToParse)) {
+								if (confirm('Extracting the web content?')) {
+									document.body.style.cursor = 'wait';
+									let html;
+									try {
+										// 1. Try direct fetch first
+										try {
+											console.log('Attempting direct fetch...');
+											const response = await fetch(urlToParse);
+											if (!response.ok) throw new Error('Direct fetch failed with status: ' + response.status);
+											html = await response.text();
+											console.log('Direct fetch successful.');
+										} catch (e) {
+											// 2. If direct fetch fails, fallback to proxy
+											console.log('Direct fetch failed, falling back to proxy...', e.message);
+											const proxyResponse = await fetch(`/api/proxy?url=${encodeURIComponent(urlToParse)}`);
+											if (!proxyResponse.ok) throw new Error('Proxy fetch also failed with status: ' + proxyResponse.status);
+											html = await proxyResponse.text();
+											console.log('Proxy fetch successful.');
+										}
+
+										// 3. Process HTML with Readability
+										if (typeof Readability === 'undefined') {
+											throw new Error("Readability.js script not loaded.");
+										}
+										const doc = new DOMParser().parseFromString(html, 'text/html');
+										const reader = new Readability(doc);
+										const article = reader.parse();
+
+										if (article && article.content) {
+											const content = `[${article.title}](${urlToParse})\n\n${article.textContent.trim()}`;
+											cm.replaceSelection(content);
+										} else {
+											throw new Error("Readability could not parse the article.");
+										}
+
+									} catch (error) {
+										console.error('Content extraction failed:', error);
+										alert(`Could not extract content: ${error.message}. Pasting URL instead.`);
+										cm.replaceSelection(pastedString); // Fallback to pasting the original string
+									} finally {
+										document.body.style.cursor = 'default';
+									}
+								} else {
+									// User cancelled confirm dialog
+									cm.replaceSelection(pastedString);
+								}
+							} else {
+								// Not a URL, just a normal paste
+								cm.replaceSelection(pastedString);
+							}
+						});
 					}
 				});
 			}, 100);
