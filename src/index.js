@@ -890,7 +890,7 @@ document.addEventListener('alpine:init', () => {
 					if (sharedItems.length > 0) {
 						console.dir({sharedItems});
 						for (const item of sharedItems) {
-							await this.addNote(item.title || ('Share ' + new Date().toString().substr(0, 21)), item.content);
+							await this.addNote(item.title || ('Share ' + new Date().toString().substr(0, 21)), item.content, null, item.tags);
 						}
 
 						await clearSharedContentDB();
@@ -1105,14 +1105,15 @@ document.addEventListener('alpine:init', () => {
 				const urlToClip = match[0];
 				const article = await this.extractArticle(urlToClip);
 
-				const newContent = `Source: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}`;
+				const newContent = `${window.easyMDEInstance?.value() || this.noteEditorContent || note.content || ''}\nSource: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}`;
 
 				// Remove the #needs-clipping tag
-				const newTags = (note.tags || []).filter(tag => tag !== 'needs-clipping');
+				const newTags = (note.tags || []).filter(tag => tag !== '#needs-clipping');
 
 				// Update the note in the editor if it's currently being edited
 				this.noteEditorContent = newContent;
 				this.noteEditorTags = newTags.join(', ');
+				if (window.easyMDEInstance) window.easyMDEInstance.value(newContent);
 
 				// Save the note
 				await this.updateNote(noteId, {

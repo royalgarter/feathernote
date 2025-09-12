@@ -125,6 +125,8 @@ self.addEventListener('fetch', (event) => {
 						}
 					}
 
+					let tags = undefined;
+
 					if (urlToFetch) {
 						let articleParsed = false;
 						try {
@@ -151,12 +153,13 @@ self.addEventListener('fetch', (event) => {
 
 						if (!articleParsed) {
 							// If parsing failed or wasn't possible, save the URL and add the tag.
-							content = `${urlToFetch}\n#needs-clipping`;
+							content = urlToFetch;
+							tags = [`#needs-clipping`];
 						}
 					}
 
 					if (content) {
-						await saveSharedContentToDB(title, content);
+						await saveSharedContentToDB(title, content, tags);
 					}
 
 					// Redirect to the home page after sharing
@@ -194,8 +197,8 @@ self.addEventListener('fetch', (event) => {
 	);
 });
 
-async function saveSharedContentToDB(title, content) {
-	return addSharedContentDB({ title, content });
+async function saveSharedContentToDB(title, content, tags) {
+	return addSharedContentDB({ title, content, tags });
 }
 
 
