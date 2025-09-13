@@ -977,7 +977,7 @@ document.addEventListener('alpine:init', () => {
 									}
 								}, 1000);
 							},
-							className: "fa fa-pencil-ruler",
+							className: "fa fa-paint-brush",
 							title: "Excalidraw",
 						},
 						"|",
