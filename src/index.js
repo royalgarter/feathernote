@@ -54,7 +54,7 @@ document.addEventListener('alpine:init', () => {
 		}
 	}
 
-	async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, lastSyncedIds, nostrPrivateKey, nostrRelays) {
+	async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, nostrPrivateKey, nostrRelays) {
 		try {
 			const credentials = await decryptSettings(encryptedSettings, userId);
 			if (!credentials) {
@@ -797,7 +797,6 @@ document.addEventListener('alpine:init', () => {
 					localNotes,
 					this.deletedNoteIds,
 					this.lastSync,
-					lastSyncedIds,
 					this.nostrPrivateKey,
 					this.nostrRelays
 				);
@@ -823,9 +822,9 @@ document.addEventListener('alpine:init', () => {
 					this.deletedNoteIds = []; // Clear deleted notes after successful sync
 
 					// Save the final state for the next sync
-					if (result.finalRemoteIds) {
-						localStorage.setItem('feathernote-synced-ids', JSON.stringify(result.finalRemoteIds));
-					}
+					// if (result.finalRemoteIds) {
+					// 	localStorage.setItem('feathernote-synced-ids', JSON.stringify(result.finalRemoteIds));
+					// }
 					this.lastSync = new Date().toISOString();
 					localStorage.setItem('feathernote-lastSync', this.lastSync);
 
