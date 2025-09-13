@@ -8,11 +8,11 @@
     "version": "node src/server.js --version"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.879.0",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "multer": "^2.0.2",
-    "marked": "^13.0.0",
-    "nostr-tools": "^2.7.1"
+    "@deno/kv": "0.12.0",
+    "dotenv": "16.5.0",
+    "express": "5.1.0",
+    "marked": "13.0.0",
+    "multer": "2.0.2",
+    "nostr-tools": "2.7.1"
   }
 }
