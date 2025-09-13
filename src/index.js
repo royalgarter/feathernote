@@ -1002,20 +1002,35 @@ document.addEventListener('alpine:init', () => {
 								saveButton.onclick = async () => {
 									if (!excalidrawAPI) return;
 
-									const svg = await window.ExcalidrawLib.exportToSvg({
-										elements: excalidrawAPI.getSceneElements(),
-										appState: excalidrawAPI.getAppState(),
-									});
+									try {
+										const blob = await window.ExcalidrawLib.exportToBlob({
+											elements: excalidrawAPI.getSceneElements(),
+											appState: excalidrawAPI.getAppState(),
+											mimeType: 'image/png',
+										});
 
-									const svgString = new XMLSerializer().serializeToString(svg);
-									const dataUrl = 'data:image/svg+xml;base64,' + btoa(svgString);
+										if (!blob) {
+											console.error("Excalidraw export returned an empty blob.");
+											alert("Could not save drawing: export failed.");
+											return;
+										}
 
-									const cm = editor.codemirror;
-									cm.replaceSelection(`\n![Drawing](${dataUrl})\n`);
+										const imageId = crypto.randomUUID();
+										const imageRecord = { id: imageId, blob: blob, synced: false };
 
-									ReactDOM.unmountComponentAtNode(excalidrawContainer);
-									excalidrawModal.style.display = 'none';
-									excalidrawContainer.innerHTML = '';
+										await addImageDB(imageRecord);
+										const markdown = `\n![Drawing](/images/${imageId})\n`;
+										const cm = editor.codemirror;
+										cm.replaceSelection(markdown);
+
+									} catch (err) {
+										console.error("Failed to save drawing to IndexedDB", err);
+										alert("Could not save drawing to the database.");
+									} finally {
+										ReactDOM.unmountComponentAtNode(excalidrawContainer);
+										excalidrawModal.style.display = 'none';
+										excalidrawContainer.innerHTML = '';
+									}
 								};
 
 								const cancelButton = document.createElement('button');
