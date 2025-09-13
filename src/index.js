@@ -861,7 +861,7 @@ document.addEventListener('alpine:init', () => {
 						console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
 					}
 
-					
+
 
 					if (!isSilent) {
 						this.showToast({
@@ -964,24 +964,76 @@ document.addEventListener('alpine:init', () => {
 						{
 							name: "excalidraw",
 							action: function(editor) {
-								const excalidrawWindow = window.open("https://excalidraw.com", "_blank");
+								if (!window.ExcalidrawLib || !window.React || !window.ReactDOM) {
+									const excalidrawWindow = window.open("https://excalidraw.com", "_blank");
 
-								const checkWindowClosed = setInterval(() => {
-									if (excalidrawWindow.closed) {
-										clearInterval(checkWindowClosed);
-										const shareLink = prompt("Please paste the Excalidraw share link here:");
-										if (shareLink) {
-											const cm = editor.codemirror;
-											cm.replaceSelection(`\n![Drawing](${shareLink})\n`);
+									const checkWindowClosed = setInterval(() => {
+										if (excalidrawWindow.closed) {
+											clearInterval(checkWindowClosed);
+											const shareLink = prompt("Please paste the Excalidraw share link here:");
+											if (shareLink) {
+												const cm = editor.codemirror;
+												cm.replaceSelection(`\n![Drawing](${shareLink})\n`);
+											}
 										}
+									});
+
+									return;
+								}
+
+								const excalidrawModal = document.getElementById('excalidraw-modal');
+								excalidrawModal.style.display = 'flex';
+
+								const excalidrawContainer = document.getElementById('excalidraw-container');
+								let excalidrawAPI;
+
+								const excalidrawComponent = React.createElement(window.ExcalidrawLib.Excalidraw, {
+									excalidrawAPI: (api) => excalidrawAPI = api,
+									onChange: (elements, state) => {
+										console.log(elements, state);
 									}
-								}, 1000);
+								});
+
+								ReactDOM.render(excalidrawComponent, excalidrawContainer);
+
+								const saveButton = document.createElement('button');
+								saveButton.innerHTML = 'Save';
+								saveButton.className = 'absolute top-2 right-2 bg-purple-500 text-white px-4 py-2 rounded';
+								saveButton.onclick = async () => {
+									if (!excalidrawAPI) return;
+
+									const svg = await window.ExcalidrawLib.exportToSvg({
+										elements: excalidrawAPI.getSceneElements(),
+										appState: excalidrawAPI.getAppState(),
+									});
+
+									const svgString = new XMLSerializer().serializeToString(svg);
+									const dataUrl = 'data:image/svg+xml;base64,' + btoa(svgString);
+
+									const cm = editor.codemirror;
+									cm.replaceSelection(`\n![Drawing](${dataUrl})\n`);
+
+									ReactDOM.unmountComponentAtNode(excalidrawContainer);
+									excalidrawModal.style.display = 'none';
+									excalidrawContainer.innerHTML = '';
+								};
+
+								const cancelButton = document.createElement('button');
+								cancelButton.innerHTML = 'Cancel';
+								cancelButton.className = 'absolute top-2 right-20 bg-red-500 text-white px-4 py-2 rounded';
+								cancelButton.onclick = () => {
+									ReactDOM.unmountComponentAtNode(excalidrawContainer);
+									excalidrawModal.style.display = 'none';
+									excalidrawContainer.innerHTML = '';
+								};
+
+								excalidrawContainer.appendChild(saveButton);
+								excalidrawContainer.appendChild(cancelButton);
 							},
 							className: "fa fa-paint-brush",
 							title: "Excalidraw",
-						},
-						"|",
-						"code", "table", "|",
+						}, "|",
+						"code", "table",
 						{
 							name: "word-wrap",
 							action: function(editor){
@@ -990,8 +1042,7 @@ document.addEventListener('alpine:init', () => {
 							},
 							className: "fa fa-text-width",
 							title: "Word Wrap",
-						},
-						"|",
+						}, "|",
 						"preview", "side-by-side", "fullscreen", "|",
 						"guide"
 					]
