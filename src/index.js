@@ -1248,20 +1248,93 @@ document.addEventListener('alpine:init', () => {
 				return;
 			}
 
+			if (this.nostrPrivateKey && this.nostrRelays) {
+				if (confirm('Publish this note publicly to your Nostr relays?')) {
+					try {
+						const {
+							finishEvent,
+							getPublicKey,
+							nip19,
+							SimplePool
+						} = window.NostrTools;
+
+						let nostrSk = this.nostrPrivateKey;
+						if (nostrSk.startsWith('nsec')) {
+							const {
+								type,
+								data
+							} = nip19.decode(nostrSk);
+							if (type === 'nsec') {
+								nostrSk = data;
+							} else {
+								throw new Error('Invalid nsec private key.');
+							}
+						}
+
+						const nostrPk = getPublicKey(nostrSk);
+						const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
+
+						const event = {
+							kind: 30023, // Long-form content
+							pubkey: nostrPk,
+							created_at: Math.floor(Date.now() / 1000),
+							tags: [
+								['d', this.noteEditorTitle ? this.noteEditorTitle.toLowerCase().replace(/ /g, '-') : `note-${Date.now()}`]
+							],
+							content: content
+						};
+
+						if (this.noteEditorTitle) {
+							event.tags.push(['title', this.noteEditorTitle]);
+						}
+						const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+						if (tags.length > 0) {
+							tags.forEach(tag => event.tags.push(['t', tag]));
+						}
+
+						const signedEvent = finishEvent(event, nostrSk);
+
+						const pool = new SimplePool();
+						const pubs = pool.publish(relays, signedEvent);
+						await Promise.all(pubs);
+						pool.close(relays);
+
+						this.showToast({
+							title: 'Published to Nostr',
+							description: 'Note was published to your Nostr relays.'
+						});
+
+					} catch (error) {
+						console.error('Nostr publish error:', error);
+						this.showToast({
+							variant: 'error',
+							title: 'Nostr Publish Failed',
+							description: error.message
+						});
+					}
+				}
+			}
+
 			try {
 				const response = await fetch('/api/publish', {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
 					},
-					body: JSON.stringify({ title: this.noteEditorTitle, content: content }),
+					body: JSON.stringify({
+						title: this.noteEditorTitle,
+						content: content
+					}),
 				});
 
 				const data = await response.json();
 
 				if (response.ok && data.url) {
 					const fullUrl = window.location.origin + data.url;
-					this.showToast({ title: 'Note Published', description: 'A shareable link has been created.' });
+					this.showToast({
+						title: 'Note Published',
+						description: 'A shareable link has been created.'
+					});
 					// Use a prompt to make the URL easy to copy
 
 					navigator.clipboard.writeText(fullUrl);
@@ -1272,7 +1345,11 @@ document.addEventListener('alpine:init', () => {
 				}
 			} catch (error) {
 				console.error('Share error:', error);
-				this.showToast({ variant: 'error', title: 'Sharing Failed', description: error.message });
+				this.showToast({
+					variant: 'error',
+					title: 'Sharing Failed',
+					description: error.message
+				});
 			}
 		},
 

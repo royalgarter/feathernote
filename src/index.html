@@ -202,11 +202,9 @@
                     <input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md p-2" />
                 </div>
                 <div class="flex justify-end space-x-3">
-                    <template x-if="noteEditorTags.includes('#needs-clipping')">
-                        <button @click="clipNoteContent(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Clip Content</button>
-                    </template>
-                    <button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                     <button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button @click="clipNoteContent(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-yellow-500 text-white hover:bg-yellow-600">Clip</button>
+                    <button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                     <button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">Share</button>
                     <button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Save</button>
                 </div>

@@ -23,9 +23,10 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 -   ☁️ **Sync to Your Own Cloud:** Securely sync your notes across devices using your own S3 bucket. Your data, your rules.
 -   🔒 **Privacy is Paramount:** Your S3 credentials are encrypted in your browser and are never sent to any server but your own. We can't see your notes, and neither can anyone else.
 -   🔔 **Stay on Track:** Set reminders for your notes and get push notifications so you never miss a beat.
+-   🌐 **Web Clipper:** Found something interesting online? Paste a URL into a new note and watch FeatherNote automatically fetch and save the content. It's like a "read it later" feature, but for your own private notebook.
 -   📲 **Installable & Shareable:** As a PWA, you can install FeatherNote on your desktop or mobile device for a native-app feel. You can even share content directly to it from other apps!
 -   🚀 **Feather-light & Fast:** Built with Alpine.js and Tailwind CSS, the interface is snappy, responsive, and a joy to use.
--   **Nostr Integration:** Sync your notes with the decentralized Nostr protocol, in addition to S3.
+-   💜 **Nostr Integration:** Sync your notes with the decentralized Nostr protocol, in addition to S3.
 
 ## Philosophy
 
