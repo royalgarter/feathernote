@@ -138,8 +138,9 @@ document.addEventListener('alpine:init', () => {
 
 			// Find notes deleted remotely
 			const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+			const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
 			for (const localNoteId of allLocalNotesMap.keys()) {
-				if (!remoteNoteIds.has(localNoteId) && !deletedNoteIds.includes(localNoteId)) {
+				if (!remoteNoteIds.has(localNoteId) && !deletedNoteIds.includes(localNoteId) && !uploadedNoteIds.has(localNoteId)) {
 					// This note exists locally but not remotely, and we didn't delete it.
 					// It must have been deleted on another device. Delete it locally.
 					notesToDeleteLocally.push(localNoteId);
@@ -962,7 +963,7 @@ document.addEventListener('alpine:init', () => {
 						"quote", "unordered-list", "ordered-list", "|",
 						"link", "image",
 						{
-							name: "excalidraw",
+							name: "image",
 							action: function(editor) {
 								if (!window.ExcalidrawLib || !window.React || !window.ReactDOM) {
 									const excalidrawWindow = window.open("https://excalidraw.com", "_blank");

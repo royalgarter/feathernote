@@ -222,8 +222,8 @@
 					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
 						<div class="flex-grow" @click="editNote(note.id)">
 							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span></p>
-							<h4 class="text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
-							<p class="text-sm text-gray-600 line-clamp-3 pl-1" x-text="getNotePreview(note.content)"></p>
+							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
+							<p class="cursor-pointer text-sm text-gray-600 line-clamp-3 pl-1" x-text="getNotePreview(note.content)"></p>
 							<template x-if="note.reminder">
 								<p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
 							</template>
