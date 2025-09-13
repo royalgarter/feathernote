@@ -11,7 +11,14 @@ document.addEventListener('alpine:init', () => {
 			const unsyncedImages = await getUnsyncedImagesDB();
 			for (const image of unsyncedImages) {
 				await uploadImageToS3V2(image, credentials, nostrPrivateKey, nostrRelays);
-				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
+				try {
+					console.log(`Attempting to mark image ${image.id} as synced.`);
+					await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
+					console.log(`Image ${image.id} successfully marked as synced.`);
+				} catch (dbError) {
+					console.error(`Failed to mark image ${image.id} as synced in DB:`, dbError);
+					// Optionally, re-throw or handle this error to prevent further sync issues
+				}
 				uploadedImageCount++;
 			}
 
