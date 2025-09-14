@@ -403,6 +403,17 @@ document.addEventListener('alpine:init', () => {
 			return content ? `${content.substring(0, 200)}...` : 'No content preview';
 		},
 
+		getCoverImage(note) {
+			if (note?._cover) return note._cover;
+			if (!note?.content) return null;
+			const match = note.content.match(/!\[.*\]\((.*)\)/);
+			if (!match) return null;
+			try {
+				note._cover = new URL(match[1]).href;
+				return match[1];
+			} catch (e) { return null }
+		},
+
 		showToast({ title, description, variant = 'default', duration = 3000 }) {
 			const id = `toast-${this.toastIdCounter++}`;
 			const newToast = { id, title, description, variant, show: true };
@@ -1112,32 +1123,11 @@ document.addEventListener('alpine:init', () => {
 									document.body.style.cursor = 'wait';
 									let html;
 									try {
-										// 1. Try direct fetch first
-										try {
-											console.log('Attempting direct fetch...');
-											const response = await fetch(urlToParse);
-											if (!response.ok) throw new Error('Direct fetch failed with status: ' + response.status);
-											html = await response.text();
-											console.log('Direct fetch successful.');
-										} catch (e) {
-											// 2. If direct fetch fails, fallback to proxy
-											console.log('Direct fetch failed, falling back to proxy...', e.message);
-											const proxyResponse = await fetch(`/api/proxy?url=${encodeURIComponent(urlToParse)}`);
-											if (!proxyResponse.ok) throw new Error('Proxy fetch also failed with status: ' + proxyResponse.status);
-											html = await proxyResponse.text();
-											console.log('Proxy fetch successful.');
-										}
-
-										// 3. Process HTML with Readability
-										if (typeof Readability === 'undefined') {
-											throw new Error("Readability.js script not loaded.");
-										}
-										const doc = new DOMParser().parseFromString(html, 'text/html');
-										const reader = new Readability(doc);
-										const article = reader.parse();
+										let article = await this.extractArticle(urlToParse);
 
 										if (article && article.content) {
-											const content = `[${article.title}](${urlToParse})\n\n${article.textContent.trim()}`;
+											const content = `[${article.title || urlToParse}](${urlToParse})\n\n${article.textContent.trim()}\n\n${article.lead_image_url ? `![](${article.lead_image_url})\n\n` : ''}`;
+
 											cm.replaceSelection(content);
 										} else {
 											throw new Error("Readability could not parse the article.");
@@ -1183,18 +1173,23 @@ document.addEventListener('alpine:init', () => {
 			if (typeof Readability === 'undefined') {
 				throw new Error("Readability.js script not loaded.");
 			}
+
 			const doc = new DOMParser().parseFromString(html, 'text/html');
 			const reader = new Readability(doc);
 			const article = reader.parse();
 
 			if (article && article.content) {
+				const REGEX_IMAGE = /<meta[^>]*property=["']\w+:image["'][^>]*content=["']([^"']*)["'][^>]*>/i;
+
+            	article.lead_image_url = article.lead_image_url || html?.match(REGEX_IMAGE)?.[1];
+
 				return article;
 			} else {
 				throw new Error("Readability could not parse the article.");
 			}
 		},
 
-		async clipNoteContent(noteId) {
+		async clipNoteContent(noteId, skipSave) {
 			if (!noteId) return;
 			document.body.style.cursor = 'wait';
 			try {
@@ -1208,7 +1203,7 @@ document.addEventListener('alpine:init', () => {
 				const urlToClip = match[0];
 				const article = await this.extractArticle(urlToClip);
 
-				const newContent = `${window.easyMDEInstance?.value() || this.noteEditorContent || note.content || ''}\nSource: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}`;
+				const newContent = `${window.easyMDEInstance?.value() || this.noteEditorContent || note.content || ''}\nSource: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}\n\n${article.lead_image_url ? `![](${article.lead_image_url})\n\n` : ''}`;
 
 				// Remove the #needs-clipping tag
 				const newTags = (note.tags || []).filter(tag => tag !== '#needs-clipping');
@@ -1219,17 +1214,25 @@ document.addEventListener('alpine:init', () => {
 				if (window.easyMDEInstance) window.easyMDEInstance.value(newContent);
 
 				// Save the note
-				await this.updateNote(noteId, {
+				if (!skipSave) await this.updateNote(noteId, {
 					title: note.title || article.title,
 					content: newContent,
 					tags: newTags
 				});
 
-				this.showToast({ title: 'Content Clipped', description: 'Article content has been successfully extracted.' });
+				this.showToast({
+					title: 'Content Clipped',
+					description: 'Article content has been successfully extracted.'
+				});
 
+				return newContent;
 			} catch (error) {
 				console.error('Failed to clip content:', error);
-				this.showToast({ variant: 'error', title: 'Clipping Failed', description: error.message });
+				this.showToast({
+					variant: 'error',
+					title: 'Clipping Failed',
+					description: error.message
+				});
 			} finally {
 				document.body.style.cursor = 'default';
 			}
