@@ -397,129 +397,133 @@
 			</div>
 		</template>
 	</div>
-
-	<script src="/nostr.js?v=4.2"></script>
-	<script src="/helpers.js?v=4.2"></script>
-	<script src="/index.js?v=4.2"></script>
-
-	<!-- Custom CSS -->
-	<style>
-		.line-clamp-3 {
-			-webkit-line-clamp: 3;
-			-webkit-box-orient: vertical;
-			display: -webkit-box;
-			text-overflow: ellipsis;
-			word-break: break-word;
-			overflow: hidden;
-		}
-
-		.dark {
-			background-color: #1a202c;
-			color: #e2e8f0;
-		}
-		.dark .bg-white {
-			background-color: #2d3748;
-		}
-		.dark .text-gray-900 {
-			color: #e2e8f0;
-		}
-		.dark .text-gray-800 {
-			color: #e2e8f0;
-		}
-		.dark .text-gray-700 {
-			color: #a0aec0;
-		}
-		.dark .text-gray-600 {
-			color: #a0aec0;
-		}
-		.dark .text-gray-500 {
-			color: #cbd5e0;
-		}
-		.dark .text-gray-400 {
-			color: #a0aec0;
-		}
-		.dark .border-gray-200 {
-			border-color: #4a5568;
-		}
-		.dark .border-gray-300 {
-			border-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-50:hover {
-			background-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-100:hover {
-			background-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-200:hover {
-			background-color: #4a5568;
-		}
-		.dark .bg-purple-100 {
-			background-color: #5a67d8;
-		}
-		.dark .text-purple-800 {
-			color: #e2e8f0;
-		}
-		.dark input {
-			background-color: #2d3748;
-			color: #e2e8f0;
-		}
-		.dark .EasyMDEContainer .editor-preview {
-			background-color: #2d3748;
-		}
-		.dark .EasyMDEContainer .CodeMirror {
-			background-color: #2d3748;
-			color: #e2e8f0;
-		}
-		.dark .EasyMDEContainer .CodeMirror-gutters {
-			background-color: #354154;
-		}
-
-		.EasyMDEContainer .editor-toolbar button {
-			max-width: 32px;
-		}
-
-		.EasyMDEContainer .editor-preview {
-			padding-left: 40px;
-		}
-
-		.EasyMDEContainer .editor-preview ul {
-			list-style: inside;
-		}
-
-		.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
-			display: none;
-		}
-	</style>
-
-	<!-- Excalidraw -->
-	<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
-	<script>
-		window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
-	</script>
-	<script type="importmap">
-		{
-			"imports": {
-				"react": "https://esm.sh/react@18.0.0",
-				"react/jsx-runtime": "https://esm.sh/react@18.0.0/jsx-runtime",
-				"react-dom": "https://esm.sh/react-dom@18.0.0"
-			}
-		}
-	</script>
-	<script type="module">
-		import * as ExcalidrawLib from 'https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom';
-		import React from "https://esm.sh/react@18.0.0";
-		import ReactDOM from "https://esm.sh/react-dom@18.0.0"
-
-		window.ExcalidrawLib = ExcalidrawLib;
-		window.React = React;
-		window.ReactDOM = ReactDOM;
-		console.log("Excalidraw library", ExcalidrawLib, React, ReactDOM);
-	</script>
-	<div id="excalidraw-modal" class="fixed inset-0 z-50 w-full h-full flex items-center justify-center" style="display: none; background-color: rgba(0,0,0,0.5);">
-		<div class="bg-white rounded-lg shadow-lg w-11/12 h-5/6">
-			<div id="excalidraw-container" class="w-full h-full"></div>
-		</div>
-	</div>
-	<!-- Excalidraw -->
 </body>
+
+<script src="/nostr.js?v=4.2"></script>
+<script src="/helpers.js?v=4.2"></script>
+<script src="/index.js?v=4.2"></script>
+
+<!-- Custom CSS -->
+<style>
+	.line-clamp-3 {
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		display: -webkit-box;
+		text-overflow: ellipsis;
+		word-break: break-word;
+		overflow: hidden;
+	}
+
+	.dark {
+		background-color: #1a202c;
+		color: #e2e8f0;
+	}
+	.dark .bg-white {
+		background-color: #2d3748;
+	}
+	.dark .text-gray-900 {
+		color: #e2e8f0;
+	}
+	.dark .text-gray-800 {
+		color: #e2e8f0;
+	}
+	.dark .text-gray-700 {
+		color: #a0aec0;
+	}
+	.dark .text-gray-600 {
+		color: #a0aec0;
+	}
+	.dark .text-gray-500 {
+		color: #cbd5e0;
+	}
+	.dark .text-gray-400 {
+		color: #a0aec0;
+	}
+	.dark .border-gray-200 {
+		border-color: #4a5568;
+	}
+	.dark .border-gray-300 {
+		border-color: #4a5568;
+	}
+	.dark .hover\:bg-gray-50:hover {
+		background-color: #4a5568;
+	}
+	.dark .hover\:bg-gray-100:hover {
+		background-color: #4a5568;
+	}
+	.dark .hover\:bg-gray-200:hover {
+		background-color: #4a5568;
+	}
+	.dark .bg-purple-100 {
+		background-color: #5a67d8;
+	}
+	.dark .text-purple-800 {
+		color: #e2e8f0;
+	}
+	.dark input {
+		background-color: #2d3748;
+		color: #e2e8f0;
+	}
+	.dark .EasyMDEContainer .editor-preview {
+		background-color: #2d3748;
+	}
+	.dark .EasyMDEContainer .CodeMirror {
+		background-color: #2d3748;
+		color: #e2e8f0;
+	}
+	.dark .EasyMDEContainer .CodeMirror-gutters {
+		background-color: #354154;
+	}
+
+	.EasyMDEContainer .editor-toolbar button {
+		max-width: 32px;
+	}
+
+	.EasyMDEContainer .editor-preview {
+		padding-left: 40px;
+	}
+
+	.EasyMDEContainer .editor-preview ul {
+		list-style: inside;
+	}
+
+	.EasyMDEContainer .editor-preview ol {
+		list-style: auto;
+	}
+
+	.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
+		display: none;
+	}
+</style>
+
+<!-- Excalidraw -->
+<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
+<script>
+	window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+</script>
+<script type="importmap">
+	{
+		"imports": {
+			"react": "https://esm.sh/react@18.0.0",
+			"react/jsx-runtime": "https://esm.sh/react@18.0.0/jsx-runtime",
+			"react-dom": "https://esm.sh/react-dom@18.0.0"
+		}
+	}
+</script>
+<script type="module">
+	import * as ExcalidrawLib from 'https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom';
+	import React from "https://esm.sh/react@18.0.0";
+	import ReactDOM from "https://esm.sh/react-dom@18.0.0"
+
+	window.ExcalidrawLib = ExcalidrawLib;
+	window.React = React;
+	window.ReactDOM = ReactDOM;
+	console.log("Excalidraw library", ExcalidrawLib, React, ReactDOM);
+</script>
+<div id="excalidraw-modal" class="fixed inset-0 z-50 w-full h-full flex items-center justify-center" style="display: none; background-color: rgba(0,0,0,0.5);">
+	<div class="bg-white rounded-lg shadow-lg w-11/12 h-5/6">
+		<div id="excalidraw-container" class="w-full h-full"></div>
+	</div>
+</div>
+<!-- Excalidraw -->
 </html>
