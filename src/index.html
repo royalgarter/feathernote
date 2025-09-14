@@ -10,6 +10,7 @@
 	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
 	<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 
+	<!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
 	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
 
 	<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
@@ -487,11 +488,37 @@
 	}
 
 	.EasyMDEContainer .editor-preview ul {
-		list-style: inside;
+		list-style: unset;
 	}
 
 	.EasyMDEContainer .editor-preview ol {
 		list-style: auto;
+	}
+
+	.EasyMDEContainer .editor-preview h1 {
+		font-size: 32px;
+		font-weight: 700;
+	}
+
+	.EasyMDEContainer .editor-preview h2 {
+		font-size: 24px;
+		font-weight: 700;
+	}
+
+	.EasyMDEContainer .editor-preview h3 {
+		font-size: 18px;
+		font-weight: 700;
+	}
+
+	.EasyMDEContainer .editor-preview blockquote {
+		color: #7f8c8d;
+		font-style: italic;
+		border-left: solid;
+		padding-left: 4px;
+	}
+
+	.EasyMDEContainer .editor-preview code {
+		background-color: slategray;
 	}
 
 	.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
