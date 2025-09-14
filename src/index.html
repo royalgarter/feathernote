@@ -6,94 +6,11 @@
 	<title>FeatherNote</title>
 	<link rel="manifest" href="/manifest.json">
 	<!-- <script src="//cdn.tailwindcss.com"></script> -->
-	<link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
-	<style>
-		.line-clamp-3 {
-			-webkit-line-clamp: 3;
-			-webkit-box-orient: vertical;
-			display: -webkit-box;
-			text-overflow: ellipsis;
-			word-break: break-word;
-			overflow: hidden;
-		}
-
-		.dark {
-			background-color: #1a202c;
-			color: #e2e8f0;
-		}
-		.dark .bg-white {
-			background-color: #2d3748;
-		}
-		.dark .text-gray-900 {
-			color: #e2e8f0;
-		}
-		.dark .text-gray-800 {
-			color: #e2e8f0;
-		}
-		.dark .text-gray-700 {
-			color: #a0aec0;
-		}
-		.dark .text-gray-600 {
-			color: #a0aec0;
-		}
-		.dark .text-gray-500 {
-			color: #cbd5e0;
-		}
-		.dark .text-gray-400 {
-			color: #a0aec0;
-		}
-		.dark .border-gray-200 {
-			border-color: #4a5568;
-		}
-		.dark .border-gray-300 {
-			border-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-50:hover {
-			background-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-100:hover {
-			background-color: #4a5568;
-		}
-		.dark .hover\:bg-gray-200:hover {
-			background-color: #4a5568;
-		}
-		.dark .bg-purple-100 {
-			background-color: #5a67d8;
-		}
-		.dark .text-purple-800 {
-			color: #e2e8f0;
-		}
-		.dark input {
-			background-color: #2d3748;
-			color: #e2e8f0;
-		}
-		.dark .EasyMDEContainer .editor-preview {
-			background-color: #2d3748;
-		}
-		.dark .EasyMDEContainer .CodeMirror {
-			background-color: #2d3748;
-			color: #e2e8f0;
-		}
-		.dark .EasyMDEContainer .CodeMirror-gutters {
-			background-color: #354154;
-		}
-
-		.EasyMDEContainer .editor-toolbar button {
-			max-width: 32px;
-		}
-
-		.EasyMDEContainer .editor-preview {
-			padding-left: 40px;
-		}
-
-		.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
-			display: none;
-		}
-
-	</style>
 
 	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
 	<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+
+	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
 
 	<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
 	<script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
@@ -474,6 +391,95 @@
 	<script src="/nostr.js?v=4.2"></script>
 	<script src="/helpers.js?v=4.2"></script>
 	<script src="/index.js?v=4.2"></script>
+
+	<!-- Custom CSS -->
+	<style>
+		.line-clamp-3 {
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			display: -webkit-box;
+			text-overflow: ellipsis;
+			word-break: break-word;
+			overflow: hidden;
+		}
+
+		.dark {
+			background-color: #1a202c;
+			color: #e2e8f0;
+		}
+		.dark .bg-white {
+			background-color: #2d3748;
+		}
+		.dark .text-gray-900 {
+			color: #e2e8f0;
+		}
+		.dark .text-gray-800 {
+			color: #e2e8f0;
+		}
+		.dark .text-gray-700 {
+			color: #a0aec0;
+		}
+		.dark .text-gray-600 {
+			color: #a0aec0;
+		}
+		.dark .text-gray-500 {
+			color: #cbd5e0;
+		}
+		.dark .text-gray-400 {
+			color: #a0aec0;
+		}
+		.dark .border-gray-200 {
+			border-color: #4a5568;
+		}
+		.dark .border-gray-300 {
+			border-color: #4a5568;
+		}
+		.dark .hover\:bg-gray-50:hover {
+			background-color: #4a5568;
+		}
+		.dark .hover\:bg-gray-100:hover {
+			background-color: #4a5568;
+		}
+		.dark .hover\:bg-gray-200:hover {
+			background-color: #4a5568;
+		}
+		.dark .bg-purple-100 {
+			background-color: #5a67d8;
+		}
+		.dark .text-purple-800 {
+			color: #e2e8f0;
+		}
+		.dark input {
+			background-color: #2d3748;
+			color: #e2e8f0;
+		}
+		.dark .EasyMDEContainer .editor-preview {
+			background-color: #2d3748;
+		}
+		.dark .EasyMDEContainer .CodeMirror {
+			background-color: #2d3748;
+			color: #e2e8f0;
+		}
+		.dark .EasyMDEContainer .CodeMirror-gutters {
+			background-color: #354154;
+		}
+
+		.EasyMDEContainer .editor-toolbar button {
+			max-width: 32px;
+		}
+
+		.EasyMDEContainer .editor-preview {
+			padding-left: 40px;
+		}
+
+		.EasyMDEContainer .editor-preview ul {
+			list-style: inside;
+		}
+
+		.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
+			display: none;
+		}
+	</style>
 
 	<!-- Excalidraw -->
 	<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
