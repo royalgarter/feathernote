@@ -441,7 +441,12 @@ const initDB = () => {
 		};
 
 		request.onsuccess = (event) => {
-			resolve(event.target.result);
+			const db = event.target.result;
+			db.onclose = () => {
+				console.log('Database connection closed.');
+				dbPromise = null;
+			};
+			resolve(db);
 		};
 
 		request.onupgradeneeded = (event) => {

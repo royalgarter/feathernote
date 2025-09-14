@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
 					} else {
 						// Image not found in IndexedDB, try S3
 						console.log(`SW: Image ${imageId} not in DB, attempting S3 download.`);
-						const settingsPackage = await getEncryptedSettingsSW(); // Returns { encryptedSettings, userId }
+						const settingsPackage = await getEncryptedSettingsDB(); // Returns { encryptedSettings, userId }
 						if (settingsPackage.encryptedSettings) {
 								const { encryptedSettings, userId } = settingsPackage;
 								const credentials = await decryptSettings(encryptedSettings, userId);
