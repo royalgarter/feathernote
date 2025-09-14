@@ -708,6 +708,8 @@ document.addEventListener('alpine:init', () => {
 			try {
 				const noteToDelete = this.notes.find(note => note.id === id);
 				if (noteToDelete) {
+					if (!confirm(`Delete note "${noteToDelete.title}"?`)) return;
+
 					this.deletedNotesStack.push({ ...noteToDelete }); // Push a copy
 				}
 
