@@ -1,11 +1,11 @@
 {
   "name": "FeatherNote",
   "short_name": "FeatherNote",
-  "description": "Lightweight offline-first PWA Note with Markdown, S3 Sync, Share Target API",
+  "description": "Featherweight offline-first PWA Note with Markdown, S3 Sync, Share Target API",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F5F5",
-  "theme_color": "#AC47FF",
+  "theme_color": "#A2D2FF",
   "share_target": {
     "action": "/share",
     "method": "POST",
