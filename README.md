@@ -75,6 +75,9 @@ Welcome to a new era of note-taking. Welcome to FeatherNote.
 -   **Authentication:** [Google Identity Services](https://developers.google.com/identity/gsi/web/guides/display-google-one-tap) (for client-side authentication)
 -   **Encryption:** Web Crypto API (for encrypting S3 credentials)
 -   **Nostr:** [nostr-tools](https://github.com/nbd-wtf/nostr-tools)
+-   **Markdown Editor:** [EasyMDE](https://github.com/Ionaru/easy-markdown-editor)
+-   **Drawing:** [Excalidraw](https://excalidraw.com/)
+-   **Article Parsing:** [mozilla/readability](https://github.com/mozilla/readability)
 
 ## Your Own S3 Bucket
 
