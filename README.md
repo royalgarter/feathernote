@@ -19,6 +19,7 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 ## Why FeatherNote?
 
 -   ✍️ **Effortless Markdown:** A clean, beautiful Markdown editor with a live preview. Formatting your thoughts has never been more satisfying.
+-   ✂️ **Clip Note Content:** Easily clip and save snippets of content from your notes.
 -   ✈️ **Truly Offline-First:** No internet? No problem. Write, read, and edit your notes anytime, anywhere.
 -   ☁️ **Sync to Your Own Cloud:** Securely sync your notes across devices using your own S3 bucket. Your data, your rules.
 -   🔒 **Privacy is Paramount:** Your S3 credentials are encrypted in your browser and are never sent to any server but your own. We can't see your notes, and neither can anyone else.
@@ -26,7 +27,35 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 -   🌐 **Web Clipper:** Found something interesting online? Paste a URL into a new note and watch FeatherNote automatically fetch and save the content. It's like a "read it later" feature, but for your own private notebook.
 -   📲 **Installable & Shareable:** As a PWA, you can install FeatherNote on your desktop or mobile device for a native-app feel. You can even share content directly to it from other apps!
 -   🚀 **Feather-light & Fast:** Built with Alpine.js and Tailwind CSS, the interface is snappy, responsive, and a joy to use.
+-   🎨 **Excalidraw Integration (Non-Offline-able-Yet because of React Dependencies):** Sketch your ideas, create diagrams, and embed them directly into your notes.
+-   🤖 **AI-Powered Tools (Optional):**
+    -   **Automatic Tagging:** Let FeatherNote suggest relevant tags for your notes based on their content.
+    -   **Improve with AI:** Enhance your writing, fix grammar, and rephrase sentences.
+    -   **Summarize with AI:** Quickly get the gist of long notes with AI-powered summaries.
 -   💜 **Nostr Integration:** Sync your notes with the decentralized Nostr protocol, in addition to S3.
+
+## Concern on AI-Powered features?
+
+FeatherNote integrates powerful AI capabilities to enhance your note-taking experience. What sets our approach apart is our commitment to user control and flexibility. You are not locked into a specific AI provider; instead, you can connect to the AI of your choice, whether it's a third-party service or your own self-hosted model.
+
+### Your AI, Your Choice
+
+We believe that you should have the freedom to choose the AI that best suits your needs for performance, privacy, and cost. FeatherNote supports connecting to any AI provider that offers an API OpenAI compatible endpoint.
+
+-   **Third-Party AI Services:** Easily connect to popular AI services like OpenAI, Google AI, Anthropic, and more. All you need is your API key.
+-   **Self-Hosted AI:** For maximum privacy and control, you can run your own AI models (e.g., using Ollama, Llamafile, or a custom solution) and point FeatherNote to your local or private server. As long as your model is served via an API endpoint, FeatherNote can integrate with it.
+
+### Secure and Private
+
+Your API keys and credentials are encrypted and stored locally in your browser. They are only used to communicate directly with your chosen AI provider and are never sent to our servers.
+
+### How it Works
+
+1.  **Go to Settings:** Navigate to the settings page in FeatherNote.
+2.  **Enter Your AI Configuration:** Provide the API endpoint URL and your authentication credentials (e.g., API key, bearer token).
+3.  **Start Using AI Features:** Once configured, you can use features like "Improve with AI" and "Summarize with AI" throughout the app.
+
+This approach allows you to leverage the power of AI while maintaining full ownership and control over your data and tools.
 
 ## Philosophy
 
