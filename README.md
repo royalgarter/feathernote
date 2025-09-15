@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="/icons/ios/128.png" alt="FeatherNote Logo" width="128">
-</p>
+<p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p>
 
 # FeatherNote: Your Notes, Your Cloud, Your Privacy.
 
