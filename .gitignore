@@ -45,3 +45,4 @@ package-lock.json
 # firebase
 firebase-debug.log
 firestore-debug.log
+src/published_notes/*.json
