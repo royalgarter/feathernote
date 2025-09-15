@@ -301,6 +301,8 @@ document.addEventListener('alpine:init', () => {
 
 			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || 'wss://relay.damus.io';
 
+			this.loadSettingsFromStorage();
+
 			this.$nextTick(() => {
 				this.processSharedContent();
 			});
