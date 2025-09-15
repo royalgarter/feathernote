@@ -1370,13 +1370,15 @@ document.addEventListener('alpine:init', () => {
 				return;
 			}
 
+			let published = false;
+
 			// Prioritize Nostr publishing if configured
 			if (this.nostrPrivateKey && this.nostrRelays) {
 				try {
 					const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
 					const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
 
-					// Use the new function from nostr.js
+					this.showToast({ title: 'Publishing to Nostr Relays...', description: this.nostrRelays });
 					const result = await publishPublicNoteToRelays(
 						relays,
 						this.nostrPrivateKey,
@@ -1386,12 +1388,14 @@ document.addEventListener('alpine:init', () => {
 					);
 
 					if (result.success) {
+						published = true;
 						this.showToast({
 							title: 'Published to Nostr',
 							description: 'A shareable link has been created and copied to your clipboard.'
 						});
 						navigator.clipboard.writeText(result.url);
 						prompt('Share this Nostr URL:', result.url);
+
 					} else {
 						throw new Error(result.error || 'Failed to publish to Nostr relays.');
 					}
@@ -1403,8 +1407,9 @@ document.addEventListener('alpine:init', () => {
 						description: error.message
 					});
 				}
-				return; // Stop execution if Nostr was attempted
 			}
+
+			if (published) return published; // Stop execution if Nostr was attempted
 
 			// Fallback to server-side publishing
 			try {
@@ -1423,6 +1428,7 @@ document.addEventListener('alpine:init', () => {
 				const data = await response.json();
 
 				if (response.ok && data.url) {
+					published = true;
 					const fullUrl = window.location.origin + data.url;
 					this.showToast({
 						title: 'Note Published',
@@ -1441,6 +1447,8 @@ document.addEventListener('alpine:init', () => {
 					description: error.message
 				});
 			}
+
+			return published;
 		},
 
 		cancelEdit() {
