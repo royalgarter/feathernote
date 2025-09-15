@@ -1151,6 +1151,24 @@ document.addEventListener('alpine:init', () => {
 						});
 					}
 				});
+
+				cm?.on('mousedown', (cmInstance, event) => {
+					if ((event.ctrlKey || event.metaKey) && event.button === 0) { // Ctrl/Cmd + Left Click
+						const target = event.target;
+						if (target.tagName === 'SPAN' && target.classList.contains('cm-link')) {
+							event.preventDefault();
+							const url = target.innerText;
+							try {
+								// Use the URL constructor for robust validation
+								new URL(url);
+								window.open(url, '_blank');
+							} catch (e) {
+								console.error("Invalid URL:", url);
+							}
+						}
+					}
+				});
+
 			}, 100);
 		},
 
