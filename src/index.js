@@ -1073,9 +1073,39 @@ document.addEventListener('alpine:init', () => {
 							title: "Word Wrap",
 						}, "|",
 						"preview", "side-by-side", "fullscreen", "|",
-						"guide"
+						{
+							name: "clip",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.clipNoteContent(window.easyMDEInstance?.uniqueId || id);
+							},
+							className: "fa fa-paperclip",
+							title: "Clip Content",
+						},{
+							name: "auto-tags",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.extractTagsWithAI();
+							},
+							className: "fa fa-tags",
+							title: "Auto-Tags with AI",
+						},{
+							name: "summarize",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.summarizeWithAI();
+							},
+							className: "fa fa-pencil",
+							title: "Summarize with AI",
+						},{
+							name: "improve",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.improveWithAI();
+							},
+							className: "fa fa-lightbulb-o",
+							title: "Improve with AI",
+						},
+						"|", "guide"
 					]
 				});
+				window.easyMDEInstance.uniqueId = id;
 
 				const cm = window.easyMDEInstance.codemirror;
 				cm?.on('paste', (cmInstance, event) => {

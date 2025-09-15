@@ -33,7 +33,7 @@
 					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
 				</svg>
 
-				<span class="font-bold text-lg font-sans text-gray-900">FeatherNote</span>
+				<span class="font-bold text-lg font-sans text-gray-900" style="color:#A2D2FF;">FeatherNote</span>
 			</a>
 			<div class="flex items-center gap-2">
 				<!-- SyncStatus -->
@@ -111,15 +111,9 @@
 
 				<div class="flex justify-between items-center mb-4">
 					<h3 class="text-lg font-bold" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
-					<div class="flex justify-end space-x-3">
-						<button @click="clipNoteContent(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-purple-400 text-white hover:bg-purple-500">Clip</button>
-						<button @click="extractTagsWithAI()" class="cursor-pointer px-4 py-2 rounded-md bg-purple-500 text-white hover:bg-purple-600">Tags</button>
-						<button @click="improveWithAI()" class="cursor-pointer px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700">Impr.</button>
-						<button @click="summarizeWithAI()" class="cursor-pointer px-4 py-2 rounded-md bg-purple-700 text-white hover:bg-purple-800">Sum.</button>
-						<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
-							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-						</button>
-					</div>
+					<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+					</button>
 				</div>
 				<div class="mb-4">
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
