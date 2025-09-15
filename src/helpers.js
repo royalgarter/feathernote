@@ -32,7 +32,7 @@ function base64ToBuffer(base64) {
 }
 
 // Derives a key from a user ID using PBKDF2.
-async function getKey(userId, salt) {
+async function getKey(userId='anonymous', salt) {
 	const enc = new TEXT_ENCODER();
 	const keyMaterial = await CRYPTO.subtle.importKey(
 		'raw',
