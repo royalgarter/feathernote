@@ -1372,40 +1372,38 @@ document.addEventListener('alpine:init', () => {
 
 			// Prioritize Nostr publishing if configured
 			if (this.nostrPrivateKey && this.nostrRelays) {
-				if (confirm('Publish this note publicly to your Nostr relays?')) {
-					try {
-						const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
-						const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+				try {
+					const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
+					const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
 
-						// Use the new function from nostr.js
-						const result = await publishPublicNoteToRelays(
-							relays,
-							this.nostrPrivateKey,
-							content,
-							this.noteEditorTitle,
-							tags
-						);
+					// Use the new function from nostr.js
+					const result = await publishPublicNoteToRelays(
+						relays,
+						this.nostrPrivateKey,
+						content,
+						this.noteEditorTitle,
+						tags
+					);
 
-						if (result.success) {
-							this.showToast({
-								title: 'Published to Nostr',
-								description: 'A shareable link has been created and copied to your clipboard.'
-							});
-							navigator.clipboard.writeText(result.url);
-							prompt('Share this Nostr URL:', result.url);
-						} else {
-							throw new Error(result.error || 'Failed to publish to Nostr relays.');
-						}
-					} catch (error) {
-						console.error('Nostr publish error:', error);
+					if (result.success) {
 						this.showToast({
-							variant: 'error',
-							title: 'Nostr Publish Failed',
-							description: error.message
+							title: 'Published to Nostr',
+							description: 'A shareable link has been created and copied to your clipboard.'
 						});
+						navigator.clipboard.writeText(result.url);
+						prompt('Share this Nostr URL:', result.url);
+					} else {
+						throw new Error(result.error || 'Failed to publish to Nostr relays.');
 					}
-					return; // Stop execution if Nostr was attempted
+				} catch (error) {
+					console.error('Nostr publish error:', error);
+					this.showToast({
+						variant: 'error',
+						title: 'Nostr Publish Failed',
+						description: error.message
+					});
 				}
+				return; // Stop execution if Nostr was attempted
 			}
 
 			// Fallback to server-side publishing
