@@ -71,14 +71,12 @@ const generateHtmlPage = (title, bodyContent) => {
 };
 
 // Create a directory for published notes if it doesn't exist
-const publishedNotesDir = path.join(__dirname, 'published_notes');console.log('publishedNotesDir:', publishedNotesDir);
+const publishedNotesDir = path.join(__dirname, 'published_notes');
 if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir);
 
 try {
-	const filePath = path.join(publishedNotesDir, `test.json`);
-	fs.writeFile(filePath, JSON.stringify({date: new Date()}), error => {
-		console.log(error);
-	});
+	const filePath = path.join(publishedNotesDir, `uptime.json`);
+	fs.writeFileSync(filePath, JSON.stringify({date: new Date()}));
 } catch (ex) {console.log(ex)}
 
 app.use(express.json()); // Middleware to parse JSON request bodies
@@ -224,4 +222,5 @@ app.get('/api/version', (req, res) => {
 
 app.listen(port, () => {
 	console.log(`Server listening at http://localhost:${port}`);
+	console.log('- publishedNotesDir:', publishedNotesDir);
 });

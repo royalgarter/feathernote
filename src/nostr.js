@@ -1,63 +1,144 @@
-// Generate a new Nostr private key
+// Helper to convert hex private key to Uint8Array
+function hexToBytes(hex) {
+    if (typeof hex !== 'string') {
+        throw new TypeError('Hex string must be a string.');
+    }
+    if (hex.length % 2 !== 0) {
+        throw new Error('Hex string must have an even number of characters.');
+    }
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+}
+
+// Helper to convert Uint8Array to hex string
+function bytesToHex(bytes) {
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Generate a new Nostr private key (returns hex string)
 function generateNewPrivateKey() {
-	return window.NostrTools.generatePrivateKey();
+	const sk = window.NostrTools.generateSecretKey();
+    return bytesToHex(sk);
 }
 
-// Get the public key from a private key
+// Get the public key from a private key (hex string)
 function getPublicKeyFromPrivateKey(privateKey) {
-	return window.NostrTools.getPublicKey(privateKey);
+	const sk_bytes = hexToBytes(privateKey);
+	return window.NostrTools.getPublicKey(sk_bytes);
 }
 
-// Publish a note to a list of relays
+// Publish a PRIVATE (kind 4) note to a list of relays
 async function publishNoteToRelays(relays, privateKey, note) {
-	const pool = new window.NostrTools.SimplePool();
-	const publicKey = window.NostrTools.getPublicKey(privateKey);
+    const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+	const sk_bytes = hexToBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
+	const pool = new SimplePool();
 
 	try {
-		const encryptedContent = await window.NostrTools.nip04.encrypt(privateKey, publicKey, JSON.stringify(note));
+		const encryptedContent = await nip04.encrypt(sk_bytes, pk, JSON.stringify(note));
 
-		const event = {
+		const eventTemplate = {
 			kind: 4,
-			pubkey: publicKey,
 			created_at: Math.floor(Date.now() / 1000),
 			tags: [
-				['p', publicKey]
+				['p', pk]
 			],
 			content: encryptedContent,
 		};
 
-		event.id = window.NostrTools.getEventHash(event);
-
-		const signedEvent = window.NostrTools.signEvent(event, privateKey);
+		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
 
 		await Promise.all(pool.publish(relays, signedEvent));
-
 		pool.close(relays);
 
 		return signedEvent;
 	} catch (error) {
-		console.error("Error publishing note to Nostr relays:", error);
+		console.error("Error publishing private note to Nostr relays:", error);
 		return null;
 	}
 }
 
+// Publish a PUBLIC (kind 30023) note to a list of relays
+async function publishPublicNoteToRelays(relays, privateKey, noteContent, noteTitle, noteTags) {
+    const { finalizeEvent, getPublicKey, nip19, SimplePool } = window.NostrTools;
+
+    try {
+        let sk_bytes;
+        if (privateKey.startsWith('nsec')) {
+            const { type, data } = nip19.decode(privateKey);
+            if (type === 'nsec') {
+                sk_bytes = data;
+            } else {
+                throw new Error('Invalid nsec private key.');
+            }
+        } else {
+            sk_bytes = hexToBytes(privateKey);
+        }
+
+        const pk = getPublicKey(sk_bytes);
+        const pool = new SimplePool();
+
+        const eventTemplate = {
+            kind: 30023, // Long-form content
+            pubkey: pk,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [
+                ['d', noteTitle ? noteTitle.toLowerCase().replace(/\s/g, '-') : `note-${Date.now()}`]
+            ],
+            content: noteContent
+        };
+
+        if (noteTitle) {
+            eventTemplate.tags.push(['title', noteTitle]);
+        }
+        if (noteTags && noteTags.length > 0) {
+            noteTags.forEach(tag => eventTemplate.tags.push(['t', tag]));
+        }
+
+        const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
+
+        const pubs = pool.publish(relays, signedEvent);
+        await Promise.all(pubs);
+        pool.close(relays);
+
+        const dTagIdentifier = eventTemplate.tags.find(t => t[0] === 'd')[1];
+        const naddr = nip19.naddrEncode({
+            identifier: dTagIdentifier,
+            pubkey: pk,
+            kind: 30023,
+            relays: relays,
+        });
+        return { success: true, url: `https://njump.me/${naddr}` };
+
+    } catch (error) {
+        console.error("Error publishing public note to Nostr relays:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+
 async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
-	const pool = new window.NostrTools.SimplePool();
-	const publicKey = window.NostrTools.getPublicKey(privateKey);
+    const { getPublicKey, nip04, SimplePool } = window.NostrTools;
+	const sk_bytes = hexToBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
 	const decryptedEventsMap = new Map();
+    const pool = new SimplePool();
 
 	try {
 		const sub = pool.sub(relays, [
 			{
 				kinds: [4],
-				'#p': [publicKey],
-				authors: [publicKey],
+				'#p': [pk],
+				authors: [pk],
 			}
 		]);
 
 		sub.on('event', async event => {
 			try {
-				const decryptedContent = await window.NostrTools.nip04.decrypt(privateKey, event.pubkey, event.content);
+				const decryptedContent = await nip04.decrypt(sk_bytes, event.pubkey, event.content);
 				const parsedContent = JSON.parse(decryptedContent);
 				decryptedEventsMap.set(event.id, parsedContent);
 			} catch (error) {
@@ -78,13 +159,14 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 }
 
 async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
-	const pool = new window.NostrTools.SimplePool();
-	const publicKey = window.NostrTools.getPublicKey(privateKey);
+    const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+	const sk_bytes = hexToBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
+	const pool = new SimplePool();
 
 	try {
-		const event = {
+		const eventTemplate = {
 			kind: 5,
-			pubkey: publicKey,
 			created_at: Math.floor(Date.now() / 1000),
 			tags: [
 				['e', noteId]
@@ -92,11 +174,9 @@ async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
 			content: 'Note deleted',
 		};
 
-		event.id = window.NostrTools.getEventHash(event);
-		const signedEvent = window.NostrTools.signEvent(event, privateKey);
+		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
 
 		await Promise.all(pool.publish(relays, signedEvent));
-
 		pool.close(relays);
 
 		return signedEvent;
@@ -107,27 +187,26 @@ async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
 }
 
 async function publishImageToRelays(relays, privateKey, imageRecord) {
-	const pool = new window.NostrTools.SimplePool();
-	const publicKey = window.NostrTools.getPublicKey(privateKey);
+    const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+	const sk_bytes = hexToBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
+	const pool = new SimplePool();
 
 	try {
-		const encryptedContent = await window.NostrTools.nip04.encrypt(privateKey, publicKey, JSON.stringify(imageRecord));
+		const encryptedContent = await nip04.encrypt(sk_bytes, pk, JSON.stringify(imageRecord));
 
-		const event = {
-			kind: 4,
-			pubkey: publicKey,
+		const eventTemplate = {
+			kind: 4, // Images are also stored as kind 4 (private) in this app
 			created_at: Math.floor(Date.now() / 1000),
 			tags: [
-				['p', publicKey]
+				['p', pk]
 			],
 			content: encryptedContent,
 		};
 
-		event.id = window.NostrTools.getEventHash(event);
-		const signedEvent = window.NostrTools.signEvent(event, privateKey);
+		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
 
 		await Promise.all(pool.publish(relays, signedEvent));
-
 		pool.close(relays);
 
 		return signedEvent;

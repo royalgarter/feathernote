@@ -299,7 +299,7 @@ document.addEventListener('alpine:init', () => {
 			this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
 			this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
 
-			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || '';
+			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || 'wss://relay.damus.io';
 
 			this.$nextTick(() => {
 				this.processSharedContent();
@@ -1368,62 +1368,32 @@ document.addEventListener('alpine:init', () => {
 				return;
 			}
 
+			// Prioritize Nostr publishing if configured
 			if (this.nostrPrivateKey && this.nostrRelays) {
 				if (confirm('Publish this note publicly to your Nostr relays?')) {
 					try {
-						const {
-							finishEvent,
-							getPublicKey,
-							nip19,
-							SimplePool
-						} = window.NostrTools;
-
-						let nostrSk = this.nostrPrivateKey;
-						if (nostrSk.startsWith('nsec')) {
-							const {
-								type,
-								data
-							} = nip19.decode(nostrSk);
-							if (type === 'nsec') {
-								nostrSk = data;
-							} else {
-								throw new Error('Invalid nsec private key.');
-							}
-						}
-
-						const nostrPk = getPublicKey(nostrSk);
 						const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
-
-						const event = {
-							kind: 30023, // Long-form content
-							pubkey: nostrPk,
-							created_at: Math.floor(Date.now() / 1000),
-							tags: [
-								['d', this.noteEditorTitle ? this.noteEditorTitle.toLowerCase().replace(/ /g, '-') : `note-${Date.now()}`]
-							],
-							content: content
-						};
-
-						if (this.noteEditorTitle) {
-							event.tags.push(['title', this.noteEditorTitle]);
-						}
 						const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
-						if (tags.length > 0) {
-							tags.forEach(tag => event.tags.push(['t', tag]));
+
+						// Use the new function from nostr.js
+						const result = await publishPublicNoteToRelays(
+							relays,
+							this.nostrPrivateKey,
+							content,
+							this.noteEditorTitle,
+							tags
+						);
+
+						if (result.success) {
+							this.showToast({
+								title: 'Published to Nostr',
+								description: 'A shareable link has been created and copied to your clipboard.'
+							});
+							navigator.clipboard.writeText(result.url);
+							prompt('Share this Nostr URL:', result.url);
+						} else {
+							throw new Error(result.error || 'Failed to publish to Nostr relays.');
 						}
-
-						const signedEvent = finishEvent(event, nostrSk);
-
-						const pool = new SimplePool();
-						const pubs = pool.publish(relays, signedEvent);
-						await Promise.all(pubs);
-						pool.close(relays);
-
-						this.showToast({
-							title: 'Published to Nostr',
-							description: 'Note was published to your Nostr relays.'
-						});
-
 					} catch (error) {
 						console.error('Nostr publish error:', error);
 						this.showToast({
@@ -1432,10 +1402,13 @@ document.addEventListener('alpine:init', () => {
 							description: error.message
 						});
 					}
+					return; // Stop execution if Nostr was attempted
 				}
 			}
 
+			// Fallback to server-side publishing
 			try {
+				this.showToast({ title: 'Publishing...', description: 'Creating a shareable link via the server.' });
 				const response = await fetch('/api/publish', {
 					method: 'POST',
 					headers: {
@@ -1453,12 +1426,9 @@ document.addEventListener('alpine:init', () => {
 					const fullUrl = window.location.origin + data.url;
 					this.showToast({
 						title: 'Note Published',
-						description: 'A shareable link has been created.'
+						description: 'A shareable link has been created and copied to your clipboard.'
 					});
-					// Use a prompt to make the URL easy to copy
-
 					navigator.clipboard.writeText(fullUrl);
-
 					prompt('Share this URL:', fullUrl);
 				} else {
 					throw new Error(data.error || 'Failed to create shareable link.');
