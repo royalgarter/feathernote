@@ -104,6 +104,7 @@ app.get('/api/proxy', async (req, res) => {
 app.use(express.static(path.join(__dirname)));
 
 // --- Share/Publish Endpoints ---
+const PUBLISHED = {};
 app.post('/api/publish', async (req, res) => {
 	const { title, content } = req.body;
 	if (!content) {
@@ -127,7 +128,10 @@ app.post('/api/publish', async (req, res) => {
 			// Fallback to filesystem for large notes or if Deno KV is not configured
 			const filePath = path.join(publishedNotesDir, `${noteId}.json`);
 			if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir);
-			fs.writeFileSync(filePath, noteString);
+			fs.writeFile(filePath, noteString, error => {
+				console.log(error);
+				PUBLISHED[noteId] = noteData;
+			});
 		}
 		res.json({ url: `/publish/${noteId}` });
 	} catch (err) {
@@ -163,6 +167,8 @@ app.get('/publish/:noteId', async (req, res) => {
 			if (fs.existsSync(filePath)) {
 				const data = fs.readFileSync(filePath, 'utf8');
 				note = JSON.parse(data);
+			} else {
+				note = PUBLISHED[noteId];
 			}
 		}
 
