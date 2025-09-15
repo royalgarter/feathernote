@@ -1643,7 +1643,7 @@ document.addEventListener('alpine:init', () => {
 			await saveEncryptedSettingsDB(encryptedSettings, this.userId);
 			console.log('handleSave: Encrypted settings saved to IndexedDB.');
 
-			this.showToast({ title: 'Settings Saved', description: 'Your encrypted S3 credentials have been updated.' });
+			this.showToast({ title: 'Settings Saved', description: 'Your encrypted settings have been updated.' });
 			// this.settingsDialogIsOpen = false;
 			this.syncNotes(true);
 		},
@@ -1689,7 +1689,7 @@ document.addEventListener('alpine:init', () => {
 				if (parsed.salt && parsed.iv && parsed.content) {
 					await saveEncryptedSettingsDB(this.importString, userId);
 					await this.loadSettingsFromStorage();
-					this.showToast({ title: 'Settings Imported', description: 'Your encrypted S3 credentials have been imported.' });
+					this.showToast({ title: 'Settings Imported', description: 'Your encrypted settings have been imported.' });
 					await this.handleSave();
 					this.importString = '';
 					this.showImportModal = false; // Close the modal after successful import
