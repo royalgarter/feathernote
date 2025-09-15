@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="/icons/ios/128.png" alt="FeatherNote Logo" width="128">
+</p>
+
 # FeatherNote: Your Notes, Your Cloud, Your Privacy.
 
 A featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
