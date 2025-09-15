@@ -32,12 +32,12 @@ function getPublicKeyFromPrivateKey(privateKey) {
 
 // Publish a PRIVATE (kind 4) note to a list of relays
 async function publishNoteToRelays(relays, privateKey, note) {
-    const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
-	const sk_bytes = hexToBytes(privateKey);
-	const pk = getPublicKey(sk_bytes);
-	const pool = new SimplePool();
-
 	try {
+		const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const sk_bytes = hexToBytes(privateKey);
+		const pk = getPublicKey(sk_bytes);
+		const pool = new SimplePool();
+
 		const encryptedContent = await nip04.encrypt(sk_bytes, pk, JSON.stringify(note));
 
 		const eventTemplate = {
@@ -121,13 +121,17 @@ async function publishPublicNoteToRelays(relays, privateKey, noteContent, noteTi
 
 
 async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
-    const { getPublicKey, nip04, SimplePool } = window.NostrTools;
-	const sk_bytes = hexToBytes(privateKey);
-	const pk = getPublicKey(sk_bytes);
-	const decryptedEventsMap = new Map();
-    const pool = new SimplePool();
+    if (!privateKey || privateKey.length % 2 !== 0) {
+        // If key is missing or not a valid hex string (odd length), do nothing.
+        return [];
+    }
 
 	try {
+		const { getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const sk_bytes = hexToBytes(privateKey);
+		const pk = getPublicKey(sk_bytes);
+		const decryptedEventsMap = new Map();
+		const pool = new SimplePool();
 		const sub = pool.sub(relays, [
 			{
 				kinds: [4],
@@ -159,12 +163,12 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 }
 
 async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
-    const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
-	const sk_bytes = hexToBytes(privateKey);
-	const pk = getPublicKey(sk_bytes);
-	const pool = new SimplePool();
-
 	try {
+		const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+		const sk_bytes = hexToBytes(privateKey);
+		const pk = getPublicKey(sk_bytes);
+		const pool = new SimplePool();
+
 		const eventTemplate = {
 			kind: 5,
 			created_at: Math.floor(Date.now() / 1000),
@@ -187,12 +191,12 @@ async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
 }
 
 async function publishImageToRelays(relays, privateKey, imageRecord) {
-    const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
-	const sk_bytes = hexToBytes(privateKey);
-	const pk = getPublicKey(sk_bytes);
-	const pool = new SimplePool();
-
 	try {
+		const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const sk_bytes = hexToBytes(privateKey);
+		const pk = getPublicKey(sk_bytes);
+		const pool = new SimplePool();
+
 		const encryptedContent = await nip04.encrypt(sk_bytes, pk, JSON.stringify(imageRecord));
 
 		const eventTemplate = {
