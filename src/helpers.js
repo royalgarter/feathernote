@@ -111,6 +111,9 @@ async function decryptSettings(encryptedString, userId) {
 		credentials.endpoint = credentials.endpoint || credentials.s3Endpoint;
 		credentials.subfolder = credentials.subfolder || credentials.s3Subfolder;
 		credentials.nostrPrivateKey = credentials.nostrPrivateKey || '';
+		credentials.aiApiKey = credentials.aiApiKey || '';
+		credentials.aiApiRoute = credentials.aiApiRoute || '';
+		credentials.aiModel = credentials.aiModel || '';
 
 		return credentials;
 	} catch (error) {

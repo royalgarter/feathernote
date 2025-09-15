@@ -1199,7 +1199,7 @@ document.addEventListener('alpine:init', () => {
 			if (article && article.content) {
 				const REGEX_IMAGE = /<meta[^>]*property=["']\w+:image["'][^>]*content=["']([^"']*)["'][^>]*>/i;
 
-            	article.lead_image_url = article.lead_image_url || html?.match(REGEX_IMAGE)?.[1];
+				article.lead_image_url = article.lead_image_url || html?.match(REGEX_IMAGE)?.[1];
 
 				return article;
 			} else {
@@ -1458,6 +1458,106 @@ document.addEventListener('alpine:init', () => {
 			this.editingNoteId = null;
 		},
 
+		async processWithAI(promptType) {
+			const content = window.easyMDEInstance?.value();
+			if (!content || !content.trim()) {
+				this.showToast({ variant: 'error', title: `Cannot ${promptType}`, description: `You cannot ${promptType} an empty note.` });
+				return;
+			}
+
+			if (!this.aiApiKey || !this.aiApiRoute) {
+				this.showToast({ variant: 'error', title: 'AI Not Configured', description: 'Please configure your AI API key and route in the settings.' });
+				return;
+			}
+
+			let systemPrompt = '';
+			let userPrompt = '';
+
+			if (promptType === 'improve') {
+				systemPrompt = 'You are a helpful assistant that improves text. You will correct grammar, spelling, and make the text more fluent and clear.';
+				userPrompt = `Improve the following text:\n\n---\n${content}`;
+			} else if (promptType === 'summarize') {
+				systemPrompt = 'You are a helpful assistant that summarizes text.';
+				userPrompt = `Summarize the following text:\n\n---\n${content}`;
+			} else if (promptType === 'extractTags') {
+				systemPrompt = 'You are a helpful assistant that extracts tags from text. Return a comma-separated list of tags. Consider the existing tags and the content, and return a new list of tags that is relevant to the content.';
+				userPrompt = `Extract tags (maximum 7 tags, each tag is mostly single concise meaningful word) from the following text, considering the existing tags. **Only response in plain string comma-separated text**.\n\nExisting tags: ${this.noteEditorTags}\n\nContent:\n---\n${content}`;
+			} else {
+				this.showToast({ variant: 'error', title: 'Invalid AI Action', description: 'The requested AI action is not supported.' });
+				return;
+			}
+
+			userPrompt = prompt(systemPrompt, userPrompt);
+
+			document.body.style.cursor = 'wait';
+			try {
+				const response = await fetch(this.aiApiRoute, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${this.aiApiKey}`
+					},
+					body: JSON.stringify({
+						model: this.aiModel || 'gemini-2.5-flash',
+						messages: [
+							{ role: 'system', content: systemPrompt },
+							{ role: 'user', content: userPrompt }
+						],
+						// reasoning_effort: 'low',
+						stream: false,
+						extra_body: {
+							google: {
+								thinking_config: {
+									thinking_budget: 0,
+								}
+							}
+						}
+					})
+				});
+
+				if (!response.ok) {
+					const errorData = await response.json();
+					throw new Error(errorData.error.message || 'AI API request failed');
+				}
+
+				const data = await response.json();
+				const resultText = data.choices[0].message.content;
+
+				if (promptType === 'improve') {
+					this.noteEditorContent = resultText;
+					if (window.easyMDEInstance) window.easyMDEInstance.value(resultText);
+					this.showToast({ title: 'Text Improved', description: 'The note content has been improved by AI.' });
+				} else if (promptType === 'summarize') {
+					const newContent = `${content}\n\n---\n\n**AI Summary:**\n${resultText}`;
+					this.noteEditorContent = newContent;
+					if (window.easyMDEInstance) window.easyMDEInstance.value(newContent);
+					this.showToast({ title: 'Summary Generated', description: 'The AI summary has been added to the note.' });
+				} else if (promptType === 'extractTags') {
+					this.noteEditorTags = resultText.toLowerCase();
+					document.querySelector('#note-tags')?.focus();
+					document.querySelector('#note-tags')?.scrollIntoView();
+					this.showToast({ title: 'Tags Extracted', description: 'The AI has extracted tags from the note.' });
+				}
+			} catch (error) {
+				console.error(`AI ${promptType} error:`, error);
+				this.showToast({ variant: 'error', title: `AI ${promptType} Failed`, description: error.message });
+			} finally {
+				document.body.style.cursor = 'default';
+			}
+		},
+
+		async improveWithAI() {
+			await this.processWithAI('improve');
+		},
+
+		async summarizeWithAI() {
+			await this.processWithAI('summarize');
+		},
+
+		async extractTagsWithAI() {
+			await this.processWithAI('extractTags');
+		},
+
 		// --- Settings Dialog Data & Methods (moved from settingsDialog component) ---
 		settingsDialogIsOpen: false,
 		s3Region: '',
@@ -1475,19 +1575,14 @@ document.addEventListener('alpine:init', () => {
 		nostrPrivateKey: '',
 		nostrRelays: '',
 
-		// initSettingsDialog() {
-		//     this.$watch('settingsDialogIsOpen', (value) => {
-		//         if (value) {
-		//             this.loadSettingsFromStorage();
-		//         }
-		//     });
-		// },
+		aiApiKey: '',
+		aiApiRoute: '',
+		aiModel: '',
 
 		get userId() {
 			return this.user ? this.user.id : null;
 		},
 
-		
 
 		async loadSettingsFromStorage() {
 			const storedData = await getEncryptedSettingsDB();
@@ -1507,6 +1602,9 @@ document.addEventListener('alpine:init', () => {
 			this.accessKeyId = decrypted.accessKeyId || '';
 			this.secretAccessKey = decrypted.secretAccessKey || '';
 			this.nostrPrivateKey = decrypted.nostrPrivateKey || '';
+			this.aiApiKey = decrypted.aiApiKey || '';
+			this.aiApiRoute = decrypted.aiApiRoute || '';
+			this.aiModel = decrypted.aiModel || '';
 		},
 
 		async handleSave() {
@@ -1528,7 +1626,10 @@ document.addEventListener('alpine:init', () => {
 				s3Subfolder: this.s3Subfolder,
 				accessKeyId: this.accessKeyId,
 				secretAccessKey: existingSettings.secretAccessKey || '',
-				nostrPrivateKey: this.nostrPrivateKey
+				nostrPrivateKey: this.nostrPrivateKey,
+				aiApiKey: this.aiApiKey,
+				aiApiRoute: this.aiApiRoute,
+				aiModel: this.aiModel
 			};
 
 			if (this.secretAccessKey) {
