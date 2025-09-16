@@ -68,6 +68,11 @@ document.addEventListener('alpine:init', () => {
 				throw new Error('Failed to decrypt credentials.');
 			}
 
+			if (!credentials.secretAccessKey) return {
+				success: false,
+				error: 'S3 credentials is missing',
+			};
+
 			// --- Step 1: Get remote state FIRST ---
 			const remoteNoteMetadata = await listNotesInS3V2(credentials, nostrPrivateKey, nostrRelays);
 			const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));

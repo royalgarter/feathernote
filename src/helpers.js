@@ -176,6 +176,8 @@ const uploadNoteToS3V2 = async (note, creds, nostrPrivateKey, nostrRelays) => {
 };
 
 const listNotesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
+	if (!creds?.secretAccessKey) return [];
+
 	const s3 = await getS3ClientV2(creds);
 	const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
 	let allNoteMetadata = [];
@@ -346,6 +348,8 @@ const downloadImageFromS3V2 = async (imageId, creds) => {
 };
 
 const listImagesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
+	if (!creds?.secretAccessKey) return [];
+
 	const s3 = await getS3ClientV2(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/`;
 	let allImageMetadata = [];

@@ -8,6 +8,35 @@ const multer = require('multer');
 const { marked } = require('marked');
 const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
+const CFKV = {
+	HOST: (k) => `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${process.env.CLOUDFLARE_KV_NAMESPACE_ID}/values/${k}`,
+	HEADERS: {
+		'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`
+	},
+	put: async (k, v, e) => {
+		const form = new FormData();
+		form.append('value', v);
+
+		return fetch(CFKV.HOST(k) + `?expiration_ttl=${e || ''}`, {
+			method: 'PUT',
+			headers: CFKV.HEADERS,
+			body: form
+		}).then(r => r.json()).catch();
+	},
+	get: async (k) => {
+		return fetch(CFKV.HOST(k), {
+			method: 'GET',
+			headers: CFKV.HEADERS,
+		}).then(r => r.text()).catch();
+	},
+	del: async (k) => {
+		return fetch(CFKV.HOST(k), {
+			method: 'DELETE',
+			headers: CFKV.HEADERS,
+		}).then(r => r.json()).catch();
+	},
+}
+
 const getAppVersion = async () => {
 	try {
 		const hash = crypto.createHash('sha1');
@@ -123,8 +152,14 @@ app.post('/api/publish', async (req, res) => {
 	const noteSize = new TextEncoder().encode(noteString).length;
 
 	try {
-		// Prioritize Deno KV if enabled and the note is within the size limit
-		if (process.env.PUBLISH_USE_DENOKV === 'true' && noteSize <= DENO_KV_SIZE_LIMIT) {
+		if (process.env.PUBLISH_USE_CLOUDFLAREKV === 'true') {
+			const { CLOUDFLARE_KV_NAMESPACE_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID } = process.env;
+			if (!CLOUDFLARE_KV_NAMESPACE_ID || !CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ACCOUNT_ID) {
+				throw new Error('Cloudflare KV environment variables are not set.');
+			}
+
+			await CFKV.put(noteId, noteString);
+		} else if (process.env.PUBLISH_USE_DENOKV === 'true' && noteSize <= DENO_KV_SIZE_LIMIT) {
 			if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
 				throw new Error('Deno KV environment variables are not set.');
 			}
@@ -155,8 +190,20 @@ app.get('/publish/:noteId', async (req, res) => {
 	try {
 		let note = null;
 
+		if (process.env.PUBLISH_USE_CLOUDFLAREKV === 'true') {
+			const { CLOUDFLARE_KV_NAMESPACE_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID } = process.env;
+			if (!CLOUDFLARE_KV_NAMESPACE_ID || !CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ACCOUNT_ID) {
+				throw new Error('Cloudflare KV environment variables are not set.');
+			}
+
+			const value = await CFKV.get(noteId);
+			if (value) {
+				note = JSON.parse(value);
+			}
+		}
+
 		// First, try to fetch from Deno KV if it's enabled
-		if (process.env.PUBLISH_USE_DENOKV === 'true') {
+		if (!note && process.env.PUBLISH_USE_DENOKV === 'true') {
 			if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
 				throw new Error('Deno KV environment variables are not set.');
 			}
