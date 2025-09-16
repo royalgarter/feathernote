@@ -983,6 +983,29 @@ document.addEventListener('alpine:init', () => {
 					// forceSync: true,
 					previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 					toolbar: [
+						{
+							name: "Save",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.saveNote();
+							},
+							className: "fa fa-save",
+							title: "Save",
+						},{
+							name: "Delete",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.deleteNote(window.easyMDEInstance?.uniqueId || id);
+							},
+							className: "fa fa-trash-o",
+							title: "Delete",
+						},{
+							name: "share",
+							action: function(editor){
+								Alpine.$data(document.querySelector('body'))?.shareNote();
+							},
+							className: "fa fa-share-square-o",
+							title: "Share",
+						},
+						"|",
 						"bold", "italic", "heading", "|",
 						"quote", "unordered-list", "ordered-list", "|",
 						"link", "image",

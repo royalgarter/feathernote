@@ -82,7 +82,9 @@
 	</header>
 
 	<!-- AppShellContent -->
-	<main class="flex-1 overflow-y-auto max-w-7xl mx-auto py-4 sm:px-6 lg:px-8 w-full">
+	<main class="flex-1  max-w-7xl mx-auto py-4 sm:px-6 lg:px-8 w-full"
+		:class="settingsDialogIsOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
+	>
 
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
@@ -111,7 +113,7 @@
 
 				<div class="flex justify-between items-center mb-4">
 					<h3 class="text-lg font-bold" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
-					<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+					<button @click="saveNote();cancelEdit();" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
 				</div>
@@ -129,12 +131,12 @@
 					<label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
 					<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md p-2" />
 				</div>
-				<div class="flex justify-end space-x-3">
+				<!-- <div class="flex justify-end space-x-3">
 					<button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
 					<button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
 					<button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">Share</button>
 					<button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Save</button>
-				</div>
+				</div> -->
 			</div>
 		</template>
 
@@ -224,7 +226,7 @@
 		 class="fixed inset-0 z-10 w-full h-full flex items-center justify-center overflow-x-hidden"
 		 style="display: none;background-color: #0e0e0ee6;"
 	>
-		<div class="fixed inset-0 size-auto max-h-none max-w-none m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent"
+		<div class="fixed inset-0 size-auto h-full md:h-auto max-h-none max-w-none md:m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent"
 			 @click.away="settingsDialogIsOpen = false"
 		>
 			<div class="flex justify-between items-center">
@@ -330,22 +332,6 @@
 				</div> -->
 			</div>
 
-			<!-- Buttons -->
-			<div class="flex justify-end gap-2 mt-2">
-				<button @click="openImport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
-				<button @click="handleExport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
-				<button @click="handleSync()" __disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
-					<svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-					</svg>
-					<span x-text="isManualSyncing ? 'Syncing...' : (isSyncing || 'Sync')"></span>
-				</button>
-				<button @click="handleSave()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
-			</div>
-
-
-
 			<!-- Import Dialog -->
 			<div x-show="showImportModal"
 				 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
@@ -385,6 +371,19 @@
 				</div>
 			</div>
 
+			<!-- Buttons -->
+			<div class="flex justify-end gap-2 mt-2">
+				<button @click="openImport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+				<button @click="handleExport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
+				<button @click="handleSync()" __disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center">
+					<svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span x-text="isManualSyncing ? 'Syncing...' : (isSyncing || 'Sync')"></span>
+				</button>
+				<button @click="handleSave()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save</button>
+			</div>
 		</div>
 	</div>
 
