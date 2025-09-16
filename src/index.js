@@ -301,7 +301,7 @@ document.addEventListener('alpine:init', () => {
 
 			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || 'wss://relay.damus.io';
 
-			await this.loadSettingsFromStorage();
+
 
 			this.$nextTick(() => {
 				this.processSharedContent();
@@ -352,8 +352,12 @@ document.addEventListener('alpine:init', () => {
 				fields: ['title', 'content', 'tags'], // Fields to search!
 				storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
 			}) : null;
+
 			this.fetchNotes();
-			this.syncNotes();
+			this.loadSettingsFromStorage().then(_ => {
+				this.syncNotes();
+			})
+
 			this.syncIntervalId = setInterval(() => {
 				this.syncNotes(true); // Run a silent sync
 			}, 2 * 60 * 1000); // Every 2 minutes
