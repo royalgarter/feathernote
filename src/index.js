@@ -674,6 +674,7 @@ document.addEventListener('alpine:init', () => {
 		},
 
 		async autosaveCurrentNote() {
+			if (this.isSyncing) return; // Don't autosave while a sync is in progress
 			if (!this.editingNoteId || !this.noteEditorNoteId || this.noteEditorNoteId === 'new') {
 				return;
 			}
@@ -1339,6 +1340,38 @@ document.addEventListener('alpine:init', () => {
 				clearInterval(this.editorAutosaveIntervalId);
 			}
 			this.editingNoteId = id;
+
+			try {
+				const userId = this.user ? this.user.id : null;
+				const storedData = await getEncryptedSettingsDB();
+				const encryptedSettings = storedData ? storedData.encryptedSettings : null;
+
+				if (encryptedSettings && userId) {
+					const credentials = await decryptSettings(encryptedSettings, userId);
+					if (credentials) {
+						const remoteMeta = await getNoteMetadataFromS3V2(id, credentials);
+						const localNote = await getNoteDB(id);
+
+						if (remoteMeta && localNote && new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt)) {
+							this.showToast({
+								title: 'Note Updated',
+								description: 'A newer version of this note was found on the server and has been loaded.',
+								duration: 5000
+							});
+							const remoteNote = await downloadNoteFromS3V2(id, credentials);
+							await updateNoteDB(remoteNote);
+						}
+					}
+				}
+			} catch (error) {
+				console.error('Pre-edit sync check failed:', error);
+				this.showToast({
+					variant: 'error',
+					title: 'Sync Check Failed',
+					description: 'Could not verify the latest version of the note. Please sync manually.'
+				});
+			}
+
 			await this.loadNoteIntoEditor(id);
 			this.editorAutosaveIntervalId = setInterval(() => {
 				this.autosaveCurrentNote();
@@ -1348,6 +1381,7 @@ document.addEventListener('alpine:init', () => {
 
 		// --- Note Editor Methods (moved from noteEditor component) ---
 		async loadNoteIntoEditor(id) {
+			if (this.noteEditorNoteId === id && window.easyMDEInstance) return;
 			this.noteEditorNoteId = id;
 			if (!this.noteEditorNoteId) return;
 			const note = await this.getNote(this.noteEditorNoteId);

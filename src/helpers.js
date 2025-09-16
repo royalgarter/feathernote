@@ -155,6 +155,8 @@ const getS3ObjectKey = (noteId, creds) => {
 };
 
 const uploadNoteToS3V2 = async (note, creds, nostrPrivateKey, nostrRelays) => {
+	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+
 	const s3 = await getS3ClientV2(creds);
 	const noteJson = JSON.stringify(note, null, 2);
 
@@ -249,6 +251,8 @@ const listNotesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
 };
 
 const downloadNoteFromS3V2 = async (noteId, creds) => {
+	if (!creds?.secretAccessKey) return;
+
 	const s3 = await getS3ClientV2(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
@@ -265,7 +269,36 @@ const downloadNoteFromS3V2 = async (noteId, creds) => {
 	}
 };
 
+const getNoteMetadataFromS3V2 = async (noteId, creds) => {
+	try {
+		if (!creds?.secretAccessKey) return;
+
+		const s3 = await getS3ClientV2(creds);
+		const key = getS3ObjectKey(noteId, creds);
+		const params = {
+			Bucket: creds.bucket,
+			Key: key,
+		};
+
+		const data = await s3.headObject(params).promise();
+		return {
+			lastModified: data.LastModified,
+			source: 's3'
+		};
+	} catch (error) {
+		if (error.code === 'NotFound') {
+			// The object does not exist in S3.
+			return null;
+		}
+		// For other errors, log and re-throw to allow for more specific handling upstream.
+		console.error(`S3 HeadObject Error for note ${noteId}:`, error);
+		throw new Error(`Failed to get note metadata from S3: ${error.code || error.message}`);
+	}
+};
+
 const deleteNoteFromS3V2 = async (noteId, creds, nostrPrivateKey, nostrRelays) => {
+	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+
 	const s3 = await getS3ClientV2(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
@@ -291,6 +324,8 @@ const getImageS3ObjectKey = (imageId, imageType, creds) => {
 };
 
 const uploadImageToS3V2 = async (imageRecord, creds, nostrPrivateKey, nostrRelays) => {
+	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+
 	const s3 = await getS3ClientV2(creds);
 	const key = getImageS3ObjectKey(imageRecord.id, imageRecord.blob.type, creds);
 
@@ -313,6 +348,8 @@ const uploadImageToS3V2 = async (imageRecord, creds, nostrPrivateKey, nostrRelay
 };
 
 const downloadImageFromS3V2 = async (imageId, creds) => {
+	if (!creds?.secretAccessKey) return;
+
 	const s3 = await getS3ClientV2(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/${imageId}`;
 
