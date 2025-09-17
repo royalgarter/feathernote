@@ -156,11 +156,11 @@ document.addEventListener('alpine:init', () => {
 			const downloadResults = await Promise.allSettled(downloadPromises);
 
 			const updatedNotes = [];
-			downloadResults.forEach(result => {
+			downloadResults.forEach((result, idx) => {
 				if (result.status === 'fulfilled' && result.value) {
 					updatedNotes.push(result.value);
 				} else if (result.status === 'rejected') {
-					console.error('Sync error during download:', result.reason);
+					console.log('Sync status S3 (specified key does not exist):', notesToDownload[idx].id, result.reason.message);
 				}
 			});
 
