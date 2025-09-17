@@ -79,13 +79,12 @@ const generateHtmlPage = (title, bodyContent) => {
 		<head>
 			<meta charset="UTF-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>${title}</title>
+			<title>${title} on FeatherNote</title>
 			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
 			<style>
-				body { padding: 2rem; }
-				main.container { max-width: 960px; }
+				main.container { max-width: 100%; padding: 0; }
+				article { margin: 1%; white-space: pre-wrap; word-break: break-word; }
 				article img { max-width: 100%; }
-				article { white-space: pre-wrap; }
 			</style>
 		</head>
 		<body>
