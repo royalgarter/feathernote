@@ -580,3 +580,219 @@ const deleteNoteDB = (id) => performDBOperation(NOTE_STORE, 'readwrite', 'delete
 const getSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readonly', 'getAll');
 const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'add', item);
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
+
+async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRelays) {
+	try {
+		const credentials = await decryptSettings(encryptedSettings, userId);
+		if (!credentials) {
+			throw new Error('Failed to decrypt credentials.');
+		}
+
+		// 1. Upload unsynced local images to S3
+		let uploadedImageCount = 0;
+		const unsyncedImages = await getUnsyncedImagesDB();
+		for (const image of unsyncedImages) {
+			await uploadImageToS3V2(image, credentials, nostrPrivateKey, nostrRelays);
+			try {
+				console.log(`Attempting to mark image ${image.id} as synced.`);
+				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
+				console.log(`Image ${image.id} successfully marked as synced.`);
+			} catch (dbError) {
+				console.error(`Failed to mark image ${image.id} as synced in DB:`, dbError);
+				// Optionally, re-throw or handle this error to prevent further sync issues
+			}
+			uploadedImageCount++;
+		}
+
+		// 2. Download missing images from S3
+		let downloadedImageCount = 0;
+		const allNotes = await getNotesDB();
+		const remoteImageKeys = await listImagesInS3V2(credentials, nostrPrivateKey, nostrRelays);
+		const remoteImageIds = new Set(remoteImageKeys.map(x => x.id));
+
+		const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
+		const referencedImageIds = new Set();
+
+		for (const note of allNotes) {
+			let match;
+			while ((match = imageIdRegex.exec(note.content)) !== null) {
+				referencedImageIds.add(match[1]);
+			}
+		}
+
+		for (const imageId of referencedImageIds) {
+			const localImage = await getImageDB(imageId);
+			if (!localImage && remoteImageIds.has(imageId)) {
+				console.log(`Image ${imageId} not found locally, downloading from S3...`);
+				try {
+					const imageBlob = await downloadImageFromS3V2(imageId, credentials);
+					if (imageBlob) {
+						await addImageDB({ id: imageId, blob: imageBlob, synced: true });
+						downloadedImageCount++;
+					}
+				} catch (downloadError) {
+					console.error(`Failed to download image ${imageId} from S3:`, downloadError);
+				}
+			}
+		}
+
+		return { success: true, uploadedImageCount, downloadedImageCount };
+	} catch (error) {
+		console.error('apiSyncImages error:', error);
+		return { success: false, error: error.message };
+	}
+}
+
+async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, nostrPrivateKey, nostrRelays) {
+	try {
+		const credentials = await decryptSettings(encryptedSettings, userId);
+		if (!credentials) {
+			throw new Error('Failed to decrypt credentials.');
+		}
+
+		if (!credentials.secretAccessKey) return {
+			success: false,
+			error: 'S3 credentials is missing',
+		};
+
+		// --- Step 1: Get remote state FIRST ---
+		const remoteNoteMetadata = await listNotesInS3V2(credentials, nostrPrivateKey, nostrRelays);
+		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
+
+		// --- Step 2: Determine which notes to upload ---
+		const notesToUpload = localNotes.filter(localNote => {
+			// Don't upload notes that are slated for deletion.
+			if (deletedNoteIds.includes(localNote.id)) return false;
+
+			const remoteMeta = remoteMetaMap.get(localNote.id);
+			if (!remoteMeta) {
+				// Note doesn't exist remotely, so it's new. Upload it.
+				return true;
+			}
+
+			// Note exists remotely. Only upload if local is newer.
+			const remoteDate = new Date(remoteMeta.lastModified);
+			const localDate = new Date(localNote.updatedAt);
+			return localDate > remoteDate;
+		});
+
+		const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials, nostrPrivateKey, nostrRelays));
+
+		// --- Step 3: Determine which notes to delete from S3 ---
+		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays));
+
+		// --- Step 4: Execute uploads and deletes ---
+		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
+		const uploadAndDeleteResults = await Promise.allSettled(uploadAndDeletePromises);
+
+		let successfulUploadedCount = 0;
+		let successfulDeletedCount = 0;
+		uploadAndDeleteResults.forEach((result, index) => {
+			if (result.status === 'fulfilled') {
+				if (index < uploadPromises.length) {
+					successfulUploadedCount++;
+				} else {
+					successfulDeletedCount++;
+				}
+			} else {
+				console.error('Sync error during upload/delete:', result.reason);
+			}
+		});
+
+
+		// --- Step 5: Determine which notes to download or delete locally ---
+		const notesToDownload = [];
+		const notesToDeleteLocally = [];
+		const allLocalNotesMap = new Map(localNotes.map(n => [n.id, n]));
+
+		// Find notes updated remotely
+		for (const remoteMeta of remoteNoteMetadata) {
+			const localNote = allLocalNotesMap.get(remoteMeta.id);
+			if (!localNote) {
+				// Note exists on remote but not local, and isn't in the local delete list. Download it.
+				if (!deletedNoteIds.includes(remoteMeta.id)) {
+					notesToDownload.push(remoteMeta);
+				}
+			} else {
+				// Note exists on both. Download if remote is newer.
+				const remoteDate = new Date(remoteMeta.lastModified);
+				const localDate = new Date(localNote.updatedAt);
+				if (remoteDate > localDate) {
+					notesToDownload.push(remoteMeta);
+				}
+			}
+		}
+
+		// Find notes deleted remotely
+		const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+		const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
+		for (const localNoteId of allLocalNotesMap.keys()) {
+			if (!remoteNoteIds.has(localNoteId) && !deletedNoteIds.includes(localNoteId) && !uploadedNoteIds.has(localNoteId)) {
+				// This note exists locally but not remotely, and we didn't delete it.
+				// It must have been deleted on another device. Delete it locally.
+				notesToDeleteLocally.push(localNoteId);
+			}
+		}
+
+		const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3V2(remoteMeta.id, credentials));
+		const downloadResults = await Promise.allSettled(downloadPromises);
+
+		const updatedNotes = [];
+		downloadResults.forEach((result, idx) => {
+			if (result.status === 'fulfilled' && result.value) {
+				updatedNotes.push(result.value);
+			} else if (result.status === 'rejected') {
+				console.log('Sync status S3 (specified key does not exist):', notesToDownload[idx].id, result.reason.message);
+			}
+		});
+
+		return {
+			success: true,
+			uploadedCount: successfulUploadedCount,
+			deletedCount: successfulDeletedCount,
+			updatedNotes, // downloaded notes
+			notesToDeleteLocally,
+			finalRemoteIds: Array.from(remoteNoteIds)
+		};
+
+	} catch (error) {
+		console.error('apiSyncNotes error:', error);
+		return { success: false, error: error.message };
+	}
+}
+
+async function apiDeleteNote(encryptedSettings, userId, noteId, nostrPrivateKey, nostrRelays) {
+	try {
+		const credentials = await decryptSettings(encryptedSettings, userId);
+		if (!credentials) {
+			throw new Error('Failed to decrypt credentials.');
+		}
+		await deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays);
+		return { success: true };
+	} catch (error) {
+		console.error('apiDeleteNote error:', error);
+		return { success: false, error: error.message };
+	}
+}
+
+async function verifyGoogleJwt(token, clientId) {
+	try {
+		const base64Url = token.split('.')[1];
+		const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+		const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+			return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+		}).join(''));
+
+		const decoded = JSON.parse(jsonPayload);
+
+		// Basic check: ensure client ID matches (audience claim 'aud')
+		if (decoded.aud !== clientId) {
+			throw new Error('Invalid client ID in JWT.');
+		}
+
+		return decoded;
+	} catch (error) {
+		console.error('Error verifying JWT:', error);
+		throw new Error('JWT verification failed: ' + error.message);
+	}
+}

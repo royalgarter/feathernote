@@ -4,21 +4,29 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>FeatherNote</title>
+	<meta name="description" content="FeatherNote is a featherweight, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
+	<meta name="keywords" content="feathernote, note-taking, notes, open-source, s3, nostr, offline, pwa">
+	<meta name="author" content="royalgarter">
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="https://feathernote.com/">
+	<meta property="og:title" content="FeatherNote - A simple, fast, and open-source note-taking app.">
+	<meta property="og:description" content="FeatherNote is a simple, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
+	<meta property="og:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+
+	<!-- Twitter -->
+	<meta property="twitter:card" content="summary_large_image">
+	<meta property="twitter:url" content="https://feathernote.com/">
+	<meta property="twitter:title" content="FeatherNote - A simple, fast, and open-source note-taking app.">
+	<meta property="twitter:description" content="FeatherNote is a simple, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
+	<meta property="twitter:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+
+	<link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/icons/ios/32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/icons/ios/16.png">
 	<link rel="manifest" href="/manifest.json">
-	<!-- <script src="//cdn.tailwindcss.com"></script> -->
-
-	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
-	<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-
-	<!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
-	<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
-
-	<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
-	<script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
-
-	<script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
-	<script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-	<script defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
+	<meta name="theme-color" content="#A2D2FF">
 </head>
 <body class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
@@ -411,6 +419,19 @@
 		</template>
 	</div>
 </body>
+
+<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+
+<!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
+<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
+
+<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
+
+<script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
+<script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
 
 <!-- Custom CSS -->
 <style>
