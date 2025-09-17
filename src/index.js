@@ -840,6 +840,12 @@ document.addEventListener('alpine:init', () => {
 					for (const remoteNote of result.updatedNotes) {
 						const localNote = await getNoteDB(remoteNote.id);
 						if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+							if (localNote) { // Note exists locally, merge tags to prevent loss
+								const remoteTags = remoteNote.tags || [];
+								const localTags = localNote.tags || [];
+								const mergedTags = [...new Set([...localTags, ...remoteTags])];
+								remoteNote.tags = mergedTags;
+							}
 							await updateNoteDB(remoteNote);
 							downloadedCount++;
 						}
