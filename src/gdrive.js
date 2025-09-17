@@ -124,81 +124,90 @@ async function syncGoogleDriveNotes(isSilent = false, deletedNoteIds = []) {
     }
 
     console.log("Starting Google Drive sync...");
-    
-    // 1. Fetch all local notes
-    const localNotes = await getNotesDB();
+    const app = Alpine.$data(document.querySelector('[x-data]'));
+    app.gdriveStore.isSyncing = true;
 
-    // 2. Fetch all remote files from AppData folder
-    const remoteFiles = await listAllFiles();
+    try {
+        // 1. Fetch all local notes and remote files in parallel
+        const [localNotes, remoteFiles] = await Promise.all([
+            getNotesDB(),
+            listAllFiles()
+        ]);
 
-    // 3. Handle deletions on remote
-    const deletePromises = deletedNoteIds.map(id => deleteNoteFromDrive(id));
+        const remoteFilesMap = new Map(remoteFiles.map(file => [file.name.replace('.json', ''), file]));
 
-    // 4. Compare and decide which notes to upload or download
-    const toUpload = [];
-    const toDownload = [];
-    const remoteFilesMap = new Map(remoteFiles.map(file => [file.name.replace('.json', ''), file]));
-    const localNotesMap = new Map(localNotes.map(note => [note.id, note]));
+        // 2. Handle deletions on remote
+        const deletePromises = deletedNoteIds.map(id => deleteNoteFromDrive(id, remoteFiles));
 
-    // Check for notes to upload
-    for (const localNote of localNotes) {
-        if (deletedNoteIds.includes(localNote.id)) continue; // Don't upload notes marked for deletion
+        // 3. Compare and decide which notes to upload or download
+        const toUpload = [];
+        const toDownload = [];
+        const localNotesMap = new Map(localNotes.map(note => [note.id, note]));
 
-        const remoteFile = remoteFilesMap.get(localNote.id);
-        if (!remoteFile) {
-            toUpload.push(localNote);
-        } else {
-            const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
-            const localTimestamp = new Date(localNote.updatedAt).getTime();
-            if (localTimestamp > remoteTimestamp) {
-                toUpload.push(localNote);
+        // Check for notes to upload
+        for (const localNote of localNotes) {
+            if (deletedNoteIds.includes(localNote.id)) continue; // Don't upload notes marked for deletion
+
+            const remoteFile = remoteFilesMap.get(localNote.id);
+            if (!remoteFile) {
+                toUpload.push({ note: localNote, existingFile: null });
+            } else {
+                const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
+                const localTimestamp = new Date(localNote.updatedAt).getTime();
+                if (localTimestamp > remoteTimestamp) {
+                    toUpload.push({ note: localNote, existingFile: remoteFile });
+                }
             }
         }
-    }
 
-    // Check for notes to download and notes to delete locally
-    const remoteIds = new Set();
-    for (const remoteFile of remoteFiles) {
-        const noteId = remoteFile.name.replace('.json', '');
-        remoteIds.add(noteId);
-        const localNote = localNotesMap.get(noteId);
-        if (!localNote) {
-            if (!deletedNoteIds.includes(noteId)) { // Don't download if it was just deleted locally
-                toDownload.push(remoteFile);
-            }
-        } else {
-            const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
-            const localTimestamp = new Date(localNote.updatedAt).getTime();
-            if (remoteTimestamp > localTimestamp) {
-                toDownload.push(remoteFile);
+        // Check for notes to download and notes to delete locally
+        const remoteIds = new Set(remoteFiles.map(f => f.name.replace('.json', '')));
+        const notesToDeleteLocally = [];
+
+        for (const remoteFile of remoteFiles) {
+            const noteId = remoteFile.name.replace('.json', '');
+            const localNote = localNotesMap.get(noteId);
+            if (!localNote) {
+                if (!deletedNoteIds.includes(noteId)) { // Don't download if it was just deleted locally
+                    toDownload.push(remoteFile);
+                }
+            } else {
+                const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
+                const localTimestamp = new Date(localNote.updatedAt).getTime();
+                if (remoteTimestamp > localTimestamp) {
+                    toDownload.push(remoteFile);
+                }
             }
         }
-    }
 
-    // Check for notes that were deleted on another device
-    const notesToDeleteLocally = [];
-    for (const localNote of localNotes) {
-        if (!remoteIds.has(localNote.id) && !toUpload.some(n => n.id === localNote.id)) {
-            notesToDeleteLocally.push(localNote.id);
+        for (const localNote of localNotes) {
+            if (!remoteIds.has(localNote.id) && !toUpload.some(item => item.note.id === localNote.id)) {
+                notesToDeleteLocally.push(localNote.id);
+            }
         }
+        const localDeletePromises = notesToDeleteLocally.map(id => deleteNoteDB(id));
+
+        console.log(`To Upload: ${toUpload.length}, To Download: ${toDownload.length}, To Delete Remote: ${deletePromises.length}, To Delete Local: ${localDeletePromises.length}`);
+
+        // 4. Execute all operations
+        const uploadPromises = toUpload.map(({ note, existingFile }) => uploadNote(note, existingFile));
+        const downloadPromises = toDownload.map(file => downloadNote(file.id));
+
+        await Promise.all([
+            ...uploadPromises,
+            ...downloadPromises,
+            ...deletePromises,
+            ...localDeletePromises
+        ]);
+
+        console.log("Google Drive sync finished.");
+
+    } catch (error) {
+        console.error("Google Drive sync failed:", error);
+        app.showToast({ variant: 'error', title: 'Sync Failed', description: error.message });
+    } finally {
+        app.gdriveStore.isSyncing = false;
     }
-    const localDeletePromises = notesToDeleteLocally.map(id => deleteNoteDB(id));
-
-
-    console.log(`To Upload: ${toUpload.length}, To Download: ${toDownload.length}, To Delete Remote: ${deletePromises.length}, To Delete Local: ${localDeletePromises.length}`);
-
-    // 5. Execute all operations
-    const uploadPromises = toUpload.map(note => uploadNote(note));
-    const downloadPromises = toDownload.map(file => downloadNote(file.id));
-
-    await Promise.all([
-        ...uploadPromises,
-        ...downloadPromises,
-        ...deletePromises,
-        ...localDeletePromises
-    ]);
-
-    console.log("Google Drive sync finished.");
 }
 
 
@@ -279,24 +288,21 @@ async function downloadNote(fileId) {
  * Uploads a note to Google Drive. Handles both creation and updates.
  * @param {Object} note The note object to upload.
  */
-async function uploadNote(note) {
+async function uploadNote(note, existingFile = null) {
     const noteId = note.id;
     const boundary = '-------314159265358979323846';
     const delimiter = "\r\n--" + boundary + "\r\n";
     const close_delim = "\r\n--" + boundary + "--";
 
-    // Check if file already exists
-    const existingFiles = await listAllFiles();
-    const existingFile = existingFiles.find(f => f.name === `${noteId}.json`);
-
     const metadata = {
         'name': `${noteId}.json`,
         'mimeType': 'application/json',
     };
-    
+
     if (!existingFile) {
         metadata.parents = ['appDataFolder'];
     }
+
 
     const multipartRequestBody =
         delimiter +
@@ -331,10 +337,9 @@ async function uploadNote(note) {
  * Deletes a note from Google Drive.
  * @param {string} noteId The ID of the note to delete.
  */
-async function deleteNoteFromDrive(noteId) {
+async function deleteNoteFromDrive(noteId, remoteFiles = []) {
     // Find the file ID first
-    const existingFiles = await listAllFiles();
-    const fileToDelete = existingFiles.find(f => f.name === `${noteId}.json`);
+    const fileToDelete = remoteFiles.find(f => f.name === `${noteId}.json`);
 
     if (fileToDelete) {
         try {
