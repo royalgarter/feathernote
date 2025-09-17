@@ -281,43 +281,80 @@
 					</p>
 				</div>
 
-				<fieldset __disabled="!isSyncConfigured" class="grid gap-2">
+				<div class="border-t pt-4 mt-4">
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="s3-region" class="text-right">S3 Region</label>
-						<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
+						<label for="sync-provider" class="text-right">Sync Provider</label>
+						<select id="sync-provider" x-model="syncSelection" class="col-span-3 border rounded-md p-2">
+							<option value="s3">S3 / Nostr</option>
+							<option value="gdrive">Google Drive</option>
+						</select>
 					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="s3-bucket" class="text-right">S3 Bucket</label>
-						<input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
-					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="s3-subfolder" class="text-right">S3 Subfolder</label>
-						<input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
-					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="s3-endpoint" class="text-right">S3 Endpoint</label>
-						<input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing" autocomplete="url" />
-					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="access-key" class="text-right">S3 Access Key</label>
-						<input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing"/>
-					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="secret-key" class="text-right">S3 Secret Key</label>
-						<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing" autocomplete="new-password" />
-					</div>
-				</fieldset>
+				</div>
 
-				<fieldset class="grid gap-2">
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
-						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
+				<template x-if="syncSelection === 's3'">
+					<div>
+						<fieldset __disabled="!isSyncConfigured" class="grid gap-2">
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="s3-region" class="text-right">S3 Region</label>
+								<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="s3-bucket" class="text-right">S3 Bucket</label>
+								<input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="s3-subfolder" class="text-right">S3 Subfolder</label>
+								<input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="s3-endpoint" class="text-right">S3 Endpoint</label>
+								<input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing" autocomplete="url" />
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="access-key" class="text-right">S3 Access Key</label>
+								<input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing"/>
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="secret-key" class="text-right">S3 Secret Key</label>
+								<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+							</div>
+						</fieldset>
+
+						<fieldset class="grid gap-2">
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
+								<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
+							</div>
+							<div class="grid grid-cols-4 items-center gap-2">
+								<label for="nostr-relays" class="text-right">Nostr Relays</label>
+								<input id="nostr-relays" x-model="nostrRelays" class="col-span-3 border rounded-md p-2" placeholder="wss://relay.damus.io,wss://relay.snort.social,wss://relay.primal.net,wss://fiatjaf.nostr1.com" autocomplete="url" />
+							</div>
+						</fieldset>
 					</div>
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="nostr-relays" class="text-right">Nostr Relays</label>
-						<input id="nostr-relays" x-model="nostrRelays" class="col-span-3 border rounded-md p-2" placeholder="wss://relay.damus.io,wss://relay.snort.social,wss://relay.primal.net,wss://fiatjaf.nostr1.com" autocomplete="url" />
-					</div>
-				</fieldset>
+				</template>
+
+				<template x-if="syncSelection === 'gdrive'">
+					<fieldset class="grid gap-2">
+						<div class="grid grid-cols-4 items-center gap-2">
+							<label class="text-right">Google Drive Sync</label>
+							<div class="col-span-3">
+								<template x-if="!gdriveStore.connected">
+									<button @click="signInToGoogleDrive()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+										Connect Google Drive
+									</button>
+								</template>
+								<template x-if="gdriveStore.connected">
+									<div class="flex items-center gap-2">
+										<span class="text-green-600" x-text="`Connected as ${gdriveStore.user?.name}`"></span>
+										<button @click="signOutFromGoogleDrive()" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">
+											Disconnect
+										</button>
+									</div>
+								</template>
+							</div>
+						</div>
+					</fieldset>
+				</template>
 
 				<fieldset class="grid gap-2">
 					<div class="grid grid-cols-4 items-center gap-2">
@@ -563,6 +600,7 @@
 
 <script src="/nostr.js?v=4.3"></script>
 <script src="/helpers.js?v=4.3"></script>
+<script src="/gdrive.js?v=4.3"></script>
 <script src="/index.js?v=4.3"></script>
 
 <!-- Excalidraw -->
@@ -594,5 +632,7 @@
 		<div id="excalidraw-container" class="w-full h-full"></div>
 	</div>
 </div>
+<!-- Excalidraw -->
+</html></div>
 <!-- Excalidraw -->
 </html>
