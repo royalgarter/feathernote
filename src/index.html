@@ -282,7 +282,7 @@
 
 					<!-- Google Drive -->
 					<div class="flex items-center justify-between mb-2">
-						<p class="text-sm text-gray-600">Backup With Your Google Drive</p>
+						<p class="text-sm text-gray-600">Google Drive</p>
 						<div class="col-span-3">
 							<template x-if="!gdriveStore.connected">
 								<button @click="signInToGoogleDrive()" class="px-2 py-1 rounded-sm bg-blue-600 text-sm text-white hover:bg-blue-700">
@@ -292,9 +292,10 @@
 							<template x-if="gdriveStore.connected">
 								<div class="flex items-center gap-2">
 									<span class="text-green-600" x-text="`Connected as ${gdriveStore.user?.name}`"></span>
-									<button @click="signOutFromGoogleDrive()" class="px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
-										Disconnect
-									</button>
+									<button class="px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+										@click="signOutFromGoogleDrive()"
+										x-text="`Disconnect ${gdriveStore.user?.name}`"
+									>Disconnect</button>
 								</div>
 							</template>
 						</div>
