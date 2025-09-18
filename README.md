@@ -1,8 +1,6 @@
 <p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p>
 
-# FeatherNote: Your Notes, Your Cloud, Your Privacy.
-
-A featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
+# FeatherNote: featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
 
 **Try FeatherNote now: [feathernote.deno.dev](https://feathernote.deno.dev)**
 
@@ -23,18 +21,19 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 -   ✍️ **Effortless Markdown:** A clean, beautiful Markdown editor with a live preview. Formatting your thoughts has never been more satisfying.
 -   ✂️ **Clip Note Content:** Easily clip and save snippets of content from your notes.
 -   ✈️ **Truly Offline-First:** No internet? No problem. Write, read, and edit your notes anytime, anywhere.
--   ☁️ **Sync to Your Own Cloud:** Securely sync your notes across devices using your own S3 bucket. Your data, your rules.
 -   🔒 **Privacy is Paramount:** Your S3 credentials are encrypted in your browser and are never sent to any server but your own. We can't see your notes, and neither can anyone else.
 -   🔔 **Stay on Track:** Set reminders for your notes and get push notifications so you never miss a beat.
 -   🌐 **Web Clipper:** Found something interesting online? Paste a URL into a new note and watch FeatherNote automatically fetch and save the content. It's like a "read it later" feature, but for your own private notebook.
 -   📲 **Installable & Shareable:** As a PWA, you can install FeatherNote on your desktop or mobile device for a native-app feel. You can even share content directly to it from other apps!
 -   🚀 **Feather-light & Fast:** Built with Alpine.js and Tailwind CSS, the interface is snappy, responsive, and a joy to use.
 -   🎨 **Excalidraw Integration (Non-Offline-able-Yet because of React Dependencies):** Sketch your ideas, create diagrams, and embed them directly into your notes.
+-   ☁️ **Sync to Your Own Cloud (Optional):** Securely sync your notes across devices using your own S3 bucket. Your data, your rules.
+-   💜 **Nostr Integration (Optional):** Sync or Publish your notes with the decentralized Nostr protocol.
+-   💾 **Google Drive Backup (Optional):** Simple, zero-configuration sync using your Google Drive.
 -   🤖 **AI-Powered Tools (Optional):**
     -   **Automatic Tagging:** Let FeatherNote suggest relevant tags for your notes based on their content.
     -   **Improve with AI:** Enhance your writing, fix grammar, and rephrase sentences.
     -   **Summarize with AI:** Quickly get the gist of long notes with AI-powered summaries.
--   💜 **Nostr Integration:** Sync your notes with the decentralized Nostr protocol, in addition to S3.
 
 ## Concern on AI-Powered features?
 
@@ -72,6 +71,7 @@ Welcome to a new era of note-taking. Welcome to FeatherNote.
 -   **Styling:** [Tailwind CSS](https://tailwindcss.com/), [Tailwind Lite](https://github.com/reallygoodsoftware/litewind)
 -   **Database:** [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (via a simple wrapper)
 -   **S3:** [AWS SDK for JavaScript](https://aws.amazon.com/sdk-for-javascript/)
+-   **Google Drive:** [Google Drive API](https://developers.google.com/drive/api)
 -   **Authentication:** [Google Identity Services](https://developers.google.com/identity/gsi/web/guides/display-google-one-tap) (for client-side authentication)
 -   **Encryption:** Web Crypto API (for encrypting S3 credentials)
 -   **Nostr:** [nostr-tools](https://github.com/nbd-wtf/nostr-tools)
@@ -95,7 +95,33 @@ Here are some popular providers where you can create an S3 bucket:
 
 When choosing a provider, consider their free tier limits, pricing after the free tier, and ease of use. Once you have an S3 bucket, you'll need to generate Access Key ID and Secret Access Key credentials with appropriate permissions for FeatherNote to access it.
 
-## S3 Sync Configuration
+## Syncing
+
+FeatherNote supports multiple providers for syncing your notes across devices. All providers use the same underlying sync logic to ensure consistency.
+
+### Sync Logic
+
+FeatherNote employs a robust synchronization strategy to ensure your notes are kept up-to-date across multiple devices while protecting against common data loss scenarios like conflicts and race conditions. This logic is used by all sync providers (S3, Google Drive, etc.).
+
+The core strategy is **"last-write-wins,"** determined by comparing timestamps. Here’s how it works each time a sync is triggered:
+
+1.  **Fetch Remote State:** The client fetches a complete list of all notes currently in the remote storage, along with their last modification times. This provides a clear picture of the remote state *before* any local changes are pushed.
+
+2.  **Compare and Decide (Uploads):** The client then iterates through its local notes:
+    *   If a local note does not exist in the remote storage, it is marked for **upload**.
+    *   If a note exists in both places, its `updatedAt` timestamp is compared with the remote note's `lastModified` timestamp. The local note is only marked for **upload** if it is demonstrably newer. This prevents an older, offline change from overwriting a newer change that was synced from a different device.
+
+3.  **Compare and Decide (Downloads):** Next, the client examines the list of remote notes:
+    *   If a remote note does not exist in the local database, it is marked for **download**.
+    *   If a note exists in both places, it is only marked for **download** if the remote version is newer than the local version.
+
+4.  **Handle Deletions:** Notes deleted in the app are tracked in a temporary queue. During the sync, these notes are permanently deleted from the remote storage. When another device syncs, it will see the note is gone and delete it locally, keeping all devices consistent.
+
+5.  **Execute:** Finally, the client executes all the planned uploads, downloads, and deletions in an efficient, parallel process.
+
+This "fetch-then-compare" methodology ensures that the most recent version of any note always wins, providing a reliable and consistent note-taking experience across all your devices without silently losing your work.
+
+### S3 Sync Configuration
 
 The S3 sync feature is optional. To use it, you will need:
 
@@ -105,7 +131,7 @@ The S3 sync feature is optional. To use it, you will need:
 
 **Important Security Note:** For maximum security, it is highly recommended that you create a new IAM user with a policy that restricts its access to *only* the bucket you are using for FeatherNote.
 
-### CORS Configuration
+#### CORS Configuration
 
 For FeatherNote to be able to communicate with your S3 bucket, you will need to configure the bucket's CORS (Cross-Origin Resource Sharing) policy.
 
@@ -132,7 +158,7 @@ Here is an example CORS policy. You will need to replace `https://your-featherno
 ]
 ```
 
-### Setting up Sync in the App
+#### Setting up Sync in the App
 
 1.  Click on the "Settings" icon in the top right corner of the app.
 2.  Sign in with your Google account. This is used to securely store your encrypted settings in your browser's local storage, tied to your Google identity.
@@ -168,7 +194,7 @@ The entire implementation is **fully client-side**, meaning there is no custom b
 
 4.  **Direct API Communication:** Using the access token, the app's client-side code communicates directly with the Google Drive API. Google's services are configured to allow this, removing the need for a server to proxy requests.
 
-5.  **Robust Sync Logic:** The feature uses the same **"last-write-wins"** sync logic as the S3 sync. It compares local and remote timestamps to determine whether to upload, download, or delete notes, ensuring your data is consistent across all your devices.
+5.  **Syncing:** The feature uses the same robust **"last-write-wins"** sync logic as all other sync providers. See the "Sync Logic" section for a detailed explanation.
 
 #### For Developers: Setting Up Your Own Instance
 
@@ -187,28 +213,6 @@ If you are forking or self-hosting FeatherNote, you must obtain your own Google 
     *   Find the `GOOGLE_CLIENT_ID` property within the `mainApp` data object and paste your Client ID there.
 
 This process ensures that Google trusts your instance of the application and allows your users to grant it access to their Drive.
-
-### Sync Logic
-
-FeatherNote employs a robust synchronization strategy to ensure your notes are kept up-to-date across multiple devices while protecting against common data loss scenarios like conflicts and race conditions. The sync process can be thought of as a three-way merge between the client's local database, the remote S3 bucket, and a list of notes pending deletion.
-
-The core strategy is **"last-write-wins,"** determined by comparing timestamps. Here’s how it works each time a sync is triggered:
-
-1.  **Fetch Remote State:** The first and most crucial step is that the client fetches a complete list of all notes currently stored in your S3 bucket, along with their last modification times. This provides a clear picture of the server's state *before* any changes are made.
-
-2.  **Compare and Decide (Uploads):** The client then iterates through its local notes and compares each one against the remote state:
-    *   If a local note does not exist on the server, it is marked for **upload**.
-    *   If a note exists in both places, the client compares the local note's `updatedAt` timestamp with the server's `lastModified` timestamp. The local note is only marked for **upload** if it is demonstrably newer. This is the key step that prevents an older, offline change from overwriting a newer change that was synced from a different device.
-
-3.  **Compare and Decide (Downloads):** Next, the client examines the list of remote notes fetched in step 1:
-    *   If a note on the server does not exist in the local database, it is marked for **download**.
-    *   If a note exists in both places, it is only marked for **download** if the server's version is newer than the local version. This ensures your device always gets the most up-to-date copy.
-
-4.  **Handle Deletions:** Notes that you delete in the app are tracked in a temporary deletion queue. During the sync, these notes are permanently deleted from the S3 bucket. When another device syncs, it will see that the note is no longer on the server and will delete it from its own local database, keeping everything consistent.
-
-5.  **Execute:** Finally, the client executes all the planned uploads, downloads, and deletions in an efficient, parallel process.
-
-This "fetch-then-compare" methodology ensures that the most recent version of any note always wins, providing a reliable and consistent note-taking experience across all your devices without silently losing your work.
 
 ## Deployment
 
