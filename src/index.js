@@ -25,6 +25,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	loading: true,
 	miniSearch: null,
 	isSyncing: false,
+	isSaving: false,
 	syncIntervalId: null,
 	editingNoteId: null, // New state to track which note is being edited
 	deletedNoteIds: [],
@@ -193,14 +194,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				} else {
 					this.syncNotes(false);
 				}
-			}
-			if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+			} else if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
 				if (!this.editingNoteId) {
 					event.preventDefault();
 					this.revertDelete();
 				}
-			}
-			if (event.key === 'Escape') {
+			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
 					this.cancelEdit();
@@ -234,15 +233,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		} catch (e) { return null }
 	},
 
-	showToast({ title, description, variant = 'default', duration = 3000 }) {
+	showToast({ title, description, variant = 'default', duration = 3e3, quiet }) {
 		const id = `toast-${this.toastIdCounter++}`;
 		const newToast = { id, title, description, variant, show: true };
-		this.toasts.push(newToast);
+		if (!quiet) this.toasts.push(newToast);
 
-		console.log(description);
+		this.isSyncing = description;
 
 		setTimeout(() => {
 			this.dismissToast(id);
+			this.isSyncing = false;
 		}, duration);
 	},
 
@@ -625,35 +625,29 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			return;
 		}
 
+		this.isSyncing = 'Syncing...';
+		const userId = this.user ? this.user.id : null;
+
 		try {
-			if (this.gdriveStore.connected) {
-				if (typeof syncGoogleDriveNotes === 'function') {
-					this.isSyncing = 'Syncing with Google Drive...';
-					syncGoogleDriveNotes(isSilent, this.deletedNoteIds)
-						.then(() => {
-							this.deletedNoteIds = []; // Clear after successful sync
-							this.fetchNotes(); // Refresh notes from DB
-							if (!isSilent) {
-								this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
-							}
-						})
-						.catch((err) => {
-							console.error(err);
-							if (!isSilent) {
-								this.showToast({ variant: 'error', title: 'Google Drive Sync Failed', description: err.message });
-							}
-						})
-						.finally(() => {
-							this.isSyncing = false;
-						});
-				}
+			if (this.gdriveStore.connected && typeof syncGoogleDriveNotes === 'function') {
+				this.isSyncing = 'Syncing with Google Drive...';
+				await syncGoogleDriveNotes(isSilent, this.deletedNoteIds)
+					.then(() => {
+						this.fetchNotes(); // Refresh notes from DB
+						if (!isSilent) {
+							this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
+						}
+					})
+					.catch((err) => {
+						console.error(err);
+						if (!isSilent) {
+							this.showToast({ variant: 'error', title: 'Google Drive Sync Failed', description: err.message });
+						}
+					});
+				this.isSyncing = false;
 			}
 		} catch (ex) {console.error(ex)}
 
-		// Existing S3/Nostr logic
-		this.isSyncing = 'Syncing...';
-		const userId = this.user ? this.user.id : null;
-		console.log('syncNotes: Starting sync process.');
 		try {
 			const storedData = await getEncryptedSettingsDB(); // Get from IndexedDB
 			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
@@ -708,7 +702,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-				this.deletedNoteIds = []; // Clear deleted notes after successful sync
 
 				// Save the final state for the next sync
 				// if (result.finalRemoteIds) {
@@ -743,8 +736,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
 				}
 
-
-
 				if (!isSilent) {
 					this.showToast({
 						title: 'Sync Successful',
@@ -759,23 +750,27 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (!isSilent) {
 				let errorMessage = 'An unknown error occurred.';
 				let errorTitle = 'Incomplete Sync';
+				let quiet = false;
 
 				if (error instanceof TypeError) {
 					errorTitle = 'Network Error';
 					errorMessage = `Could not connect to the server. Please check your internet connection or server status. This could also be a CORS issue.`;
 				} else if (error instanceof Error) {
+					quiet = true;
 					errorMessage = error.message;
 				}
 
 				this.showToast({
+					quiet,
 					title: errorTitle,
 					description: errorMessage,
-					duration: 5000,
+					duration: 5e3,
 				});
 			}
-		} finally {
-			this.isSyncing = false;
 		}
+
+		this.isSyncing = false;
+		this.deletedNoteIds = []; // Clear after successful sync
 	},
 
 	async processSharedContent() {
@@ -843,7 +838,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					{
 						name: "Save",
 						action: function(editor){
-							Alpine.$data(document.querySelector('body'))?.saveNote();
+							Alpine.$data(document.querySelector('body'))?.saveNote(true);
 						},
 						className: "fa fa-save",
 						title: "Save",
@@ -1255,33 +1250,39 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async saveNote(isAuto) {
-		let finalTitle = this.noteEditorTitle.trim();
-		if (!finalTitle) {
-			// If title is empty or just whitespace, use a default title
-			finalTitle = 'Note at ' + new Date().toString().substr(0, 21); // Use a more readable format
-		}
-
-		const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
-
-		const noteData = {
-			title: finalTitle,
-			content: window.easyMDEInstance?.value() || this.noteEditorContent,
-			reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
-			tags: tags,
-		};
-
-		if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
-			await this.updateNote(this.noteEditorNoteId, noteData);
-		} else {
-			const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags);
-			if (newNote) {
-				this.noteEditorNoteId = newNote.id;
+		if (this.isSaving) return;
+		this.isSaving = true;
+		try {
+			let finalTitle = this.noteEditorTitle.trim();
+			if (!finalTitle) {
+				// If title is empty or just whitespace, use a default title
+				finalTitle = 'Note at ' + new Date().toString().substr(0, 21); // Use a more readable format
 			}
-		}
 
-		if (!isAuto) {
-			this.cancelEdit();
-			this.fetchNotes();
+			const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+			const noteData = {
+				title: finalTitle,
+				content: window.easyMDEInstance?.value() || this.noteEditorContent,
+				reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
+				tags: tags,
+			};
+
+			if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
+				await this.updateNote(this.noteEditorNoteId, noteData);
+			} else {
+				const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags);
+				if (newNote) {
+					this.noteEditorNoteId = newNote.id;
+				}
+			}
+
+			if (!isAuto) {
+				this.cancelEdit();
+				this.fetchNotes();
+			}
+		} finally {
+			this.isSaving = false;
 		}
 	},
 

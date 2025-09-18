@@ -291,7 +291,7 @@
 							</template>
 							<template x-if="gdriveStore.connected">
 								<div class="flex items-center gap-2">
-									<span class="text-green-600" x-text="`Connected as ${gdriveStore.user?.name}`"></span>
+									<span class="text-green-600" x-text="`(${gdriveStore.user?.name})`"></span>
 									<button class="px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
 										@click="signOutFromGoogleDrive()"
 										x-text="`Disconnect ${gdriveStore.user?.name}`"

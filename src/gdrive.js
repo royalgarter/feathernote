@@ -264,7 +264,7 @@ async function callDriveApi(apiCall) {
 			const app = Alpine.$data(document.querySelector('#main-app'));
 			if (app) {
 				app.gdriveStore.connected = false;
-				app.showToast({ variant: 'error', title: 'Session Expired', description: 'Please connect to Google Drive again.' });
+				app.showToast({ quiet: true, variant: 'error', title: 'Session Expired', description: 'Please connect to Google Drive again.' });
 			}
 			accessToken = null; // Clear the expired token
 			throw new Error('Google Drive session expired. Please re-authenticate.');
