@@ -154,31 +154,39 @@ Your notes will now be synced with the configured Nostr relays in addition to S3
 
 ### Google Drive Sync (Simple Sync)
 
-For users who want a simple, zero-configuration sync experience without needing to set up S3 or Nostr, FeatherNote offers syncing via Google Drive. This is the recommended option for most casual users, providing a "just works" experience by leveraging the user's own Google account for storage.
+For users who want a simple, zero-configuration sync experience, FeatherNote offers syncing via Google Drive. This is the recommended option for most users, providing a "just works" experience by leveraging the user's own Google account for storage.
 
 The entire implementation is **fully client-side**, meaning there is no custom backend server to build, host, or maintain.
 
-#### How it Works (In the Browser)
+#### How it Works
 
-1.  **Client-Side Authentication:** The app uses the **Google Identity Services for Web** JavaScript library to handle the entire sign-in and consent flow securely within the browser. When you sign in, the app receives a temporary `access token`.
+1.  **Client-Side Authentication:** The app uses the **Google Identity Services for Web** library to handle the sign-in and consent flow securely in the browser. When you sign in, the app receives a temporary `access token`.
 
-2.  **Private App Data Folder:** During the consent flow, FeatherNote requests permission to access a special, hidden folder in your Google Drive (`drive.appdata` scope). This folder is **only accessible by FeatherNote**, ensuring your notes don't clutter your main Drive view and remain private to the app.
+2.  **Persistent Sessions:** Your connection is saved in the browser's `localStorage`. When you reopen FeatherNote, the app automatically verifies your session and reconnects you, providing a seamless experience.
 
-3.  **Direct API Communication:** With the access token, the client-side code communicates directly with the Google Drive API using standard `fetch` requests. Google's APIs are configured with CORS (Cross-Origin Resource Sharing) to explicitly allow this, removing the need for a server to proxy requests.
+3.  **Private App Data Folder:** FeatherNote requests permission to access a special, hidden folder in your Google Drive (`drive.appdata` scope). This folder is **only accessible by FeatherNote**, ensuring your notes don't clutter your main Drive view and remain private to the app.
 
-4.  **Sync Logic:** This method uses the same robust **"last-write-wins"** sync logic as the S3 sync. It compares local and remote timestamps to determine whether to upload, download, or delete notes, ensuring your data is consistent across all your devices.
+4.  **Direct API Communication:** Using the access token, the app's client-side code communicates directly with the Google Drive API. Google's services are configured to allow this, removing the need for a server to proxy requests.
+
+5.  **Robust Sync Logic:** The feature uses the same **"last-write-wins"** sync logic as the S3 sync. It compares local and remote timestamps to determine whether to upload, download, or delete notes, ensuring your data is consistent across all your devices.
 
 #### For Developers: Setting Up Your Own Instance
 
-If you are hosting your own instance of FeatherNote, you will need to obtain your own Google Cloud credentials for the sync feature to work.
+If you are forking or self-hosting FeatherNote, you must obtain your own Google Cloud credentials for the sync feature to work.
 
-1.  **Google Cloud Console:** Create a project in the [Google Cloud Console](https://console.cloud.google.com/).
-2.  **Enable API:** Enable the "Google Drive API" for your project.
-3.  **Create Credentials:** Go to "Credentials" and create an "OAuth 2.0 Client ID" for a "Web application".
-4.  **Configure Origins:** Add the URL of your FeatherNote instance (e.g., `https://notes.example.com`) to the "Authorized JavaScript origins". For local development, add `http://localhost:7347`.
-5.  **Add Client ID to App:** You will need to configure FeatherNote with the generated Client ID. (The exact method for this will be in the code).
+1.  **Google Cloud Console:** Create a new project in the [Google Cloud Console](https://console.cloud.google.com/).
+2.  **Enable API:** In the "APIs & Services" dashboard, enable the **Google Drive API**.
+3.  **Create Credentials:** Go to "Credentials" and create an **OAuth 2.0 Client ID**.
+4.  **Configure OAuth Client ID:**
+    *   Set the "Application type" to **Web application**.
+    *   Under "Authorized JavaScript origins", add the URL where you will host your instance (e.g., `https://notes.example.com`).
+    *   For local development, you must also add `http://localhost:7347` (or your specific port).
+5.  **Add Client ID to App:**
+    *   Copy the generated **Client ID**.
+    *   Open the `src/index.js` file.
+    *   Find the `GOOGLE_CLIENT_ID` property within the `mainApp` data object and paste your Client ID there.
 
-This process ensures that Google knows to trust your instance of the application and allows your users to grant it access.
+This process ensures that Google trusts your instance of the application and allows your users to grant it access to their Drive.
 
 ### Sync Logic
 

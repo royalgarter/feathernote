@@ -7,17 +7,16 @@ document.addEventListener('alpine:init', () => {
 		appVersion: '',
 
 		// --- Sync Settings ---
-		syncSelection: 's3', // 's3', 'gdrive', 'nostr'
-        gdriveStore: {
-            connected: false,
-            user: null,
-        },
+		// syncSelection: 's3', // 's3', 'gdrive', 'nostr'
+		gdriveStore: {
+			connected: false,
+			user: null,
+		},
 
 		// --- Auth Data ---
 		user: null,
 		isGsiLoaded: false,
 		GOOGLE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com",
-		GDRIVE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com", // Same client ID can be used if Drive API is enabled for it.
 
 		// --- Note Manager Data ---
 		notes: [],
@@ -96,8 +95,8 @@ document.addEventListener('alpine:init', () => {
 			this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
 			this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
 
-			this.syncSelection = localStorage.getItem('feathernote-sync-selection') || 's3';
-			this.$watch('syncSelection', (value) => { localStorage.setItem('feathernote-sync-selection', value); });
+			// this.syncSelection = localStorage.getItem('feathernote-sync-selection') || 's3';
+			// this.$watch('syncSelection', (value) => { localStorage.setItem('feathernote-sync-selection', value); });
 
 			this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || 'wss://relay.damus.io';
 
@@ -139,23 +138,23 @@ document.addEventListener('alpine:init', () => {
 				script.defer = true;
 				script.onload = () => {
 					this.isGsiLoaded = true;
-                    if (typeof gisLoaded === 'function') {
-                        gisLoaded();
-                    }
+					if (typeof gisLoaded === 'function') {
+						gisLoaded();
+					}
 				};
 				document.body.appendChild(script);
 			}
 
-            // Load GAPI script
+			// Load GAPI script
 			if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
 				const script = document.createElement('script');
 				script.src = 'https://apis.google.com/js/api.js';
 				script.async = true;
 				script.defer = true;
 				script.onload = () => {
-                    if (typeof gapiLoaded === 'function') {
-                        gapiLoaded();
-                    }
+					if (typeof gapiLoaded === 'function') {
+						gapiLoaded();
+					}
 				};
 				document.body.appendChild(script);
 			}
@@ -323,22 +322,22 @@ document.addEventListener('alpine:init', () => {
 			}
 		},
 
-        signInToGoogleDrive() {
-            if (typeof signInToGoogleDrive === 'function') {
-                signInToGoogleDrive();
-            } else {
-                this.showToast({ variant: 'error', title: 'Error', description: 'Google Drive sync is not initialized.' });
-            }
-        },
+		signInToGoogleDrive() {
+			if (typeof signInToGoogleDrive === 'function') {
+				signInToGoogleDrive();
+			} else {
+				this.showToast({ variant: 'error', title: 'Error', description: 'Google Drive sync is not initialized.' });
+			}
+		},
 
-        signOutFromGoogleDrive() {
-            if (typeof signOutFromGoogleDrive === 'function') {
-                signOutFromGoogleDrive();
-                this.gdriveStore.connected = false;
-                this.gdriveStore.user = null;
-                this.showToast({ title: 'Disconnected', description: 'You have been disconnected from Google Drive.' });
-            }
-        },
+		signOutFromGoogleDrive() {
+			if (typeof signOutFromGoogleDrive === 'function') {
+				signOutFromGoogleDrive();
+				this.gdriveStore.connected = false;
+				this.gdriveStore.user = null;
+				this.showToast({ title: 'Disconnected', description: 'You have been disconnected from Google Drive.' });
+			}
+		},
 
 
 
@@ -628,35 +627,32 @@ document.addEventListener('alpine:init', () => {
 				return;
 			}
 
-			if (this.syncSelection === 'gdrive') {
-                if (this.gdriveStore.connected) {
-                    if (typeof syncGoogleDriveNotes === 'function') {
-                        this.isSyncing = 'Syncing with Google Drive...';
-                        syncGoogleDriveNotes(isSilent, this.deletedNoteIds)
-                            .then(() => {
-                                this.deletedNoteIds = []; // Clear after successful sync
-                                this.fetchNotes(); // Refresh notes from DB
-                                if (!isSilent) {
-                                    this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
-                                }
-                            })
-                            .catch((err) => {
-                                console.error(err);
-                                if (!isSilent) {
-                                    this.showToast({ variant: 'error', title: 'Google Drive Sync Failed', description: err.message });
-                                }
-                            })
-                            .finally(() => {
-                                this.isSyncing = false;
-                            });
-                    }
-                } else if (!isSilent) {
-                    this.showToast({ title: 'Google Drive Not Connected', description: 'Please connect to Google Drive in settings.' });
-                }
-                return;
-            }
+			try {
+				if (this.gdriveStore.connected) {
+					if (typeof syncGoogleDriveNotes === 'function') {
+						this.isSyncing = 'Syncing with Google Drive...';
+						syncGoogleDriveNotes(isSilent, this.deletedNoteIds)
+							.then(() => {
+								this.deletedNoteIds = []; // Clear after successful sync
+								this.fetchNotes(); // Refresh notes from DB
+								if (!isSilent) {
+									this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
+								}
+							})
+							.catch((err) => {
+								console.error(err);
+								if (!isSilent) {
+									this.showToast({ variant: 'error', title: 'Google Drive Sync Failed', description: err.message });
+								}
+							})
+							.finally(() => {
+								this.isSyncing = false;
+							});
+					}
+				}
+			} catch (ex) {console.error(ex)}
 
-            // Existing S3/Nostr logic
+			// Existing S3/Nostr logic
 			this.isSyncing = 'Syncing...';
 			const userId = this.user ? this.user.id : null;
 			console.log('syncNotes: Starting sync process.');
