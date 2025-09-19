@@ -745,7 +745,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');
 			}
-
 		} catch (error) {
 			if (!isSilent) {
 				let errorMessage = 'An unknown error occurred.';
