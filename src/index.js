@@ -94,6 +94,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	// --- Main App Init ---
 	init() {
 		// App Init
+		if (location.href.includes('//localhost')) {
+			document.querySelector('head title').innerHTML = '(local) FeatherNote';
+		}
+
 		this.darkMode = localStorage.getItem('feathernote-dark-mode') === 'true';
 		this.$watch('darkMode', (value) => { localStorage.setItem('feathernote-dark-mode', value); });
 
