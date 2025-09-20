@@ -16,7 +16,7 @@ const urlsToCache = [
 	'/icons/icons.json',
 	'/libs/aws-sdk-2.1692.0.min.js',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
-	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2',
+	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0',
 	'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
 	'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
 	'https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css',

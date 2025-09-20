@@ -135,7 +135,7 @@ app.get('/api/proxy', async (req, res) => {
 });
 
 // Serve static files from the 'src' directory
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname), { maxAge: '7d' }));
 
 // --- Share/Publish Endpoints ---
 const PUBLISHED = {};

@@ -35,6 +35,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	notesPerPage: 100,
 
 	// --- Note Editor Data ---
+	easyMDEIniting: false,
 	editorAutosaveIntervalId: null,
 	noteEditorVisible: false,
 	noteEditorNoteId: null,
@@ -281,6 +282,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			localStorage.setItem('feathernote-user', JSON.stringify(newUser));
 			localStorage.setItem('feathernote-has-logged-in', 'true');
 			this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
+
+			if (confirm('Signed in. Do you want to connect to Google Drive (optional)?')) {
+				this.signInToGoogleDrive();
+			}
 		} catch (error) {
 			console.error("Error processing credential:", error);
 			this.showToast({ variant: 'error', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
@@ -321,6 +326,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (window.google && window.google.accounts) {
 				window.google.accounts.id.disableAutoSelect();
 			}
+
+			this.signOutFromGoogleDrive();
 			this.showToast({ title: 'Signed Out', description: 'You have been signed out.' });
 		}
 	},
@@ -763,6 +770,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (!window.EasyMDE) return;
 
 		this.noteEditorVisible = false;
+		this.easyMDEIniting = true;
 		try {
 			window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
 				element: document.getElementById('note-content'),
@@ -817,7 +825,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						title: "Share",
 					},
 					"|",
-					"bold", "italic", "heading", "|",
+					"bold", "italic", "heading",
 					"quote", "unordered-list", "ordered-list", "|",
 					"link", "image",
 					{
@@ -906,7 +914,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						},
 						className: "fa fa-paint-brush",
 						title: "Excalidraw",
-					}, "|",
+					},
 					"code", "table",
 					{
 						name: "word-wrap",
@@ -947,7 +955,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						className: "fa fa-lightbulb-o",
 						title: "Improve with AI",
 					},
-					"|", "guide"
+					"|", "undo", "redo",
+					"|", "guide",
 				]
 			});
 			window.easyMDEInstance.uniqueId = id;
@@ -1045,7 +1054,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 
 			this.noteEditorVisible = false;
+			this.easyMDEIniting = false;
 		} catch (ex) {
+			this.easyMDEIniting = false;
 			this.noteEditorVisible = true;
 			this.showToast({ variant: 'error', title: 'Error', description: 'EasyMDE is not supported' });
 		}
@@ -1088,6 +1099,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	async clipNoteContent(noteId, skipSave) {
 		if (!noteId) return;
+
+		this.isSyncing = 'Clipping note content...';
 		document.body.style.cursor = 'wait';
 		try {
 			const note = await this.getNote(noteId);
@@ -1140,6 +1153,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 		} finally {
 			document.body.style.cursor = 'default';
+			this.isSyncing = false;
 		}
 	},
 
