@@ -96,7 +96,7 @@ const downloadNoteFromS3 = async (noteId, creds) => {
 
 	const data = await s3.getObject(params).promise();
 	if (data.Body) {
-		const str = new TextEncoder().decode(data.Body);
+		const str = (new TextDecoder()).decode(data.Body);
 		return JSON.parse(str);
 	} else {
 		throw new Error('Downloaded note has no body');
