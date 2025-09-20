@@ -36,6 +36,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- Note Editor Data ---
 	editorAutosaveIntervalId: null,
+	noteEditorVisible: false,
 	noteEditorNoteId: null,
 	noteEditorTitle: '',
 	noteEditorContent: '',
@@ -557,7 +558,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		try {
 			const noteToDelete = this.notes.find(note => note.id === id);
 			if (noteToDelete) {
-				if (!confirm(`Delete note "${noteToDelete.title}"?`)) return;
+				if (window.easyMDEInstance?.value?.()?.length || noteToDelete.content?.length) {
+					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}"?`)) return;
+				}
 
 				this.deletedNotesStack.push({ ...noteToDelete }); // Push a copy
 			}
@@ -753,9 +756,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	prepareEasyMDE(id) {
-		setTimeout(() => {
-			if (!window.EasyMDE) return;
+		if (!window.EasyMDE) return;
 
+		this.noteEditorVisible = false;
+		try {
 			window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
 				element: document.getElementById('note-content'),
 				unorderedListStyle: "-",
@@ -1036,7 +1040,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 			});
 
-		}, 100);
+			this.noteEditorVisible = false;
+		} catch (ex) {
+			this.noteEditorVisible = true;
+			this.showToast({ variant: 'error', title: 'Error', description: 'EasyMDE is not supported' });
+		}
 	},
 
 	async extractArticle(url) {
@@ -1139,9 +1147,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.noteEditorReminder = '';
 		this.noteEditorTags = '';
 
+		this.$nextTick(() => this.prepareEasyMDE(this.editingNoteId));
 		this.$nextTick(() => document.getElementById('note-title').setAttribute('placeholder', 'Note at ' + new Date().toString().substr(0, 21)));
 
-		this.prepareEasyMDE(this.editingNoteId);
 		window.location.hash = '#new_note';
 	},
 
@@ -1205,7 +1213,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.editingNoteId = null;
 		}
 
-		this.prepareEasyMDE(id);
+		this.$nextTick(() => this.prepareEasyMDE(id));
 	},
 
 	async saveNote(isAuto) {

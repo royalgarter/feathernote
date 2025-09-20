@@ -129,7 +129,7 @@
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
 				</div>
 				<div class="mb-4">
-					<textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
+					<textarea id="note-content" x-model="noteEditorContent" rows="15" :class="noteEditorVisible ? 'visible' : 'invisible'" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
 				</div>
 				<div class="mb-4">
 					<label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
