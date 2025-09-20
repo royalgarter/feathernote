@@ -1079,16 +1079,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		document.body.style.cursor = 'wait';
 		try {
 			const note = await this.getNote(noteId);
-			if (!note || !note.content) throw new Error("Note not found or is empty.");
 
-			const urlRegex = /(https?:\/\/[^\s]+)/;
+			let content = window.easyMDEInstance?.value?.() || this.noteEditorContent || note?.content || '';
+
+			const urlRegex = /(https?:\/\/[^\s\(\)\[\]]+)/;
 			const match = note.content.match(urlRegex);
 			if (!match) throw new Error("No URL found in the note to clip.");
 
 			const urlToClip = match[0];
 			const article = await this.extractArticle(urlToClip);
 
-			const newContent = `${window.easyMDEInstance?.value() || this.noteEditorContent || note.content || ''}\nSource: [${article.title || urlToClip}](${urlToClip})\n\n---\n\n${article.textContent.trim()}\n\n${article.lead_image_url ? `![](${article.lead_image_url})\n\n` : ''}`;
+			const newContent = (!article)
+				? content
+				: [
+					content,
+					'---',
+					article.textContent?.trim?.(),
+					article.lead_image_url ? `![](${article.lead_image_url})\n\n` : '',
+				].join('\n\n').trim();
 
 			// Remove the #needs-clipping tag
 			const newTags = (note.tags || []).filter(tag => tag !== '#needs-clipping');
@@ -1100,7 +1108,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Save the note
 			if (!skipSave) await this.updateNote(noteId, {
-				title: note.title || article.title,
+				title: note.title || article?.title,
 				content: newContent,
 				tags: newTags
 			});
