@@ -245,6 +245,7 @@ app.get('/about', (req, res) => {
 			return res.status(500).send('Could not load about page.');
 		}
 		const htmlContent = marked.parse(markdown);
+		res.set('Cache-Control', 'public, max-age=604800'); // 1 week
 		res.send(generateHtmlPage('About FeatherNote', htmlContent));
 	});
 });
