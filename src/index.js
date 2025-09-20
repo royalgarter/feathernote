@@ -629,9 +629,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const userId = this.user ? this.user.id : null;
 
 		try {
-			if (this.gdriveStore.connected && typeof syncGoogleDriveNotes === 'function') {
+			if (this.gdriveStore.connected && typeof syncNotesWithGoogleDrive === 'function') {
 				this.isSyncing = 'Syncing with Google Drive...';
-				await syncGoogleDriveNotes(isSilent, this.deletedNoteIds)
+				await syncNotesWithGoogleDrive(isSilent, this.deletedNoteIds)
 					.then(() => {
 						this.fetchNotes(); // Refresh notes from DB
 						if (!isSilent) {
@@ -681,24 +681,35 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (result.success) {
 				// Handle downloaded notes
 				let downloadedCount = 0;
-				for (const remoteNote of result.updatedNotes) {
-					const localNote = await getNoteDB(remoteNote.id);
-					if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-						if (localNote) { // Note exists locally, merge tags to prevent loss
-							const remoteTags = remoteNote.tags || [];
-							const localTags = localNote.tags || [];
-							const mergedTags = [...new Set([...localTags, ...remoteTags])];
-							remoteNote.tags = mergedTags;
-						}
-						await updateNoteDB(remoteNote);
-						downloadedCount++;
-					}
-				}
+				let notesToDeleteLocally = [];
 
-				// Handle notes that were deleted on the remote
-				const notesToDeleteLocally = result.notesToDeleteLocally || [];
-				for (const noteIdToDelete of notesToDeleteLocally) {
-					await deleteNoteDB(noteIdToDelete);
+				// If GDrive is not the main provider, perform a two-way sync with S3.
+				// Otherwise, S3 is a secondary provider, and we only push changes, not pull.
+				if (!this.gdriveStore.connected) {
+					for (const remoteNote of result.updatedNotes) {
+						const localNote = await getNoteDB(remoteNote.id);
+						if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+							if (typeof remoteNote.content === 'undefined') {
+								console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
+								continue;
+							}
+
+							if (localNote) { // Note exists locally, merge tags to prevent loss
+								const remoteTags = remoteNote.tags || [];
+								const localTags = localNote.tags || [];
+								const mergedTags = [...new Set([...localTags, ...remoteTags])];
+								remoteNote.tags = mergedTags;
+							}
+							await updateNoteDB(remoteNote);
+							downloadedCount++;
+						}
+					}
+
+					// Handle notes that were deleted on the remote (S3)
+					notesToDeleteLocally = result.notesToDeleteLocally || [];
+					for (const noteIdToDelete of notesToDeleteLocally) {
+						await deleteNoteDB(noteIdToDelete);
+					}
 				}
 
 				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
