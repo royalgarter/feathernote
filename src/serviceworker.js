@@ -67,7 +67,7 @@ self.addEventListener('fetch', (event) => {
 
 								if (credentials && credentials.bucket && credentials.accessKeyId && credentials.secretAccessKey) {
 										try {
-												const imageBlob = await downloadImageFromS3V2(imageId, credentials);
+												const imageBlob = await downloadImageFromS3(imageId, credentials);
 												if (imageBlob) {
 														// Store downloaded image in IndexedDB for future use
 														await addImageDB({ id: imageId, blob: imageBlob, synced: true }); // Mark as synced since it came from S3

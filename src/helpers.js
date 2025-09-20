@@ -150,7 +150,7 @@ const initDB = () => {
 			const db = event.target.result;
 			db.onclose = () => {
 				console.log('Database connection closed.');
-				dbPromise = null;
+			dbPromise = null;
 			};
 			resolve(db);
 		};
@@ -243,7 +243,7 @@ const getSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'reado
 const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'add', item);
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
 
-async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRelays) {
+async function synchronizeImages(encryptedSettings, userId, nostrPrivateKey, nostrRelays) {
 	try {
 		const credentials = await decryptSettings(encryptedSettings, userId);
 		if (!credentials) {
@@ -254,7 +254,7 @@ async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRe
 		let uploadedImageCount = 0;
 		const unsyncedImages = await getUnsyncedImagesDB();
 		for (const image of unsyncedImages) {
-			await uploadImageToS3V2(image, credentials, nostrPrivateKey, nostrRelays);
+			await uploadImage(image, credentials, nostrPrivateKey, nostrRelays);
 			try {
 				console.log(`Attempting to mark image ${image.id} as synced.`);
 				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
@@ -269,7 +269,7 @@ async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRe
 		// 2. Download missing images from S3
 		let downloadedImageCount = 0;
 		const allNotes = await getNotesDB();
-		const remoteImageKeys = await listImagesInS3V2(credentials, nostrPrivateKey, nostrRelays);
+		const remoteImageKeys = await listImages(credentials, nostrPrivateKey, nostrRelays);
 		const remoteImageIds = new Set(remoteImageKeys.map(x => x.id));
 
 		const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
@@ -287,7 +287,7 @@ async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRe
 			if (!localImage && remoteImageIds.has(imageId)) {
 				console.log(`Image ${imageId} not found locally, downloading from S3...`);
 				try {
-					const imageBlob = await downloadImageFromS3V2(imageId, credentials);
+					const imageBlob = await downloadImageFromS3(imageId, credentials);
 					if (imageBlob) {
 						await addImageDB({ id: imageId, blob: imageBlob, synced: true });
 						downloadedImageCount++;
@@ -300,16 +300,16 @@ async function apiSyncImages(encryptedSettings, userId, nostrPrivateKey, nostrRe
 
 		return { success: true, uploadedImageCount, downloadedImageCount };
 	} catch (error) {
-		console.error('apiSyncImages error:', error);
+		console.error('synchronizeImages error:', error);
 		return { success: false, error: error.message };
 	}
 }
 
-async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteIds, lastSync, nostrPrivateKey, nostrRelays) {
+async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, deletedNoteIds, lastSync, notes) {
 	try {
-		const credentials = await decryptSettings(encryptedSettings, userId);
-		if (!credentials) {
-			throw new Error('Failed to decrypt credentials.');
+		if (gdriveStore.connected && typeof syncNotesWithGoogleDrive === 'function') {
+			await syncNotesWithGoogleDrive(isSilent, deletedNoteIds)
+			return { success: true, gdrive: true };
 		}
 
 		if (!credentials.secretAccessKey) return {
@@ -318,10 +318,11 @@ async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteId
 		};
 
 		// --- Step 1: Get remote state FIRST ---
-		const remoteNoteMetadata = await listNotesInS3V2(credentials, nostrPrivateKey, nostrRelays);
+		const remoteNoteMetadata = await listNotes(credentials, nostrPrivateKey, nostrRelays);
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
+		const localNotes = notes || await getNotesDB();
 		const notesToUpload = localNotes.filter(localNote => {
 			// Don't upload notes that are slated for deletion.
 			if (deletedNoteIds.includes(localNote.id)) return false;
@@ -338,10 +339,10 @@ async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteId
 			return localDate > remoteDate;
 		});
 
-		const uploadPromises = notesToUpload.map(note => uploadNoteToS3V2(note, credentials, nostrPrivateKey, nostrRelays));
+		const uploadPromises = notesToUpload.map(note => uploadNote(note, credentials, nostrPrivateKey, nostrRelays));
 
 		// --- Step 3: Determine which notes to delete from S3 ---
-		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays));
+		const deletePromises = deletedNoteIds.map(noteId => deleteNote(noteId, credentials, nostrPrivateKey, nostrRelays));
 
 		// --- Step 4: Execute uploads and deletes ---
 		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
@@ -396,7 +397,7 @@ async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteId
 			}
 		}
 
-		const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3V2(remoteMeta.id, credentials));
+		const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3(remoteMeta.id, credentials));
 		const downloadResults = await Promise.allSettled(downloadPromises);
 
 		const updatedNotes = [];
@@ -418,23 +419,125 @@ async function apiSyncNotes(encryptedSettings, userId, localNotes, deletedNoteId
 		};
 
 	} catch (error) {
-		console.error('apiSyncNotes error:', error);
+		console.error('synchronize error:', error);
 		return { success: false, error: error.message };
 	}
 }
 
-async function apiDeleteNote(encryptedSettings, userId, noteId, nostrPrivateKey, nostrRelays) {
-	try {
-		const credentials = await decryptSettings(encryptedSettings, userId);
-		if (!credentials) {
-			throw new Error('Failed to decrypt credentials.');
-		}
-		await deleteNoteFromS3V2(noteId, credentials, nostrPrivateKey, nostrRelays);
-		return { success: true };
-	} catch (error) {
-		console.error('apiDeleteNote error:', error);
-		return { success: false, error: error.message };
+async function uploadNote(note, creds, nostrPrivateKey, nostrRelays) {
+	await Promise.allSettled([
+		uploadNoteToS3(note, creds),
+		window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note)
+	]);
+}
+
+async function listNotes(creds, nostrPrivateKey, nostrRelays) {
+	const s3NotesPromise = listNotesInS3(creds);
+
+	let nostrNotesPromise;
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		nostrNotesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
+	} else {
+		nostrNotesPromise = Promise.resolve([]);
 	}
+
+	const [s3Notes, nostrNotes] = await Promise.all([s3NotesPromise, nostrNotesPromise]);
+
+	const mergedNotes = new Map();
+
+	s3Notes.forEach(note => mergedNotes.set(note.id, note));
+
+	nostrNotes.forEach(note => {
+		const existingNote = mergedNotes.get(note.id);
+		const nostrLastModified = new Date(note.updatedAt || note.createdAt);
+
+		if (!existingNote) {
+			mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
+		} else {
+			const s3LastModified = new Date(existingNote.lastModified);
+			if (nostrLastModified > s3LastModified) {
+				mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
+			}
+		}
+	});
+
+	return Array.from(mergedNotes.values());
+}
+
+async function deleteNoteFromAllSources(noteId, creds, nostrPrivateKey, nostrRelays, gdriveStore) {
+	const promises = [];
+
+	// Local deletion
+	promises.push(deleteNoteDB(noteId));
+
+	// Remote deletions
+	if (gdriveStore.connected && typeof deleteNoteFromGoogleDrive === 'function') {
+		promises.push(deleteNoteFromGoogleDrive(noteId));
+	}
+
+	if (creds?.secretAccessKey) {
+		promises.push(deleteNoteFromS3(noteId, creds));
+	}
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
+	}
+
+	await Promise.all(promises);
+}
+
+async function uploadImage(imageRecord, creds, nostrPrivateKey, nostrRelays) {
+	const promises = [];
+
+	if (creds?.secretAccessKey) {
+		promises.push(uploadImageToS3(imageRecord, creds));
+	}
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		// a signed URL is not available with V2 of the SDK, so we'll just publish the record without the URL
+		promises.push(window.publishImageToRelays(relays, nostrPrivateKey, imageRecord));
+	}
+
+	await Promise.all(promises);
+}
+
+async function listImages(creds, nostrPrivateKey, nostrRelays) {
+	const s3ImagesPromise = listImagesInS3(creds);
+
+	let nostrImagesPromise;
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		nostrImagesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
+	} else {
+		nostrImagesPromise = Promise.resolve([]);
+	}
+
+	const [s3Images, nostrImageRecords] = await Promise.all([s3ImagesPromise, nostrImagesPromise]);
+
+	const mergedImages = new Map();
+
+	s3Images.forEach(image => mergedImages.set(image.id, image));
+
+	nostrImageRecords.forEach(imageRecord => {
+		if (!imageRecord.id) return;
+
+		const existingImage = mergedImages.get(imageRecord.id);
+		const nostrLastModified = new Date(imageRecord.updatedAt || imageRecord.createdAt);
+
+		if (!existingImage) {
+			mergedImages.set(imageRecord.id, { ...imageRecord, lastModified: nostrLastModified, source: 'nostr' });
+		} else {
+			const s3LastModified = new Date(existingImage.lastModified);
+			if (nostrLastModified > s3LastModified) {
+				mergedImages.set(imageRecord.id, { ...imageRecord, lastModified: nostrLastModified, source: 'nostr' });
+			}
+		}
+	});
+
+	return Array.from(mergedImages.values());
 }
 
 async function verifyGoogleJwt(token, clientId) {

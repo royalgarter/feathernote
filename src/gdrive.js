@@ -154,7 +154,7 @@ function signOutFromGoogleDrive() {
 
 
 // --- Sync Logic ---
-
+let REMOTE_GOOGLEDRIVE_FILES = [];
 /**
  * Main function to synchronize notes with Google Drive.
  * Implements a "last-write-wins" strategy.
@@ -291,6 +291,9 @@ async function listAllFilesFromGoogleDrive() {
 			files = files.concat(response.result.files);
 			pageToken = response.result.nextPageToken;
 		} while (pageToken);
+
+		REMOTE_GOOGLEDRIVE_FILES = files;
+
 		return files;
 	} catch (err) {
 		console.error("Error listing files:", err);
@@ -394,7 +397,7 @@ async function uploadNoteToGoogleDrive(note, existingFile = null) {
  * Deletes a note from Google Drive.
  * @param {string} noteId The ID of the note to delete.
  */
-async function deleteNoteFromGoogleDrive(noteId, remoteFiles = []) {
+async function deleteNoteFromGoogleDrive(noteId, remoteFiles = REMOTE_GOOGLEDRIVE_FILES) {
 	// Find the file ID first
 	const fileToDelete = remoteFiles.find(f => f.name === `${noteId}.json`);
 

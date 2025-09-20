@@ -562,50 +562,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				this.deletedNotesStack.push({ ...noteToDelete }); // Push a copy
 			}
 
-			this.deletedNoteIds.push(id);
-			this.cancelNotification(id);
-			await deleteNoteDB(id);
-			await this.deleteNoteFromS3(id, this.nostrPrivateKey, this.nostrRelays);
+			const userId = this.user ? this.user.id : null;
+			const storedData = await getEncryptedSettingsDB();
+			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
+			const credentials = await decryptSettings(encryptedSettings, userId);
+
+			await deleteNoteFromAllSources(id, credentials, this.nostrPrivateKey, this.nostrRelays, this.gdriveStore);
+
 			this.notes = this.notes.filter((note) => note.id !== id);
 			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
 			this.cancelEdit();
 		} catch (error) {
 			console.error('Error in deleteNote:', error);
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
-		}
-	},
-
-	async deleteNoteFromS3(noteId, nostrPrivateKey, nostrRelays) {
-		const userId = this.user ? this.user.id : null;
-		const storedData = await getEncryptedSettingsDB();
-		const encryptedSettings = storedData ? storedData.encryptedSettings : null;
-
-		if (!encryptedSettings) {
-			this.showToast({ title: 'Sync Not Configured', description: 'S3 sync is not configured.' });
-			return;
-		}
-
-		try {
-
-			const result = await apiDeleteNote(
-				encryptedSettings,
-				userId,
-				noteId,
-				nostrPrivateKey,
-				nostrRelays
-			);
-
-			console.dir({deleteNoteFromS3: result})
-
-			if (result.success) {
-				this.showToast({ title: 'Note Deleted from S3', description: `Note ${noteId} has been deleted from S3.` });
-			} else {
-				throw new Error(result.error || 'Server responded with an error.');
-			}
-
-		} catch (error) {
-			console.error('Error deleting note from S3:', error);
-			this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note from S3.' });
 		}
 	},
 
@@ -629,26 +598,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const userId = this.user ? this.user.id : null;
 
 		try {
-			if (this.gdriveStore.connected && typeof syncNotesWithGoogleDrive === 'function') {
-				this.isSyncing = 'Syncing with Google Drive...';
-				await syncNotesWithGoogleDrive(isSilent, this.deletedNoteIds)
-					.then(() => {
-						this.fetchNotes(); // Refresh notes from DB
-						if (!isSilent) {
-							this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
-						}
-					})
-					.catch((err) => {
-						console.error(err);
-						if (!isSilent) {
-							this.showToast({ variant: 'error', title: 'Google Drive Sync Failed', description: err.message });
-						}
-					});
-				this.isSyncing = false;
-			}
-		} catch (ex) {console.error(ex)}
-
-		try {
 			const storedData = await getEncryptedSettingsDB(); // Get from IndexedDB
 			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
 
@@ -656,102 +605,94 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				isSilent = true;
 				throw new Error('S3 credentials not found in IndexedDB.');
 			}
-			console.log('syncNotes: Encrypted settings retrieved from IndexedDB.');
 
-			const lastSyncedIds = JSON.parse(localStorage.getItem('feathernote-synced-ids') || '[]');
-			let localNotes = notes || await getNotesDB();
+			const credentials = await decryptSettings(encryptedSettings, userId);
 
-			// The 'notes' parameter is for targeted sync of specific notes.
-			// For a general background sync, we now send all notes to the sync API
-			// to allow for proper conflict resolution. The old implementation could
-			// cause data loss by uploading notes without checking for remote changes first.
-
-			localNotes = localNotes.filter(x => !this.deletedNoteIds.find(deleting => x.id == deleting));
-
-			const result = await apiSyncNotes(
-				encryptedSettings,
-				userId,
-				localNotes,
+			const result = await synchronize(
+				isSilent,
+				credentials,
+				this.nostrPrivateKey,
+				this.nostrRelays,
+				this.gdriveStore,
 				this.deletedNoteIds,
 				this.lastSync,
-				this.nostrPrivateKey,
-				this.nostrRelays
+				notes
 			);
 
 			if (result.success) {
-				// Handle downloaded notes
-				let downloadedCount = 0;
-				let notesToDeleteLocally = [];
-
-				// If GDrive is not the main provider, perform a two-way sync with S3.
-				// Otherwise, S3 is a secondary provider, and we only push changes, not pull.
-				if (!this.gdriveStore.connected) {
-					for (const remoteNote of result.updatedNotes) {
-						const localNote = await getNoteDB(remoteNote.id);
-						if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-							if (typeof remoteNote.content === 'undefined') {
-								console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
-								continue;
-							}
-
-							if (localNote) { // Note exists locally, merge tags to prevent loss
-								const remoteTags = remoteNote.tags || [];
-								const localTags = localNote.tags || [];
-								const mergedTags = [...new Set([...localTags, ...remoteTags])];
-								remoteNote.tags = mergedTags;
-							}
-							await updateNoteDB(remoteNote);
-							downloadedCount++;
-						}
-					}
-
-					// Handle notes that were deleted on the remote (S3)
-					notesToDeleteLocally = result.notesToDeleteLocally || [];
-					for (const noteIdToDelete of notesToDeleteLocally) {
-						await deleteNoteDB(noteIdToDelete);
-					}
-				}
-
-				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-
-				// Save the final state for the next sync
-				// if (result.finalRemoteIds) {
-				// 	localStorage.setItem('feathernote-synced-ids', JSON.stringify(result.finalRemoteIds));
-				// }
-				this.lastSync = new Date().toISOString();
-				localStorage.setItem('feathernote-lastSync', this.lastSync);
-
-				// After notes are synced, sync images
-				if (encryptedSettings) {
-					console.log('syncNotes: S3 is configured, attempting image sync.');
-					const imageSyncResult = await apiSyncImages(encryptedSettings, userId, this.nostrPrivateKey, this.nostrRelays);
-					if (imageSyncResult.success) {
-						console.log(`syncNotes: Image sync successful. Uploaded: ${imageSyncResult.uploadedImageCount}, Downloaded: ${imageSyncResult.downloadedImageCount}`);
-						if (!isSilent && (imageSyncResult.uploadedImageCount > 0 || imageSyncResult.downloadedImageCount > 0)) {
-							this.showToast({
-								title: 'Image Sync Complete',
-								description: `${imageSyncResult.uploadedImageCount} images uploaded, ${imageSyncResult.downloadedImageCount} images downloaded.`,
-							});
-						}
-					} else {
-						console.error('syncNotes: Image sync failed:', imageSyncResult.error);
-						if (!isSilent) {
-							this.showToast({
-								title: 'Image Sync Failed',
-								description: imageSyncResult.error,
-								variant: 'error',
-							});
-						}
+				if (result.gdrive) {
+					this.fetchNotes(); // Refresh notes from DB
+					if (!isSilent) {
+						this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
 					}
 				} else {
-					console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
-				}
+					// Handle downloaded notes
+					let downloadedCount = 0;
+					let notesToDeleteLocally = [];
 
-				if (!isSilent) {
-					this.showToast({
-						title: 'Sync Successful',
-						description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
-					});
+					// If GDrive is not the main provider, perform a two-way sync with S3.
+					// Otherwise, S3 is a secondary provider, and we only push changes, not pull.
+					if (!this.gdriveStore.connected) {
+						for (const remoteNote of result.updatedNotes) {
+							const localNote = await getNoteDB(remoteNote.id);
+							if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+								if (typeof remoteNote.content === 'undefined') {
+									console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
+									continue;
+								}
+
+								if (localNote) { // Note exists locally, merge tags to prevent loss
+									const remoteTags = remoteNote.tags || [];
+									const localTags = localNote.tags || [];
+									const mergedTags = [...new Set([...localTags, ...remoteTags])];
+									remoteNote.tags = mergedTags;
+								}
+								await updateNoteDB(remoteNote);
+								downloadedCount++;
+							}
+						}
+
+						// Handle notes that were deleted on the remote (S3)
+						notesToDeleteLocally = result.notesToDeleteLocally || [];
+						for (const noteIdToDelete of notesToDeleteLocally) {
+							await deleteNoteDB(noteIdToDelete);
+						}
+					}
+
+					await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
+
+					this.lastSync = new Date().toISOString();
+					localStorage.setItem('feathernote-lastSync', this.lastSync);
+
+					// After notes are synced, sync images
+					if (encryptedSettings) {
+						const imageSyncResult = await synchronizeImages(encryptedSettings, userId, this.nostrPrivateKey, this.nostrRelays);
+						if (imageSyncResult.success) {
+							if (!isSilent && (imageSyncResult.uploadedImageCount > 0 || imageSyncResult.downloadedImageCount > 0)) {
+								this.showToast({
+									title: 'Image Sync Complete',
+									description: `${imageSyncResult.uploadedImageCount} images uploaded, ${imageSyncResult.downloadedImageCount} images downloaded.`,
+								});
+							}
+						} else {
+							if (!isSilent) {
+								this.showToast({
+									title: 'Image Sync Failed',
+									description: imageSyncResult.error,
+									variant: 'error',
+								});
+							}
+						}
+					} else {
+						console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
+					}
+
+					if (!isSilent) {
+						this.showToast({
+							title: 'Sync Successful',
+							description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
+						});
+					}
 				}
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');
@@ -1210,7 +1151,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (encryptedSettings && userId) {
 				const credentials = await decryptSettings(encryptedSettings, userId);
 				if (credentials) {
-					const remoteMeta = await getNoteMetadataFromS3V2(id, credentials);
+					const remoteMeta = await getNoteMetadataFromS3(id, credentials);
 					const localNote = await getNoteDB(id);
 
 					if (remoteMeta && localNote && new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt)) {
@@ -1219,7 +1160,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							description: 'A newer version of this note was found on the server and has been loaded.',
 							duration: 5000
 						});
-						const remoteNote = await downloadNoteFromS3V2(id, credentials);
+						const remoteNote = await downloadNoteFromS3(id, credentials);
 						await updateNoteDB(remoteNote);
 					}
 				}

@@ -1,6 +1,6 @@
 // --- S3 Functions (Client-side AWS SDK v2) ---
 // Assumes AWS SDK is loaded globally
-const getS3ClientV2 = async (creds) => {
+const getS3Client = async (creds) => {
 	const maxWaitTime = 30000; // 30 seconds
 	const interval = 1000; // 1 second
 	let elapsedTime = 0;
@@ -29,10 +29,10 @@ const getS3ObjectKey = (noteId, creds) => {
 	return noteId.includes('images/') ? `${path}${noteId}` : `${path}${noteId}.json` ;
 };
 
-const uploadNoteToS3V2 = async (note, creds, nostrPrivateKey, nostrRelays) => {
-	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+const uploadNoteToS3 = async (note, creds) => {
+	if (!creds?.secretAccessKey) return;
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const noteJson = JSON.stringify(note, null, 2);
 
 	const params = {
@@ -42,20 +42,13 @@ const uploadNoteToS3V2 = async (note, creds, nostrPrivateKey, nostrRelays) => {
 		ContentType: 'application/json',
 	};
 
-	const s3Promise = s3.upload(params).promise();
-
-	if (nostrPrivateKey && nostrRelays) {
-		const relays = nostrRelays.split(',').map(r => r.trim());
-		await Promise.all([s3Promise, window.publishNoteToRelays(relays, nostrPrivateKey, note)]);
-	} else {
-		await s3Promise;
-	}
+	await s3.upload(params).promise();
 };
 
-const listNotesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
+const listNotesInS3 = async (creds) => {
 	if (!creds?.secretAccessKey) return [];
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
 	let allNoteMetadata = [];
 	let continuationToken = undefined;
@@ -88,47 +81,13 @@ const listNotesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
 		}
 	} while (continuationToken);
 
-	const mergedNotes = new Map(); // id -> {noteMetadata}
-
-	// Add S3 notes to the map
-	allNoteMetadata.forEach(note => mergedNotes.set(note.id, note));
-
-	// 2. Fetch from Nostr if configured
-	if (nostrPrivateKey && nostrRelays) {
-		const relays = nostrRelays.split(',').map(r => r.trim());
-		try {
-			const nostrNotes = await window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
-			nostrNotes.forEach(note => {
-				const existingNote = mergedNotes.get(note.id);
-				const nostrLastModified = new Date(note.updatedAt || note.createdAt);
-
-				if (!existingNote) {
-					// Note only exists on Nostr, add it
-					mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
-				} else {
-					// Note exists on both, resolve conflict
-					const s3LastModified = new Date(existingNote.lastModified);
-
-					if (nostrLastModified > s3LastModified) {
-						// Nostr is newer, prioritize Nostr
-						mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
-					}
-					// If S3 is newer or equal, S3 is already in the map, so do nothing (prioritize S3 on equal timestamp)
-				}
-			});
-		} catch (error) {
-			console.error("Nostr List Error:", error);
-			// Continue with S3 notes even if Nostr fails
-		}
-	}
-
-	return Array.from(mergedNotes.values());
+	return allNoteMetadata;
 };
 
-const downloadNoteFromS3V2 = async (noteId, creds) => {
+const downloadNoteFromS3 = async (noteId, creds) => {
 	if (!creds?.secretAccessKey) return;
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
 		Bucket: creds.bucket,
@@ -144,11 +103,11 @@ const downloadNoteFromS3V2 = async (noteId, creds) => {
 	}
 };
 
-const getNoteMetadataFromS3V2 = async (noteId, creds) => {
+const getNoteMetadataFromS3 = async (noteId, creds) => {
 	try {
 		if (!creds?.secretAccessKey) return;
 
-		const s3 = await getS3ClientV2(creds);
+		const s3 = await getS3Client(creds);
 		const key = getS3ObjectKey(noteId, creds);
 		const params = {
 			Bucket: creds.bucket,
@@ -171,24 +130,17 @@ const getNoteMetadataFromS3V2 = async (noteId, creds) => {
 	}
 };
 
-const deleteNoteFromS3V2 = async (noteId, creds, nostrPrivateKey, nostrRelays) => {
-	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+const deleteNoteFromS3 = async (noteId, creds) => {
+	if (!creds?.secretAccessKey) return;
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const key = getS3ObjectKey(noteId, creds);
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,
 	};
 
-	const s3Promise = s3.deleteObject(params).promise();
-
-	if (nostrPrivateKey && nostrRelays) {
-		const relays = nostrRelays.split(',').map(r => r.trim());
-		await Promise.all([s3Promise, window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId)]);
-	} else {
-		await s3Promise;
-	}
+	await s3.deleteObject(params).promise();
 };
 
 // --- S3 Functions for Images ---
@@ -198,10 +150,10 @@ const getImageS3ObjectKey = (imageId, imageType, creds) => {
 	return `${path}images/${imageId}.${extension}`;
 };
 
-const uploadImageToS3V2 = async (imageRecord, creds, nostrPrivateKey, nostrRelays) => {
-	if (!creds?.secretAccessKey) return new Promise(resolve => resolve());
+const uploadImageToS3 = async (imageRecord, creds) => {
+	if (!creds?.secretAccessKey) return;
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const key = getImageS3ObjectKey(imageRecord.id, imageRecord.blob.type, creds);
 
 	const params = {
@@ -210,22 +162,13 @@ const uploadImageToS3V2 = async (imageRecord, creds, nostrPrivateKey, nostrRelay
 		Body: imageRecord.blob,
 		ContentType: imageRecord.blob.type,
 	};
-	const s3Promise = s3.upload(params).promise();
-
-	if (nostrPrivateKey && nostrRelays) {
-		const relays = nostrRelays.split(',').map(r => r.trim());
-		const imageUrl = s3.getSignedUrl('getObject', { Bucket: creds.bucket, Key: key });
-		const imageRecordWithUrl = { ...imageRecord, url: imageUrl };
-		await Promise.all([s3Promise, window.publishImageToRelays(relays, nostrPrivateKey, imageRecordWithUrl)]);
-	} else {
-		await s3Promise;
-	}
+	await s3.upload(params).promise();
 };
 
-const downloadImageFromS3V2 = async (imageId, creds) => {
+const downloadImageFromS3 = async (imageId, creds) => {
 	if (!creds?.secretAccessKey) return;
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/${imageId}`;
 
 	try {
@@ -234,7 +177,7 @@ const downloadImageFromS3V2 = async (imageId, creds) => {
 			Prefix: prefix,
 			MaxKeys: 1,
 		};
-		const listData = await s3.listObjectsV2(listParams).promise();
+		const listData = await s3.listObjectsV2(params).promise();
 
 		if (listData.Contents && listData.Contents.length > 0) {
 			const exactKey = listData.Contents[0].Key;
@@ -259,10 +202,10 @@ const downloadImageFromS3V2 = async (imageId, creds) => {
 	}
 };
 
-const listImagesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
+const listImagesInS3 = async (creds) => {
 	if (!creds?.secretAccessKey) return [];
 
-	const s3 = await getS3ClientV2(creds);
+	const s3 = await getS3Client(creds);
 	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/`;
 	let allImageMetadata = [];
 	let continuationToken = undefined;
@@ -295,41 +238,5 @@ const listImagesInS3V2 = async (creds, nostrPrivateKey, nostrRelays) => {
 		}
 	} while (continuationToken);
 
-	const mergedImages = new Map(); // id -> {imageMetadata}
-
-	// Add S3 images to the map
-	allImageMetadata.forEach(image => mergedImages.set(image.id, image));
-
-	// 2. Fetch from Nostr if configured
-	if (nostrPrivateKey && nostrRelays) {
-		const relays = nostrRelays.split(',').map(r => r.trim());
-		try {
-			const nostrImageRecords = await window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
-			nostrImageRecords.forEach(imageRecord => {
-				if (!imageRecord.id) return; // Skip if no ID
-
-				const existingImage = mergedImages.get(imageRecord.id);
-				const nostrLastModified = new Date(imageRecord.updatedAt || imageRecord.createdAt);
-
-				if (!existingImage) {
-					// Image only exists on Nostr, add it
-					mergedImages.set(imageRecord.id, { ...imageRecord, lastModified: nostrLastModified, source: 'nostr' });
-				} else {
-					// Image exists on both, resolve conflict
-					const s3LastModified = new Date(existingImage.lastModified);
-
-					if (nostrLastModified > s3LastModified) {
-						// Nostr is newer, prioritize Nostr
-						mergedImages.set(imageRecord.id, { ...imageRecord, lastModified: nostrLastModified, source: 'nostr' });
-					}
-					// If S3 is newer or equal, S3 is already in the map, so do nothing (prioritize S3 on equal timestamp)
-				}
-			});
-		} catch (error) {
-			console.error("Nostr List Images Error:", error);
-			// Continue with S3 images even if Nostr fails
-		}
-	}
-
-	return Array.from(mergedImages.values());
+	return allImageMetadata;
 };
