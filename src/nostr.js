@@ -128,13 +128,11 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 		const pk = getPublicKey(sk_bytes);
 		const decryptedEventsMap = new Map();
 		const pool = new SimplePool();
-		const sub = pool.subscribeMany(relays, [
-			{
-				kinds: [4],
-				'#p': [pk],
-				authors: [pk],
-			}
-		]);
+		const sub = pool.subscribe(relays, {
+			kinds: [4],
+			'#p': [pk],
+			authors: [pk],
+		});
 
 		sub.on('event', async event => {
 			try {
