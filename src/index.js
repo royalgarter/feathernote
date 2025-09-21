@@ -460,10 +460,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		try {
 			const notesFromDB = await getNotesDB();
 			this.notes = notesFromDB.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-			this.scheduleAllFutureReminders();
-
 			this.updateAppBadge();
 			this.miniSearch?.removeAll();
+
+			// FIX: Ensure notes are unique before adding to search index to prevent crashes.
+			const uniqueNotes = Array.from(new Map(this.notes.map(note => [note.id, note])).values());
+			if (uniqueNotes.length < this.notes.length) {
+				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
+				this.notes = uniqueNotes;
+			}
+
 			this.miniSearch?.addAllAsync(this.notes);
 		} catch (error) {
 			console.error('Error in fetchNotes:', error);
@@ -741,7 +747,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						 this.deletedNoteIds = this.deletedNoteIds.filter(id => !result.successfulDeletedIds.includes(id));
 						 localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 					}
-				} 
+				}
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');
 			}
