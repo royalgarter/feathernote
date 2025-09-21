@@ -24,10 +24,21 @@ function generateNewPrivateKey() {
     return bytesToHex(sk);
 }
 
-// Get the public key from a private key (hex string)
+// Get the public key from a private key (hex or nsec string)
 function getPublicKeyFromPrivateKey(privateKey) {
-	const sk_bytes = hexToBytes(privateKey);
-	return window.NostrTools.getPublicKey(sk_bytes);
+    const { nip19 } = window.NostrTools;
+    let sk_bytes;
+    if (privateKey.startsWith('nsec')) {
+        const { type, data } = nip19.decode(privateKey);
+        if (type === 'nsec') {
+            sk_bytes = data;
+        } else {
+            throw new Error('Invalid nsec private key.');
+        }
+    } else {
+        sk_bytes = hexToBytes(privateKey);
+    }
+    return window.NostrTools.getPublicKey(sk_bytes);
 }
 
 // Publish a PRIVATE (kind 4) note to a list of relays
