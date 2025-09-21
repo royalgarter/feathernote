@@ -40,7 +40,7 @@ const CFKV = {
 const getAppVersion = async () => {
 	try {
 		const hash = crypto.createHash('sha1');
-		const keyFiles = ['index.html', 'index.js', 'helpers.js', 'serviceworker.js', 'manifest.json'];
+		const keyFiles = fs.readdirSync(__dirname).filter(x => x.includes('.js'));
 
 		for (const fileName of keyFiles) {
 			const filePath = path.join(__dirname, fileName);
