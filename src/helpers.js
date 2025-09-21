@@ -254,16 +254,14 @@ async function synchronizeImages(encryptedSettings, userId, nostrPrivateKey, nos
 		let uploadedImageCount = 0;
 		const unsyncedImages = await getUnsyncedImagesDB();
 		for (const image of unsyncedImages) {
-			await uploadImage(image, credentials, nostrPrivateKey, nostrRelays);
 			try {
-				console.log(`Attempting to mark image ${image.id} as synced.`);
+				await uploadImage(image, credentials, nostrPrivateKey, nostrRelays);
 				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
-				console.log(`Image ${image.id} successfully marked as synced.`);
-			} catch (dbError) {
-				console.error(`Failed to mark image ${image.id} as synced in DB:`, dbError);
-				// Optionally, re-throw or handle this error to prevent further sync issues
+				uploadedImageCount++;
+			} catch (uploadError) {
+				console.error(`Failed to upload or mark image ${image.id} as synced:`, uploadError);
+				// Continue to next image, but this one remains unsynced for next attempt
 			}
-			uploadedImageCount++;
 		}
 
 		// 2. Download missing images from S3
@@ -318,7 +316,7 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 		};
 
 		// --- Step 1: Get remote state FIRST ---
-		const remoteNoteMetadata = await listNotes(credentials, nostrPrivateKey, nostrRelays);
+		const remoteNoteMetadata = await listNotes(credentials, nostrPrivateKey, nostrRelays, lastSync);
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -342,7 +340,7 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 		const uploadPromises = notesToUpload.map(note => uploadNote(note, credentials, nostrPrivateKey, nostrRelays));
 
 		// --- Step 3: Determine which notes to delete from S3 ---
-		const deletePromises = deletedNoteIds.map(noteId => deleteNote(noteId, credentials, nostrPrivateKey, nostrRelays));
+		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromRemotes(noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore));
 
 		// --- Step 4: Execute uploads and deletes ---
 		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
@@ -431,13 +429,13 @@ async function uploadNote(note, creds, nostrPrivateKey, nostrRelays) {
 	]);
 }
 
-async function listNotes(creds, nostrPrivateKey, nostrRelays) {
-	const s3NotesPromise = listNotesInS3(creds);
+async function listNotes(creds, nostrPrivateKey, nostrRelays, sinceTimestamp) {
+	const s3NotesPromise = listNotesInS3(creds, sinceTimestamp);
 
 	let nostrNotesPromise;
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		nostrNotesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
+		nostrNotesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey, sinceTimestamp);
 	} else {
 		nostrNotesPromise = Promise.resolve([]);
 	}
@@ -465,11 +463,8 @@ async function listNotes(creds, nostrPrivateKey, nostrRelays) {
 	return Array.from(mergedNotes.values());
 }
 
-async function deleteNoteFromAllSources(noteId, creds, nostrPrivateKey, nostrRelays, gdriveStore) {
+async function deleteNoteFromRemotes(noteId, creds, nostrPrivateKey, nostrRelays, gdriveStore) {
 	const promises = [];
-
-	// Local deletion
-	promises.push(deleteNoteDB(noteId));
 
 	// Remote deletions
 	if (gdriveStore.connected && typeof deleteNoteFromGoogleDrive === 'function') {

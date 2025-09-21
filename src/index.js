@@ -25,6 +25,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	loading: true,
 	miniSearch: null,
 	isSyncing: false,
+	syncStatusMessage: '',
 	isSaving: false,
 	syncIntervalId: null,
 	editingNoteId: null, // New state to track which note is being edited
@@ -244,11 +245,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const newToast = { id, title, description, variant, show: true };
 		if (!quiet) this.toasts.push(newToast);
 
-		this.isSyncing = description;
+		this.syncStatusMessage = description;
 
 		setTimeout(() => {
 			this.dismissToast(id);
-			this.isSyncing = false;
+			if (this.syncStatusMessage === description) {
+				this.syncStatusMessage = '';
+			}
 		}, duration);
 	},
 
@@ -540,10 +543,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		console.log(`Autosaving note ${id}...`);
 
-		this.isSyncing = `Saving ${id}...`;
 		await this.updateNote(id, noteData, true);
-		this.isSyncing = `Saved ${id}`;
-		setTimeout(() => {this.isSyncing = false}, 1e3);
 	},
 
 	async revertDelete() {
@@ -573,22 +573,29 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}"?`)) return;
 				}
 
-				this.deletedNotesStack.push({ ...noteToDelete }); // Push a copy
+				this.deletedNotesStack.push({ ...noteToDelete }); // For session-only undo
 			}
 
-			const userId = this.user ? this.user.id : null;
-			const storedData = await getEncryptedSettingsDB();
-			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
-			const credentials = await decryptSettings(encryptedSettings, userId);
+			// Delete from local DB
+			await deleteNoteDB(id);
 
-			await deleteNoteFromAllSources(id, credentials, this.nostrPrivateKey, this.nostrRelays, this.gdriveStore);
-
+			// Remove from UI
 			this.notes = this.notes.filter((note) => note.id !== id);
-			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
+
+			// Add to deletion queue for next sync
+			if (!this.deletedNoteIds.includes(id)) {
+				this.deletedNoteIds.push(id);
+			}
+
+			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo. Syncing to remove from other devices.' });
 			this.cancelEdit();
+
+			// Trigger a silent sync to process the remote deletion
+			this.syncNotes(true);
+
 		} catch (error) {
 			console.error('Error in deleteNote:', error);
-			this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note.' });
+			this.showToast({ variant: 'error', title: 'Error', description: 'Could not delete note locally.' });
 		}
 	},
 
@@ -612,14 +619,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				return false; // Indicate no update happened
 			}
 
-			// If local note exists, merge tags to prevent data loss.
-			if (localNote) {
-				const remoteTags = remoteNote.tags || [];
-				const localTags = localNote.tags || [];
-				const mergedTags = [...new Set([...localTags, ...remoteTags])];
-				remoteNote.tags = mergedTags;
-			}
-
 			await updateNoteDB(remoteNote);
 			return true; // Indicate an update happened
 		}
@@ -628,11 +627,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	async syncNotes(isSilent = false, iterator = 0, notes = null) {
 		if (this.isSyncing) {
-			iterator++;
 			return;
 		}
-
-		this.isSyncing = 'Syncing...';
+		this.isSyncing = true;
+		this.syncStatusMessage = 'Syncing...';
 		const userId = this.user ? this.user.id : null;
 
 		try {
@@ -719,6 +717,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						});
 					}
 				}
+				// Clear deletion queue ONLY on success
+				this.deletedNoteIds = []; 
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');
 			}
@@ -743,10 +743,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					duration: 5e3,
 				});
 			}
+		} finally {
+			this.isSyncing = false;
+			this.syncStatusMessage = '';
 		}
-
-		this.isSyncing = false;
-		this.deletedNoteIds = []; // Clear after successful sync
 	},
 
 	async processSharedContent() {
