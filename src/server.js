@@ -60,20 +60,7 @@ const port = process.env.PORT || 7347;
 const upload = multer();
 const DENO_KV_SIZE_LIMIT = 65536;
 
-let appVersion;
-let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'});
-(async () => {
-	appVersion = await getAppVersion();
 
-	if (process.argv[2] === '--version') {
-		console.log(appVersion);
-		process.exit(0);
-	}
-
-	HTML_INDEX = HTML_INDEX?.replaceAll?.('___VERSION___', appVersion);
-
-	console.log(`App Version: ${appVersion}`);
-})();
 
 const generateHtmlPage = (title, bodyContent) => {
 	return `
@@ -268,7 +255,21 @@ app.get('/api/version', (req, res) => {
 	res.json({ version: appVersion || 'unknown' });
 });
 
-app.listen(port, () => {
-	console.log(`Server listening at http://localhost:${port}`);
-	console.log('- publishedNotesDir:', publishedNotesDir);
-});
+let appVersion;
+let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'});
+(async () => {
+	appVersion = await getAppVersion();
+
+	if (process.argv[2] === '--version') {
+		console.log(appVersion);
+		process.exit(0);
+	}
+
+	HTML_INDEX = HTML_INDEX?.replaceAll?.('___VERSION___', appVersion);
+
+	app.listen(port, () => {
+		console.log(`Server listening at http://localhost:${port}/?v=${appVersion}&d=${publishedNotesDir}`);
+	});
+})();
+
+
