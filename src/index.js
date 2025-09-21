@@ -602,6 +602,30 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
+	async mergeRemoteNote(remoteNote) {
+		const localNote = await this.getNote(remoteNote.id);
+
+		// If remote note is newer, update local note
+		if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
+			if (typeof remoteNote.content === 'undefined') {
+				console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
+				return false; // Indicate no update happened
+			}
+
+			// If local note exists, merge tags to prevent data loss.
+			if (localNote) {
+				const remoteTags = remoteNote.tags || [];
+				const localTags = localNote.tags || [];
+				const mergedTags = [...new Set([...localTags, ...remoteTags])];
+				remoteNote.tags = mergedTags;
+			}
+
+			await updateNoteDB(remoteNote);
+			return true; // Indicate an update happened
+		}
+		return false; // Indicate no update happened
+	},
+
 	async syncNotes(isSilent = false, iterator = 0, notes = null) {
 		if (this.isSyncing) {
 			iterator++;
@@ -648,20 +672,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					// Otherwise, S3 is a secondary provider, and we only push changes, not pull.
 					if (!this.gdriveStore.connected) {
 						for (const remoteNote of result.updatedNotes) {
-							const localNote = await getNoteDB(remoteNote.id);
-							if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
-								if (typeof remoteNote.content === 'undefined') {
-									console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
-									continue;
-								}
-
-								if (localNote) { // Note exists locally, merge tags to prevent loss
-									const remoteTags = remoteNote.tags || [];
-									const localTags = localNote.tags || [];
-									const mergedTags = [...new Set([...localTags, ...remoteTags])];
-									remoteNote.tags = mergedTags;
-								}
-								await updateNoteDB(remoteNote);
+							if (await this.mergeRemoteNote(remoteNote)) {
 								downloadedCount++;
 							}
 						}
@@ -1189,13 +1200,18 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					const localNote = await getNoteDB(id);
 
 					if (remoteMeta && localNote && new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt)) {
-						this.showToast({
-							title: 'Note Updated',
-							description: 'A newer version of this note was found on the server and has been loaded.',
-							duration: 5000
-						});
 						const remoteNote = await downloadNoteFromS3(id, credentials);
-						await updateNoteDB(remoteNote);
+
+						if (remoteNote.content) {
+							const updated = await this.mergeRemoteNote(remoteNote);
+							if (updated) {
+								this.showToast({
+									title: 'Note Updated',
+									description: 'A newer version of this note was found on the server and has been loaded.',
+									duration: 5000
+								});
+							}
+						}
 					}
 				}
 			}
