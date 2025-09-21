@@ -55,7 +55,13 @@ const getAppVersion = async () => {
 	}
 };
 
+const app = express();
+const port = process.env.PORT || 7347;
+const upload = multer();
+const DENO_KV_SIZE_LIMIT = 65536;
+
 let appVersion;
+let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'});
 (async () => {
 	appVersion = await getAppVersion();
 
@@ -64,13 +70,10 @@ let appVersion;
 		process.exit(0);
 	}
 
+	HTML_INDEX = HTML_INDEX?.replaceAll?.('___VERSION___', appVersion);
+
 	console.log(`App Version: ${appVersion}`);
 })();
-
-const app = express();
-const port = process.env.PORT || 7347;
-const upload = multer();
-const DENO_KV_SIZE_LIMIT = 65536;
 
 const generateHtmlPage = (title, bodyContent) => {
 	return `
@@ -133,9 +136,6 @@ app.get('/api/proxy', async (req, res) => {
 		res.status(500).json({ error: 'Failed to fetch the URL through proxy.' });
 	}
 });
-
-// Serve static files from the 'src' directory
-app.use(express.static(path.join(__dirname), { maxAge: '7d' }));
 
 // --- Share/Publish Endpoints ---
 const PUBLISHED = {};
@@ -251,9 +251,10 @@ app.get('/about', (req, res) => {
 });
 
 // Route for the main application page
-app.get('/', (req, res) => {
-	res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.get('/', (req, res) => HTML_INDEX ? res.send(HTML_INDEX) : res.sendFile(path.join(__dirname, 'index.html')) );
+
+// Serve static files from the 'src' directory
+app.use(express.static(path.join(__dirname), { maxAge: '7d' }));
 
 // Handle shared content from PWA
 app.post('/share', upload.none(), (req, res) => {
