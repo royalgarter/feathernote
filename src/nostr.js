@@ -136,22 +136,20 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 		}, {
 			onevent(event) {
 				console.log('got event:', event)
+				(async (event) => {
+					try {
+						const decryptedContent = await nip04.decrypt(sk_bytes, event.pubkey, event.content);
+						const parsedContent = JSON.parse(decryptedContent);
+						decryptedEventsMap.set(event.id, parsedContent);
+					} catch (error) {
+						console.error("Error decrypting or parsing event:", error);
+					}
+				})(event);
 			}
 		});
 
-		sub.on('event', async event => {
-			try {
-				const decryptedContent = await nip04.decrypt(sk_bytes, event.pubkey, event.content);
-				const parsedContent = JSON.parse(decryptedContent);
-				decryptedEventsMap.set(event.id, parsedContent);
-			} catch (error) {
-				console.error("Error decrypting or parsing event:", error);
-			}
-		});
+		await new Promise(resolve => setTimeout(resolve, 10e3)); // Wait for events to come in
 
-		await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for events to come in
-
-		sub.unsub();
 		pool.close(relays);
 
 		return Array.from(decryptedEventsMap.values());
