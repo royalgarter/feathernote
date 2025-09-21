@@ -177,7 +177,7 @@ const downloadImageFromS3 = async (imageId, creds) => {
 			Prefix: prefix,
 			MaxKeys: 1,
 		};
-		const listData = await s3.listObjectsV2(params).promise();
+		const listData = await s3.listObjectsV2(listParams).promise();
 
 		if (listData.Contents && listData.Contents.length > 0) {
 			const exactKey = listData.Contents[0].Key;
@@ -239,4 +239,34 @@ const listImagesInS3 = async (creds) => {
 	} while (continuationToken);
 
 	return allImageMetadata;
+};
+
+const deleteImageFromS3 = async (imageId, creds) => {
+	if (!creds?.secretAccessKey) return;
+
+	const s3 = await getS3Client(creds);
+	const prefix = `${creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : ''}images/${imageId}`;
+
+	try {
+		const listParams = {
+			Bucket: creds.bucket,
+			Prefix: prefix,
+			MaxKeys: 1,
+		};
+		const listData = await s3.listObjectsV2(listParams).promise();
+
+		if (listData.Contents && listData.Contents.length > 0) {
+			const exactKey = listData.Contents[0].Key;
+			const deleteParams = {
+				Bucket: creds.bucket,
+				Key: exactKey,
+			};
+			await s3.deleteObject(deleteParams).promise();
+		} else {
+			console.log(`Image with ID ${imageId} not found in S3 for deletion.`);
+		}
+	} catch (error) {
+		console.error(`S3 Delete Error for image ${imageId}:`, error);
+		throw new Error(`Failed to delete image from S3: ${error.code || error.message}`);
+	}
 };

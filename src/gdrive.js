@@ -148,10 +148,12 @@ function signOutFromGoogleDrive() {
 		google.accounts.oauth2.revoke(accessToken, () => {
 			console.log('Access token revoked.');
 			accessToken = null;
-			// Update UI accordingly
-			accessToken = null;
-			app.gdriveStore.connected = false;
-			app.gdriveStore.user = null;
+
+			const app = Alpine.$data(document.querySelector('#main-app'));
+			if (app.gdriveStore) {
+				app.gdriveStore.connected = false;
+				app.gdriveStore.user = null;
+			}
 		});
 	}
 }
