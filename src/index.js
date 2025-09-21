@@ -463,14 +463,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.updateAppBadge();
 			this.miniSearch?.removeAll();
 
-			// FIX: Ensure notes are unique before adding to search index to prevent crashes.
 			const uniqueNotes = Array.from(new Map(this.notes.map(note => [note.id, note])).values());
 			if (uniqueNotes.length < this.notes.length) {
 				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
 				this.notes = uniqueNotes;
 			}
 
-			this.miniSearch?.addAllAsync(this.notes);
+			this.miniSearch?.addAll(this.notes);
 		} catch (error) {
 			console.error('Error in fetchNotes:', error);
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
@@ -516,8 +515,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
 			this.scheduleNotification(updatedNote);
 			this.updateAppBadge();
-			this.miniSearch?.removeAll();
-			this.miniSearch?.addAllAsync(this.notes);
+			// this.miniSearch?.removeAll();
+
+			if (!this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
+
 			if (!isSilent) {
 				this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
 			}

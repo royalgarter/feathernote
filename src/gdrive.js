@@ -100,10 +100,14 @@ function checkGdriveSession() {
 
 		// Verify the token by fetching user info
 		fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-				headers: { 'Authorization': `Bearer ${accessToken}` }
+			headers: { 'Authorization': `Bearer ${accessToken}` }
 		})
 		.then(response => {
 			if (!response.ok) {
+				if (response.status == 401) {
+					signOutFromGoogleDrive();
+				}
+
 				// If response is not OK (e.g., 401 Unauthorized), the token is invalid.
 				throw new Error('Invalid or expired token.');
 			}
