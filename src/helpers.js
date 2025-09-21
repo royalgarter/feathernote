@@ -228,6 +228,7 @@ const getEncryptedSettingsDB = async () => {
 const addImageDB = (image) => performDBOperation(IMAGE_STORE, 'readwrite', 'add', image);
 const getImageDB = (id) => performDBOperation(IMAGE_STORE, 'readonly', 'get', id);
 const updateImageDB = (image) => performDBOperation(IMAGE_STORE, 'readwrite', 'put', image);
+const deleteImageDB = (id) => performDBOperation(IMAGE_STORE, 'readwrite', 'delete', id);
 const getUnsyncedImagesDB = async () => {
 	const allImages = await performDBOperation(IMAGE_STORE, 'readonly', 'getAll');
 	return allImages.filter(img => !img.synced);
@@ -250,29 +251,23 @@ async function synchronizeImages(encryptedSettings, userId, nostrPrivateKey, nos
 			throw new Error('Failed to decrypt credentials.');
 		}
 
-		// 1. Upload unsynced local images to S3
+		// 1. Upload unsynced local images
 		let uploadedImageCount = 0;
 		const unsyncedImages = await getUnsyncedImagesDB();
 		for (const image of unsyncedImages) {
 			try {
 				await uploadImage(image, credentials, nostrPrivateKey, nostrRelays);
-				await updateImageDB({ ...image, synced: true }); // Mark as synced in DB
+				await updateImageDB({ ...image, synced: true });
 				uploadedImageCount++;
 			} catch (uploadError) {
 				console.error(`Failed to upload or mark image ${image.id} as synced:`, uploadError);
-				// Continue to next image, but this one remains unsynced for next attempt
 			}
 		}
 
-		// 2. Download missing images from S3
-		let downloadedImageCount = 0;
+		// 2. Determine all referenced image IDs from all notes
 		const allNotes = await getNotesDB();
-		const remoteImageKeys = await listImages(credentials, nostrPrivateKey, nostrRelays);
-		const remoteImageIds = new Set(remoteImageKeys.map(x => x.id));
-
 		const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
 		const referencedImageIds = new Set();
-
 		for (const note of allNotes) {
 			let match;
 			while ((match = imageIdRegex.exec(note.content)) !== null) {
@@ -280,10 +275,15 @@ async function synchronizeImages(encryptedSettings, userId, nostrPrivateKey, nos
 			}
 		}
 
+		// 3. Download missing referenced images
+		let downloadedImageCount = 0;
+		const remoteImageMetas = await listImages(credentials, nostrPrivateKey, nostrRelays);
+		const remoteImageIds = new Set(remoteImageMetas.map(x => x.id));
+
 		for (const imageId of referencedImageIds) {
 			const localImage = await getImageDB(imageId);
 			if (!localImage && remoteImageIds.has(imageId)) {
-				console.log(`Image ${imageId} not found locally, downloading from S3...`);
+				console.log(`Image ${imageId} not found locally, downloading...`);
 				try {
 					const imageBlob = await downloadImageFromS3(imageId, credentials);
 					if (imageBlob) {
@@ -291,12 +291,44 @@ async function synchronizeImages(encryptedSettings, userId, nostrPrivateKey, nos
 						downloadedImageCount++;
 					}
 				} catch (downloadError) {
-					console.error(`Failed to download image ${imageId} from S3:`, downloadError);
+					console.error(`Failed to download image ${imageId}:`, downloadError);
 				}
 			}
 		}
 
-		return { success: true, uploadedImageCount, downloadedImageCount };
+		// 4. Garbage Collect Orphaned Images
+		let deletedOrphanCount = 0;
+
+		// GC Local (IndexedDB)
+		const allLocalImages = await performDBOperation(IMAGE_STORE, 'readonly', 'getAll');
+		const localOrphanIds = allLocalImages
+			.filter(img => !referencedImageIds.has(img.id))
+			.map(img => img.id);
+
+		for (const orphanId of localOrphanIds) {
+			await deleteImageDB(orphanId);
+			deletedOrphanCount++;
+		}
+
+		// GC Remote (S3/Nostr)
+		const remoteOrphanIds = remoteImageMetas
+			.filter(meta => !referencedImageIds.has(meta.id))
+			.map(meta => meta.id);
+
+		for (const orphanId of remoteOrphanIds) {
+			try {
+				await deleteImageFromRemotes(orphanId, credentials, nostrPrivateKey, nostrRelays);
+				// We count this even if only one of the remotes succeeds.
+				// To avoid double counting with local, we only increment if it wasn't a local orphan.
+				if (!localOrphanIds.includes(orphanId)) {
+					deletedOrphanCount++;
+				}
+			} catch (err) {
+				console.error(`Failed to delete remote orphan image ${orphanId}:`, err);
+			}
+		}
+
+		return { success: true, uploadedImageCount, downloadedImageCount, deletedOrphanCount };
 	} catch (error) {
 		console.error('synchronizeImages error:', error);
 		return { success: false, error: error.message };
@@ -347,18 +379,21 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 		const uploadAndDeleteResults = await Promise.allSettled(uploadAndDeletePromises);
 
 		let successfulUploadedCount = 0;
-		let successfulDeletedCount = 0;
+		const successfulDeletedIds = [];
 		uploadAndDeleteResults.forEach((result, index) => {
 			if (result.status === 'fulfilled') {
 				if (index < uploadPromises.length) {
 					successfulUploadedCount++;
 				} else {
-					successfulDeletedCount++;
+					// The index of the deletedId corresponds to the index in the deletePromises array
+					const deletedIdIndex = index - uploadPromises.length;
+					successfulDeletedIds.push(deletedNoteIds[deletedIdIndex]);
 				}
 			} else {
 				console.error('Sync error during upload/delete:', result.reason);
 			}
 		});
+		const successfulDeletedCount = successfulDeletedIds.length;
 
 
 		// --- Step 5: Determine which notes to download or delete locally ---
@@ -411,6 +446,7 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 			success: true,
 			uploadedCount: successfulUploadedCount,
 			deletedCount: successfulDeletedCount,
+			successfulDeletedIds, // downloaded notes
 			updatedNotes, // downloaded notes
 			notesToDeleteLocally,
 			finalRemoteIds: Array.from(remoteNoteIds)
@@ -478,6 +514,23 @@ async function deleteNoteFromRemotes(noteId, creds, nostrPrivateKey, nostrRelays
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
+	}
+
+	await Promise.all(promises);
+}
+
+async function deleteImageFromRemotes(imageId, creds, nostrPrivateKey, nostrRelays) {
+	const promises = [];
+
+	if (creds?.secretAccessKey) {
+		// Assuming a deleteImageFromS3 function exists or will be created in s3.js
+		promises.push(deleteImageFromS3(imageId, creds));
+	}
+
+	if (nostrPrivateKey && nostrRelays) {
+		const relays = nostrRelays.split(',').map(r => r.trim());
+		// Assuming a function to publish deletion events for images exists, similar to note deletion
+		promises.push(window.publishImageDeletionToRelays(relays, nostrPrivateKey, imageId));
 	}
 
 	await Promise.all(promises);

@@ -170,6 +170,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (lastSync) {
 			this.lastSync = lastSync;
 		}
+
+		const deletedNoteIds = localStorage.getItem('feathernote-deleted-note-ids');
+		if (deletedNoteIds) {
+			try {
+				this.deletedNoteIds = JSON.parse(deletedNoteIds);
+			} catch (e) {
+				this.deletedNoteIds = [];
+			}
+		}
+
 		this.miniSearch = window.MiniSearch ? new MiniSearch({
 			fields: ['title', 'content', 'tags'], // Fields to search!
 			storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
@@ -561,6 +571,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		// Remove from the S3 deletion queue
 		this.deletedNoteIds = this.deletedNoteIds.filter(id => id !== noteToRestore.id);
+		localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 
 		this.showToast({ title: 'Note Restored', description: `"${noteToRestore.title}" has been restored.` });
 	},
@@ -585,6 +596,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			// Add to deletion queue for next sync
 			if (!this.deletedNoteIds.includes(id)) {
 				this.deletedNoteIds.push(id);
+				localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 			}
 
 			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo. Syncing to remove from other devices.' });
@@ -661,6 +673,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					if (!isSilent) {
 						this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
 					}
+					// GDrive sync was successful, clear the pending deletions.
+					this.deletedNoteIds = [];
+					localStorage.removeItem('feathernote-deleted-note-ids');
 				} else {
 					// Handle downloaded notes
 					let downloadedCount = 0;
@@ -690,15 +705,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					// After notes are synced, sync images
 					if (encryptedSettings) {
 						const imageSyncResult = await synchronizeImages(encryptedSettings, userId, this.nostrPrivateKey, this.nostrRelays);
-						if (imageSyncResult.success) {
-							if (!isSilent && (imageSyncResult.uploadedImageCount > 0 || imageSyncResult.downloadedImageCount > 0)) {
-								this.showToast({
-									title: 'Image Sync Complete',
-									description: `${imageSyncResult.uploadedImageCount} images uploaded, ${imageSyncResult.downloadedImageCount} images downloaded.`,
-								});
-							}
-						} else {
-							if (!isSilent) {
+												if (imageSyncResult.success) {
+														const { uploadedImageCount, downloadedImageCount, deletedOrphanCount } = imageSyncResult;
+														if (!isSilent && (uploadedImageCount > 0 || downloadedImageCount > 0 || deletedOrphanCount > 0)) {
+															let description = `${uploadedImageCount} uploaded, ${downloadedImageCount} downloaded.`;
+															if (deletedOrphanCount > 0) {
+																description += ` ${deletedOrphanCount} orphaned images deleted.`;
+															}
+															this.showToast({
+																title: 'Image Sync Complete',
+																description,
+															});
+														}
+													} else {							if (!isSilent) {
 								this.showToast({
 									title: 'Image Sync Failed',
 									description: imageSyncResult.error,
@@ -716,9 +735,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
 						});
 					}
-				}
-				// Clear deletion queue ONLY on success
-				this.deletedNoteIds = []; 
+
+					// S3/Nostr sync was successful, filter the pending deletions
+					if (result.successfulDeletedIds) {
+						 this.deletedNoteIds = this.deletedNoteIds.filter(id => !result.successfulDeletedIds.includes(id));
+						 localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
+					}
+				} 
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');
 			}
