@@ -364,7 +364,7 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 			}
 
 			// Note exists remotely. Only upload if local is newer.
-			const remoteDate = new Date(remoteMeta.lastModified);
+			const remoteDate = new Date(remoteMeta.updatedAt);
 			const localDate = new Date(localNote.updatedAt);
 			return localDate > remoteDate;
 		});
@@ -411,7 +411,7 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 				}
 			} else {
 				// Note exists on both. Download if remote is newer.
-				const remoteDate = new Date(remoteMeta.lastModified);
+				const remoteDate = new Date(remoteMeta.updatedAt);
 				const localDate = new Date(localNote.updatedAt);
 				if (remoteDate > localDate) {
 					notesToDownload.push(remoteMeta);
@@ -487,11 +487,11 @@ async function listNotes(creds, nostrPrivateKey, nostrRelays, sinceTimestamp) {
 		const nostrLastModified = new Date(note.updatedAt || note.createdAt);
 
 		if (!existingNote) {
-			mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
+			mergedNotes.set(note.id, { ...note, updatedAt: nostrLastModified, source: 'nostr' });
 		} else {
-			const s3LastModified = new Date(existingNote.lastModified);
+			const s3LastModified = new Date(existingNote.updatedAt);
 			if (nostrLastModified > s3LastModified) {
-				mergedNotes.set(note.id, { ...note, lastModified: nostrLastModified, source: 'nostr' });
+				mergedNotes.set(note.id, { ...note, updatedAt: nostrLastModified, source: 'nostr' });
 			}
 		}
 	});
