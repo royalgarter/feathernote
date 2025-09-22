@@ -148,9 +148,9 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 			}
 		});
 
-		await new Promise(resolve => setTimeout(resolve, 10e3)); // Wait for events to come in
+		await new Promise(resolve => setTimeout(resolve, 3e3)); // Wait for events to come in
 
-		pool.close(relays);
+		try {pool.close(relays);} catch (ex) {};
 
 		return Array.from(decryptedEventsMap.values());
 	} catch (error) {
@@ -216,3 +216,39 @@ async function publishImageToRelays(relays, privateKey, imageRecord) {
 		return null;
 	}
 }
+
+async function publishImageDeletionToRelays(relays, privateKey, imageId) {
+	try {
+        const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+        const sk_bytes = getSkBytes(privateKey);
+        const pk = getPublicKey(sk_bytes);
+		const pool = new SimplePool();
+
+		const eventTemplate = {
+			kind: 5,
+			created_at: Math.floor(Date.now() / 1000),
+			tags: [
+				['e', imageId]
+			],
+			content: 'Image deleted',
+		};
+
+		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
+
+		await Promise.all(pool.publish(relays, signedEvent));
+		pool.close(relays);
+
+		return signedEvent;
+	} catch (error) {
+		console.error("Error publishing image deletion to Nostr relays:", error);
+		return null;
+	}
+}
+
+window.generateNewPrivateKey = generateNewPrivateKey;
+window.publishNoteToRelays = publishNoteToRelays;
+window.publishPublicNoteToRelays = publishPublicNoteToRelays;
+window.fetchAndDecryptEventsFromRelays = fetchAndDecryptEventsFromRelays;
+window.publishNoteDeletionToRelays = publishNoteDeletionToRelays;
+window.publishImageToRelays = publishImageToRelays;
+window.publishImageDeletionToRelays = publishImageDeletionToRelays;
