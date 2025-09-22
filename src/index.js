@@ -825,7 +825,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				showIcons: ["code", "table"],
 				autosave: {
 					enabled: true,
-					uniqueId: id,
+					uniqueId: [id, Date.now()].join('-'),
 					delay: 1000,
 					submit_delay: 5000,
 					timeFormat: {
