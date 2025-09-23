@@ -421,14 +421,24 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 
 		// Find notes deleted remotely
 		const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+		const locallyDeletedNoteIds = new Set(deletedNoteIds);
 		const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
-		for (const localNoteId of allLocalNotesMap.keys()) {
-			if (!remoteNoteIds.has(localNoteId) && !deletedNoteIds.includes(localNoteId) && !uploadedNoteIds.has(localNoteId)) {
-				// This note exists locally but not remotely, and we didn't delete it.
-				// It must have been deleted on another device. Delete it locally.
-				notesToDeleteLocally.push(localNoteId);
-			}
-		}
+
+		// Create a set of all local note IDs for easier checking
+		const localNoteIds = new Set(allLocalNotesMap.keys());
+
+		// Identify notes that should be deleted locally:
+		// - Exist locally
+		// - Don't exist remotely
+		// - Weren't already marked for local deletion
+		// - Weren't just uploaded (which would mean they now exist remotely)
+		const remotelyDeletedNoteIds = [...localNoteIds].filter(noteId => 
+			!remoteNoteIds.has(noteId) && 
+			!locallyDeletedNoteIds.has(noteId) && 
+			!uploadedNoteIds.has(noteId)
+		);
+
+		notesToDeleteLocally.push(...remotelyDeletedNoteIds);
 
 		const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3(remoteMeta.id, credentials));
 		const downloadResults = await Promise.allSettled(downloadPromises);
