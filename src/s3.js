@@ -68,7 +68,7 @@ const listNotesInS3 = async (creds) => {
 
 				return {
 					id: item.Key.replace(prefix, '').replace('.json', ''),
-					lastModified: item.LastModified,
+					updatedAt: item.LastModified,
 					source: 's3'
 				};
 			}).filter(item => !!item) || [];
