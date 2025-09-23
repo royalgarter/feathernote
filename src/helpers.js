@@ -460,9 +460,9 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 
 async function uploadNote(note, creds, nostrPrivateKey, nostrRelays) {
 	await Promise.allSettled([
-		uploadNoteToS3(note, creds),
-		window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note)
-	]);
+		creds.secretAccessKey ? uploadNoteToS3(note, creds) : null,
+		nostrPrivateKey ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+	].filter(x => x));
 }
 
 async function listNotes(creds, nostrPrivateKey, nostrRelays, sinceTimestamp) {
