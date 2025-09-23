@@ -438,7 +438,13 @@ async function synchronize(isSilent, credentials, nostrPrivateKey, nostrRelays, 
 			if (result.status === 'fulfilled' && result.value) {
 				updatedNotes.push(result.value);
 			} else if (result.status === 'rejected') {
-				console.log('Sync status S3 (specified key does not exist):', notesToDownload[idx].id, result.reason.message);
+				console.log('Sync download error:', notesToDownload[idx].id, result.reason.message);
+				// If a note was listed in metadata but fails to download with NoSuchKey,
+				// it means it was deleted between the list and get operations.
+				// We should treat it as a remote deletion.
+				if (result.reason.code === 'NoSuchKey') {
+					notesToDeleteLocally.push(notesToDownload[idx].id);
+				}
 			}
 		});
 
