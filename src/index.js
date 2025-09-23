@@ -663,16 +663,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			const credentials = await decryptSettings(encryptedSettings, userId);
 
-			const result = await synchronize(
+			const result = await synchronize({
+				notes,
+				deletedNoteIds: this.deletedNoteIds,
 				isSilent,
 				credentials,
-				this.nostrPrivateKey,
-				this.nostrRelays,
-				this.gdriveStore,
-				this.deletedNoteIds,
-				this.lastSync,
-				notes
-			);
+				nostrPrivateKey: this.nostrPrivateKey,
+				nostrRelays: this.nostrRelays,
+				gdriveStore: this.gdriveStore,
+				lastSync: this.lastSync,
+			});
 
 			if (result.success) {
 				if (result.gdrive) {
@@ -711,20 +711,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 					// After notes are synced, sync images
 					if (encryptedSettings) {
-						const imageSyncResult = await synchronizeImages(encryptedSettings, userId, this.nostrPrivateKey, this.nostrRelays);
-												if (imageSyncResult.success) {
-														const { uploadedImageCount, downloadedImageCount, deletedOrphanCount } = imageSyncResult;
-														if (!isSilent && (uploadedImageCount > 0 || downloadedImageCount > 0 || deletedOrphanCount > 0)) {
-															let description = `${uploadedImageCount} uploaded, ${downloadedImageCount} downloaded.`;
-															if (deletedOrphanCount > 0) {
-																description += ` ${deletedOrphanCount} orphaned images deleted.`;
-															}
-															this.showToast({
-																title: 'Image Sync Complete',
-																description,
-															});
-														}
-													} else {							if (!isSilent) {
+						const imageSyncResult = await synchronizeImages({encryptedSettings, userId, nostrPrivateKey: this.nostrPrivateKey, nostrRelays: this.nostrRelays});
+						if (imageSyncResult.success) {
+							const { uploadedImageCount, downloadedImageCount, deletedOrphanCount } = imageSyncResult;
+							if (!isSilent && (uploadedImageCount > 0 || downloadedImageCount > 0 || deletedOrphanCount > 0)) {
+								let description = `${uploadedImageCount} uploaded, ${downloadedImageCount} downloaded.`;
+								if (deletedOrphanCount > 0) {
+									description += ` ${deletedOrphanCount} orphaned images deleted.`;
+								}
+								this.showToast({
+									title: 'Image Sync Complete',
+									description,
+								});
+							}
+						} else {
+							if (!isSilent) {
 								this.showToast({
 									title: 'Image Sync Failed',
 									description: imageSyncResult.error,
