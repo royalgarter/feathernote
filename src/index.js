@@ -639,7 +639,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 
 			await updateNoteDB(remoteNote);
-			return true; // Indicate an update happened
+			return remoteNote; // Return the updated note
 		}
 		return false; // Indicate no update happened
 	},
@@ -1217,6 +1217,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			clearInterval(this.editorAutosaveIntervalId);
 		}
 		this.editingNoteId = id;
+		let noteToLoad = id;
 
 		try {
 			const userId = this.user ? this.user.id : null;
@@ -1233,8 +1234,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						const remoteNote = await downloadNoteFromS3(id, credentials);
 
 						if (remoteNote.content) {
-							const updated = await this.mergeRemoteNote(remoteNote);
-							if (updated) {
+							const updatedNote = await this.mergeRemoteNote(remoteNote);
+							if (updatedNote) {
+								noteToLoad = updatedNote;
 								this.showToast({
 									title: 'Note Updated',
 									description: 'A newer version of this note was found on the server and has been loaded.',
@@ -1254,7 +1256,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 		}
 
-		await this.loadNoteIntoEditor(id);
+		await this.loadNoteIntoEditor(noteToLoad);
 		this.editorAutosaveIntervalId = setInterval(() => {
 			this.autosaveCurrentNote();
 		}, 60 * 1000);
@@ -1262,11 +1264,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	// --- Note Editor Methods (moved from noteEditor component) ---
-	async loadNoteIntoEditor(id) {
+	async loadNoteIntoEditor(noteOrId) {
+		const isId = typeof noteOrId === 'string';
+		const id = isId ? noteOrId : noteOrId.id;
+
 		if (this.noteEditorNoteId === id && window.easyMDEInstance) return;
 		this.noteEditorNoteId = id;
 		if (!this.noteEditorNoteId) return;
-		const note = await this.getNote(this.noteEditorNoteId);
+
+		const note = isId ? await this.getNote(id) : noteOrId;
+
 		if (note) {
 			this.noteEditorTitle = note.title;
 			this.noteEditorContent = note.content;
