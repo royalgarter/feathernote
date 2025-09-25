@@ -4,7 +4,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	// --- App Data ---
 	toasts: [],
 	toastIdCounter: 0,
-	darkMode: false,
+	darkMode: true,
 	appVersion: '',
 
 	// --- Sync Settings ---
