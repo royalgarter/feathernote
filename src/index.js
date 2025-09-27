@@ -42,6 +42,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	noteEditorNoteId: null,
 	noteEditorTitle: '',
 	noteEditorContent: '',
+	noteEditorBaseContent: null,
 	noteEditorTags: '',
 	noteEditorReminder: '',
 
@@ -631,17 +632,92 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	async mergeRemoteNote(remoteNote) {
 		const localNote = await this.getNote(remoteNote.id);
 
-		// If remote note is newer, update local note
+		// Condition 1: Is the user editing this specific note?
+		const isEditingThisNote = this.editingNoteId === remoteNote.id;
+
+		// Condition 2: Has the user made changes?
+		const localContent = window.easyMDEInstance?.value();
+		const hasUserMadeChanges = this.noteEditorBaseContent && localContent && this.noteEditorBaseContent !== localContent;
+
+		// Condition 3: Is the remote note newer than the base version the user started with?
+		// And also newer than the last local save?
+		const isRemoteNewer = localNote && new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt);
+
+		if (isEditingThisNote && hasUserMadeChanges && isRemoteNewer) {
+			// *** 3-Way Merge Logic ***
+			if (typeof diff_match_patch === 'undefined') {
+				console.error('diff_match_patch library not loaded. Skipping 3-way merge.');
+				this.showToast({ variant: 'error', title: 'Merge Error', description: 'Could not perform 3-way merge. Library not loaded.' });
+				return false; // Or handle fallback appropriately
+			}
+
+			this.showToast({
+				title: 'Merge Conflict',
+				description: 'Automatic 3-way merge initiated.',
+				duration: 5000
+			});
+
+			const dmp = new diff_match_patch();
+			const baseText = this.noteEditorBaseContent;
+			const localText = localContent;
+			const remoteText = remoteNote.content;
+
+			// Create a patch from BASE to LOCAL (user's changes)
+			const patch = dmp.patch_make(baseText, localText);
+
+			// Apply the patch to the REMOTE version
+			const [mergedText, results] = dmp.patch_apply(patch, remoteText);
+
+			let finalContent = mergedText;
+
+			// Check if any part of the merge failed
+			if (results.some(r => !r)) {
+				finalContent += `
+
+--- MERGE CONFLICT ---
+Your changes could not be fully merged with a newer version from the server. Please review the note above.
+--- END CONFLICT ---`;
+				this.showToast({ variant: 'error', title: 'Merge Conflict', description: 'Could not fully merge changes. Please review the note.' });
+			}
+
+			// Update editor and save to DB
+			if (window.easyMDEInstance) {
+				window.easyMDEInstance.value(finalContent);
+			}
+			this.noteEditorContent = finalContent;
+			this.noteEditorBaseContent = finalContent; // The new base is the merged content
+
+			const updatedNote = { ...remoteNote, content: finalContent, updatedAt: new Date().toISOString() };
+			await updateNoteDB(updatedNote);
+
+			this.showToast({ title: 'Merge Successful', description: 'Your changes have been merged with a newer version.' });
+
+			return updatedNote; // Return the merged note
+		}
+
+		// Fallback to original behavior if no merge is needed
 		if (!localNote || new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt)) {
 			if (typeof remoteNote.content === 'undefined') {
 				console.warn(`Downloaded note ${remoteNote.id} from server has no content. Skipping.`);
-				return false; // Indicate no update happened
+				return false;
 			}
 
 			await updateNoteDB(remoteNote);
-			return remoteNote; // Return the updated note
+
+			// If the user is currently editing this note, refresh their editor with the new content
+			if (isEditingThisNote) {
+				if (window.easyMDEInstance) {
+					window.easyMDEInstance.value(remoteNote.content);
+				}
+				this.noteEditorContent = remoteNote.content;
+				this.noteEditorBaseContent = remoteNote.content; // Update base to prevent false conflicts
+				this.showToast({ title: 'Note Updated', description: 'A newer version was loaded into the editor.' });
+			}
+
+			return remoteNote;
 		}
-		return false; // Indicate no update happened
+
+		return false;
 	},
 
 	async syncNotes(isSilent = false, iterator = 0, notes = null) {
@@ -1281,6 +1357,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (note) {
 			this.noteEditorTitle = note.title;
 			this.noteEditorContent = note.content;
+			this.noteEditorBaseContent = note.content; // Capture base content for merge
 			this.noteEditorReminder = note.reminder || '';
 			this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
 		} else {
@@ -1323,6 +1400,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				this.cancelEdit();
 				this.fetchNotes();
 			}
+			this.noteEditorBaseContent = null; // Reset base content
 		} finally {
 			this.isSaving = false;
 		}

@@ -181,6 +181,7 @@ if (workbox) {
 	'https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js',
 	'https://cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js',
 	'https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css',
+	'https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js',
   ];
 
   self.addEventListener('install', (event) => {

@@ -14,7 +14,7 @@ The core concept is to perform a "3-way merge" when a sync conflict is detected.
 To make the library available to the application, a `<script>` tag will be added to the `<head>` of `src/index.html` to load `diff-match-patch` from a reliable CDN.
 
 ```html
-<script src="https://cdnjs.cloudflare.com/ajax/libs/diff-match-patch/20121119/diff_match_patch.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js"></script>
 ```
 
 ---
