@@ -1046,6 +1046,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						const urlToParse = pastedString.trim();
 
 						if (urlToParse.length < 2083 && urlRegex.test(urlToParse)) {
+							urlToParse = removeTrackingParams(urlToParse);
+
 							if (confirm('Extracting the web content?')) {
 								document.body.style.cursor = 'wait';
 								let html;

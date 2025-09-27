@@ -150,7 +150,7 @@ const initDB = () => {
 			const db = event.target.result;
 			db.onclose = () => {
 				console.log('Database connection closed.');
-			dbPromise = null;
+				dbPromise = null;
 			};
 			resolve(db);
 		};
@@ -578,7 +578,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(deleteNoteFromS3(noteId, credentials));
 	}
 
-	if (nostrPrivateKey && nostrRelays) {
+	if ( nostrPrivateKey && nostrRelays ) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
 	}
@@ -622,5 +622,37 @@ async function verifyGoogleJwt(token, clientId) {
 	} catch (error) {
 		console.error('Error verifying JWT:', error);
 		throw new Error('JWT verification failed: ' + error.message);
+	}
+}
+
+function removeTrackingParams(url) {
+	const trackingParams = [
+		'utm_source',
+		'utm_medium',
+		'utm_campaign',
+		'utm_term',
+		'utm_content',
+		'fbclid',
+		'gclid',
+		'msclkid',
+		'mc_cid',
+		'mc_eid',
+	];
+
+	try {
+		const urlObject = new URL(url);
+		let hasChanged = false;
+
+		trackingParams.forEach(param => {
+			if (urlObject.searchParams.has(param)) {
+				urlObject.searchParams.delete(param);
+				hasChanged = true;
+			}
+		});
+
+		return hasChanged ? urlObject.toString() : url;
+	} catch (error) {
+		console.error('Invalid URL:', error);
+		return url;
 	}
 }
