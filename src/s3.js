@@ -270,3 +270,18 @@ const deleteImageFromS3 = async (imageId, creds) => {
 		throw new Error(`Failed to delete image from S3: ${error.code || error.message}`);
 	}
 };
+
+const getPresignedUrl = async (note, creds) => {
+	if (!creds?.secretAccessKey) return;
+
+	const s3 = await getS3Client(creds);
+	const key = getS3ObjectKey(note.id, creds);
+	const params = {
+		Bucket: creds.bucket,
+		Key: key,
+		Expires: 60 * 60 * 24 * 7, // 7 days
+	};
+
+	return s3.getSignedUrlPromise('getObject', params);
+};
+

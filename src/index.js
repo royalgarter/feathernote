@@ -1,5 +1,5 @@
 document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
-	GOOGLE_CLIENT_ID: "547832701518-ai09ubbqs2i3m5gebpmkt8ccfkmk58ru.apps.googleusercontent.com",
+	GOOGLE_CLIENT_ID: "___GOOGLE_CLIENT_ID___",
 
 	// --- App Data ---
 	toasts: [],
@@ -648,8 +648,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (this.isSyncing) {
 			return;
 		}
-		this.isSyncing = true;
-		this.syncStatusMessage = 'Syncing...';
+		
+		this.isSyncing = 'Syncing notes...';
+		this.syncStatusMessage = 'Syncing notes...';
 		const userId = this.user ? this.user.id : null;
 
 		try {
@@ -1334,7 +1335,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		let published = false;
 
-		// Prioritize Nostr publishing if configured
+		// Nostr publishing if configured
 		if (this.nostrPrivateKey && this.nostrRelays) {
 			try {
 				const relays = this.nostrRelays.split(',').map(r => r.trim()).filter(r => r);
@@ -1370,10 +1371,48 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				});
 			}
 		}
-
 		if (published) return published; // Stop execution if Nostr was attempted
 
-		// Fallback to server-side publishing
+		// S3 pre-signed URL publishing
+		const storedData = await getEncryptedSettingsDB();
+		const encryptedSettings = storedData ? storedData.encryptedSettings : null;
+		if (encryptedSettings) {
+			const credentials = await decryptSettings(encryptedSettings, this.userId);
+			if (credentials && credentials.s3Bucket) {
+				try {
+					this.showToast({ title: 'Publishing to S3...', description: 'Creating a shareable link via S3.' });
+					const note = {
+						id: this.noteEditorNoteId || crypto.randomUUID(),
+						title: this.noteEditorTitle,
+						content: content,
+						updatedAt: new Date().toISOString(),
+					};
+					await uploadNoteToS3(note, credentials);
+					const url = await getPresignedUrl(note.id, credentials);
+					if (url) {
+						published = true;
+						this.showToast({
+							title: 'Published to S3',
+							description: 'A shareable link has been created and copied to your clipboard.'
+						});
+						navigator.clipboard.writeText(url);
+						prompt('Share this S3 URL:', url);
+					} else {
+						throw new Error('Failed to create S3 pre-signed URL.');
+					}
+				} catch (error) {
+					console.error('S3 publish error:', error);
+					this.showToast({
+						variant: 'error',
+						title: 'S3 Publish Failed',
+						description: error.message
+					});
+				}
+			}
+		}
+		if (published) return published; // Stop execution if S3 was attempted
+
+		// Fallback using server storage
 		try {
 			this.showToast({ title: 'Publishing...', description: 'Creating a shareable link via the server.' });
 			const response = await fetch('/api/publish', {
@@ -1409,8 +1448,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				description: error.message
 			});
 		}
-
-		return published;
 	},
 
 	cancelEdit() {

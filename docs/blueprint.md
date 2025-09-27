@@ -9,6 +9,7 @@
 - Reminder Notifications: Set reminders for notes that trigger push notifications via a service worker.
 - Minimalist UI: Clean, distraction-free writing environment focused on content.
 - S3 Sync: Allow the user to input S3 credentials to sync to an S3 bucket.
+- S3 Pre-signed URL Sharing: Allow the user to generate a pre-signed URL for a note, which can be shared with others. The URL will be valid for 7 days and will allow anyone with the link to download the note content.
 
 ## Future Features
 

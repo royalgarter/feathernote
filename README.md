@@ -243,3 +243,15 @@ If the Share Target feature is critical for your use case, you have a few option
 3.  **Client-Side Only Share Target (Advanced):** For very specific scenarios, you might be able to handle some share target functionality purely client-side using the `navigator.share` API, but this is generally more limited and complex than a server-side approach.
 
 For most users who primarily use FeatherNote for personal note-taking and S3 sync, deploying as a static site is sufficient, and the absence of the `/share` route will not impact core functionality.s sufficient, and the absence of the `/share` route will not impact core functionality.
+
+## Share Note
+
+When you click the share button on a note, it will be published and a shareable link will be generated. You can publish to Nostr or to S3 with a pre-signed URL. If you have both configured, Nostr will be prioritized.
+
+### S3 Pre-signed URL
+
+If you have S3 credentials configured, the note will be uploaded to your S3 bucket and a pre-signed URL will be generated. This URL will be valid for 7 days and can be shared with anyone. The note content will be publicly accessible to anyone with the link.
+
+To configure S3, go to the settings and enter your S3 bucket, region, and credentials. Make sure the S3 bucket has the correct permissions to allow public access to the files.
+
+Once you have configured S3, you can share a note by clicking the share button. A pre-signed URL will be generated and copied to your clipboard.

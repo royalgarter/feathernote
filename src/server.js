@@ -265,7 +265,9 @@ let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 
 		process.exit(0);
 	}
 
-	HTML_INDEX = HTML_INDEX?.replaceAll?.('___VERSION___', appVersion);
+	HTML_INDEX = (HTML_INDEX || '')
+					.replaceAll?.('___VERSION___', appVersion)
+					.replaceAll?.('___GOOGLE_CLIENT_ID___', process.env.GOOGLE_CLIENT_ID);
 
 	app.listen(port, () => {
 		console.log(`Server listening at http://localhost:${port}/?v=${appVersion}&d=${publishedNotesDir}`);
