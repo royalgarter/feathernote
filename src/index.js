@@ -1128,7 +1128,7 @@ Your changes could not be fully merged with a newer version from the server. Ple
 					event.preventDefault(); // Prevent default paste to handle it async
 					textItem.getAsString(async (pastedString) => {
 						const urlRegex = /^(https?:\/\/[^\s]+)$/;
-						const urlToParse = pastedString.trim();
+						let urlToParse = pastedString.trim();
 
 						if (urlToParse.length < 2083 && urlRegex.test(urlToParse)) {
 							urlToParse = removeTrackingParams(urlToParse);
