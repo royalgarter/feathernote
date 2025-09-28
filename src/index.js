@@ -511,7 +511,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const noteToUpdate = await getNoteDB(id);
 			if (!noteToUpdate) throw new Error('Note not found');
 
-			const updatedNote = { ...noteToUpdate, ...updates, updatedAt: new Date().toISOString() };
+			// Only update timestamp if content, title, or tags have changed
+			const titleChanged = updates.title && (noteToUpdate.title !== updates.title);
+			const contentChanged = updates.content && (noteToUpdate.content !== updates.content);
+			const tagsChanged = updates.tags && (JSON.stringify(noteToUpdate.tags || []) !== JSON.stringify(updates.tags || []));
+
+			if (titleChanged || contentChanged || tagsChanged) {
+				updates.updatedAt = new Date().toISOString();
+			}
+
+			const updatedNote = { ...noteToUpdate, ...updates };
 			await updateNoteDB(updatedNote);
 			this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
 			this.scheduleNotification(updatedNote);
