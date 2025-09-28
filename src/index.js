@@ -681,11 +681,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Check if any part of the merge failed
 			if (results.some(r => !r)) {
-				finalContent += `
-
---- MERGE CONFLICT ---
-Your changes could not be fully merged with a newer version from the server. Please review the note above.
---- END CONFLICT ---`;
+				finalContent += [
+					'--- MERGE CONFLICT ---',
+					'Your changes could not be fully merged with a newer version from the server. Please review the note above.',
+					'--- END CONFLICT ---',
+				].join('\n');
 				this.showToast({ variant: 'error', title: 'Merge Conflict', description: 'Could not fully merge changes. Please review the note.' });
 			}
 

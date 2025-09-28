@@ -423,7 +423,7 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 			if (!localImage && remoteImageIds.has(imageId)) {
 				console.log(`Image ${imageId} not found locally, downloading...`);
 				try {
-					const imageBlob = await downloadImageFromS3(image, credentials);
+					const imageBlob = await downloadImageFromS3(imageId, credentials);
 					if (imageBlob) {
 						await addImageDB({ id: imageId, blob: imageBlob, synced: true });
 						downloadedImageCount++;
