@@ -62,10 +62,14 @@
 }
 .dark .EasyMDEContainer .CodeMirror {
 	background-color: #2d3748;
-	color: #e2e8f0;
+	color: #bdbdbd;
 }
 .dark .EasyMDEContainer .CodeMirror-gutters {
 	background-color: #354154;
+}
+
+.dark .EasyMDEContainer .CodeMirror-selectedtext {
+	background-color: slategray;
 }
 
 .EasyMDEContainer .editor-toolbar button {
