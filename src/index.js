@@ -699,7 +699,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const updatedNote = { ...remoteNote, content: finalContent, updatedAt: new Date().toISOString() };
 			await updateNoteDB(updatedNote);
 
-			this.showToast({ title: 'Merge Successful', description: 'Your changes have been merged with a newer version.' });
+			this.showToast({ quiet: true, title: 'Merge Successful', description: 'Your changes have been merged with a newer version.' });
 
 			return updatedNote; // Return the merged note
 		}
@@ -720,7 +720,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 				this.noteEditorContent = remoteNote.content;
 				this.noteEditorBaseContent = remoteNote.content; // Update base to prevent false conflicts
-				this.showToast({ title: 'Note Updated', description: 'A newer version was loaded into the editor.' });
+				this.showToast({ quiet: true, title: 'Note Updated', description: 'A newer version was loaded into the editor.' });
 			}
 
 			return remoteNote;

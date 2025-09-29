@@ -27,6 +27,7 @@ if (workbox) {
 	{ url: '/favicon.ico', revision: null },
 	{ url: '/favicon.png', revision: null },
 	{ url: '/icons/icons.json', revision: null },
+	{ url: '/libs/diff_match_patch.js', revision: null },
 	{ url: '/libs/aws-sdk-2.1692.0.min.js', revision: null },
   ]);
 
@@ -168,6 +169,7 @@ if (workbox) {
 	'/manifest.json',
 	'/favicon.ico',
 	'/favicon.png',
+	'/libs/diff_match_patch.js',
 	'/icons/icons.json',
 	'/libs/aws-sdk-2.1692.0.min.js',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',

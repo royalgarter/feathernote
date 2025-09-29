@@ -46,8 +46,8 @@
 			<div class="flex items-center gap-2">
 				<!-- SyncStatus -->
 				<div>
-					<template x-if="isSyncing">
-						<span class="text-sm text-gray-300 animate-pulse" x-text="isSyncing"></span>
+					<template x-if="syncStatusMessage || isSyncing">
+						<span class="text-sm text-gray-300 animate-pulse" x-text="syncStatusMessage || isSyncing"></span>
 					</template>
 					<!-- <template x-if="!isSyncing">
 						<span class="text-sm text-gray-400">Synced</span>
@@ -463,10 +463,10 @@
 
 <script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
+<script async defer src="/libs/diff_match_patch.js"></script>
 
 <script defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
 <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<!-- <script defer src="//cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js"></script> -->
 <script defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
 
 
