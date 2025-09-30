@@ -64,7 +64,7 @@ const listNotesInS3 = async (creds) => {
 		try {
 			const data = await s3.listObjectsV2(params).promise();
 			const s3NoteMetadata = data.Contents?.map(item => {
-				if (!item.Key || item.Key.endsWith('/') || item.Key.includes('/images/')) return null;
+				if (!item.Key || item.Key.endsWith('/') || item.Key.includes('/images/') || !item.Key.includes('.json')) return null;
 
 				return {
 					id: item.Key.replace(prefix, '').replace('.json', ''),
