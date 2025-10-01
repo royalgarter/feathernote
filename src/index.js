@@ -530,7 +530,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (!this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
 
 			if (!isSilent) {
-				this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
+				this.showToast({ quiet: true, title: 'Note Updated', description: 'Note saved successfully.' });
 			}
 			this.syncNotes(isSilent, 1, [updatedNote]);
 		} catch (error) {
@@ -806,6 +806,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 									description += ` ${deletedOrphanCount} orphaned images deleted.`;
 								}
 								this.showToast({
+									quiet: true,
 									title: 'Image Sync Complete',
 									description,
 								});
@@ -1327,6 +1328,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							if (updatedNote) {
 								noteToLoad = updatedNote;
 								this.showToast({
+									quiet: true,
 									title: 'Note Updated',
 									description: 'A newer version of this note was found on the server and has been loaded.',
 									duration: 5000
