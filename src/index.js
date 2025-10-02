@@ -199,6 +199,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		if (window.location.hash === '#new_note') {
 			this.createNewNote();
+		} else if (window.location.hash.startsWith('#edit_note-')) {
+			const noteId = window.location.hash.replace('#edit_note-', '');
+			if (noteId) this.editNote(noteId);
 		} else if (window.location.hash === '#search') {
 			this.$nextTick(() => document.getElementById('searchInput')?.focus());
 		}
