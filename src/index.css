@@ -1,3 +1,28 @@
+#welcome-section {
+	line-height: 2rem;
+}
+#welcome-section [alt*="Logo"] {
+	display: none;
+}
+
+#welcome-section ul,ol {
+	padding-left: 1rem;
+}
+
+#welcome-section h1,h2,h3,h4 {
+	margin-top: 2rem;
+	font-weight: 900;
+	font-size: 1.5rem;
+}
+
+#welcome-section p {
+	margin-top: 1rem;
+}
+
+#welcome-section a {
+	text-decoration: underline;
+}
+
 .line-clamp-3 {
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;

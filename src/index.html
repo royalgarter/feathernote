@@ -4,22 +4,22 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>FeatherNote</title>
-	<meta name="description" content="FeatherNote is a featherweight, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
-	<meta name="keywords" content="feathernote, note-taking, notes, open-source, s3, nostr, offline, pwa">
+	<meta name="description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
+	<meta name="keywords" content="note taking, pwa, offline-first, markdown, s3 sync, privacy, open source, javascript, nostr, decentralized">
 	<meta name="author" content="royalgarter">
 
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="website">
-	<meta property="og:url" content="https://feathernote.com/">
-	<meta property="og:title" content="FeatherNote - A simple, fast, and open-source note-taking app.">
-	<meta property="og:description" content="FeatherNote is a simple, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
+	<meta property="og:url" content="https://feathernote.deno.dev">
+	<meta property="og:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
+	<meta property="og:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
 	<meta property="og:image" content="https://feathernote.deno.dev/icons/ios/512.png">
 
 	<!-- Twitter -->
 	<meta property="twitter:card" content="summary_large_image">
-	<meta property="twitter:url" content="https://feathernote.com/">
-	<meta property="twitter:title" content="FeatherNote - A simple, fast, and open-source note-taking app.">
-	<meta property="twitter:description" content="FeatherNote is a simple, fast, and open-source note-taking app that works offline and syncs with your own S3 bucket or Nostr.">
+	<meta property="twitter:url" content="https://feathernote.deno.dev">
+	<meta property="twitter:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
+	<meta property="twitter:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
 	<meta property="twitter:image" content="https://feathernote.deno.dev/icons/ios/512.png">
 
 	<link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png">
@@ -90,7 +90,6 @@
 	<main class="flex-1 max-w-max mx-auto py-4 sm:px-6 lg:px-8 w-full"
 		:class="settingsDialogIsOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
 	>
-
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
 			<div class="flex justify-between items-center px-4 gap-4">
@@ -107,6 +106,10 @@
 				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 rounded-md bg-green-600 text-white hover:bg-green-700">Add Note</button>
 			</div>
 		</template>
+
+		<div id="welcome-section" x-show="notes.length === 0 && !loading" class="p-8 my-8 text-gray-600 bg-white rounded-lg w-full" style="display: block;">
+			<!--WELCOME_CONTENT-->
+		</div>
 
 		<!-- Note Editor View -->
 		<template x-if="editingNoteId !== null">
@@ -166,7 +169,7 @@
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
 						<div class="flex-grow" @click="editNote(note.id)">
-							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span></p>
+							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span> - Priority: <span x-text="note.priority || 0"></span></p>
 							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
 							<template x-if="getCoverImage(note)">
 								<img :src="getCoverImage(note)" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
@@ -183,16 +186,31 @@
 								</template>
 							</div>
 						</div>
-						<div class="flex justify-end items-center gap-2 mt-2">
-							<button class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
-								<!-- Edit Icon -->
-								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
-							</button>
-							<button class="cursor-pointer p-2 rounded-full hover:bg-red-100 text-red-500" aria-label="Delete note" @click="deleteNote(note.id); $dispatch('close-delete-modal')">
-								<!-- Trash Icon -->
-								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg>
-							</button>
+						<div class="flex justify-between items-center">
+							<div class="flex justify-start items-center gap-2 mt-2">
+								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-purple-500 hover:bg-purple-50" aria-label="Increase Priority">
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 16 16">
+										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 11.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11.5z"/>
+									</svg>
+								</button>
+								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-purple-300 hover:bg-purple-50" aria-label="Decrease Priority">
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16">
+										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
+									</svg>
+								</button>
+							</div>
+							<div class="flex justify-end items-center gap-4 mt-2">
+								<button class="cursor-pointer rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
+									<!-- Edit Icon -->
+									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
+								</button>
+								<button class="cursor-pointer rounded-full hover:bg-red-100 text-red-500" aria-label="Delete note" @click="deleteNote(note.id); $dispatch('close-delete-modal')">
+									<!-- Trash Icon -->
+									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg>
+								</button>
+							</div>
 						</div>
+
 					</div>
 				</template>
 			</div>

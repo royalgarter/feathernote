@@ -460,7 +460,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.loading = true;
 		try {
 			const notesFromDB = await getNotesDB();
-			this.notes = notesFromDB.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+			this.notes = notesFromDB.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
 			this.updateAppBadge();
 			this.miniSearch?.removeAll();
 
@@ -490,6 +490,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				updatedAt: now,
 				reminder: reminder || undefined,
 				tags: tags || [],
+				priority: 0,
 			};
 			await addNoteDB(newNote);
 			this.notes.unshift(newNote);
@@ -515,8 +516,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const titleChanged = updates.title && (noteToUpdate.title !== updates.title);
 			const contentChanged = updates.content && (noteToUpdate.content !== updates.content);
 			const tagsChanged = updates.tags && (JSON.stringify(noteToUpdate.tags || []) !== JSON.stringify(updates.tags || []));
+			const priorityChanged = updates.priority !== undefined && noteToUpdate.priority !== updates.priority;
 
-			if (titleChanged || contentChanged || tagsChanged) {
+			if (titleChanged || contentChanged || tagsChanged || priorityChanged) {
 				updates.updatedAt = new Date().toISOString();
 			}
 
@@ -591,6 +593,26 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 
 		this.showToast({ title: 'Note Restored', description: `"${noteToRestore.title}" has been restored.` });
+	},
+
+	async increasePriority(noteId) {
+		const note = this.notes.find(n => n.id === noteId);
+		if (note) {
+			const newPriority = (note.priority || 0) + 1;
+			await this.updateNote(noteId, { priority: newPriority }, true);
+			this.notes.find(n => n.id === noteId).priority = newPriority;
+			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+		}
+	},
+
+	async decreasePriority(noteId) {
+		const note = this.notes.find(n => n.id === noteId);
+		if (note) {
+			const newPriority = (note.priority || 0) - 1;
+			await this.updateNote(noteId, { priority: newPriority }, true);
+			this.notes.find(n => n.id === noteId).priority = newPriority;
+			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+		}
 	},
 
 	async deleteNote(id) {

@@ -265,9 +265,15 @@ let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 
 		process.exit(0);
 	}
 
+	const readmePath = path.join(__dirname, '..', 'README.md');
+	const readmeMarkdown = fs.readFileSync(readmePath, 'utf8');
+	const introMarkdown = readmeMarkdown.split('## Philosophy')[0];
+	const welcomeHtml = marked.parse(introMarkdown);
+
 	HTML_INDEX = (HTML_INDEX || '')
 					.replaceAll?.('___VERSION___', appVersion)
-					.replaceAll?.('___GOOGLE_CLIENT_ID___', process.env.GOOGLE_CLIENT_ID);
+					.replaceAll?.('___GOOGLE_CLIENT_ID___', process.env.GOOGLE_CLIENT_ID)
+					.replace('<!--WELCOME_CONTENT-->', welcomeHtml);
 
 	app.listen(port, () => {
 		console.log(`Server listening at http://localhost:${port}/?v=${appVersion}&d=${publishedNotesDir}`);
