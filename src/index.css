@@ -5,11 +5,11 @@
 	display: none;
 }
 
-#welcome-section ul,ol {
+#welcome-section ul,#welcome-section ol {
 	padding-left: 1rem;
 }
 
-#welcome-section h1,h2,h3,h4 {
+#welcome-section h1,#welcome-section h2,#welcome-section h3,#welcome-section h4 {
 	margin-top: 2rem;
 	font-weight: 900;
 	font-size: 1.5rem;
