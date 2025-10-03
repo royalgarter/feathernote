@@ -45,111 +45,113 @@ self.addEventListener('fetch', (event) => {
 	// console.log('SW Fetch:', event.request.url); // Debugging line
 	const url = new URL(event.request.url);
 
-	// Intercept image requests
-	if (url.pathname.startsWith('/images/')) {
-		const imageId = url.pathname.substring(8); // Extract UUID from /images/<uuid>
-		event.respondWith(
-			(async () => {
-				try {
-					const imageRecord = await getImageDB(imageId);
-					if (imageRecord && imageRecord.blob) {
-						return new Response(imageRecord.blob, {
-							headers: {
-								'Content-Type': imageRecord.blob.type,
-								'Cache-Control': 'max-age=31536000', // Cache for a year
-							},
-						});
-					} else {
-						// Image not found in IndexedDB, try S3
-						console.log(`SW: Image ${imageId} not in DB, attempting S3 download.`);
-						const settingsPackage = await getEncryptedSettingsDB(); // Returns { encryptedSettings, userId }
-						if (settingsPackage.encryptedSettings) {
-								const { encryptedSettings, userId } = settingsPackage;
-								const credentials = await decryptSettings(encryptedSettings, userId);
-
-								if (credentials && credentials.bucket && credentials.accessKeyId && credentials.secretAccessKey) {
-										try {
-												const imageBlob = await downloadImageFromS3(imageId, credentials);
-												if (imageBlob) {
-														// Store downloaded image in IndexedDB for future use
-														await addImageDB({ id: imageId, blob: imageBlob, synced: true }); // Mark as synced since it came from S3
-														return new Response(imageBlob, {
-																headers: {
-																		'Content-Type': imageBlob.type,
-																		'Cache-Control': 'max-age=31536000',
-																},
-														});
-												}
-										} catch (s3Error) {
-												console.error(`SW: Failed to download image ${imageId} from S3:`, s3Error);
-										}
-								} else {
-										console.warn('SW: S3 credentials incomplete or invalid for download.');
-								}
+	if (url.host == self.location.host) {
+		// Intercept image requests
+		if (url.pathname.startsWith('/images/')) {
+			const imageId = url.pathname.substring(8); // Extract UUID from /images/<uuid>
+			event.respondWith(
+				(async () => {
+					try {
+						const imageRecord = await getImageDB(imageId);
+						if (imageRecord && imageRecord.blob) {
+							return new Response(imageRecord.blob, {
+								headers: {
+									'Content-Type': imageRecord.blob.type,
+									'Cache-Control': 'max-age=31536000', // Cache for a year
+								},
+							});
 						} else {
-								console.log('SW: No S3 credentials or user ID found in IndexedDB for download.');
+							// Image not found in IndexedDB, try S3
+							console.log(`SW: Image ${imageId} not in DB, attempting S3 download.`);
+							const settingsPackage = await getEncryptedSettingsDB(); // Returns { encryptedSettings, userId }
+							if (settingsPackage.encryptedSettings) {
+									const { encryptedSettings, userId } = settingsPackage;
+									const credentials = await decryptSettings(encryptedSettings, userId);
+
+									if (credentials && credentials.bucket && credentials.accessKeyId && credentials.secretAccessKey) {
+											try {
+													const imageBlob = await downloadImageFromS3(imageId, credentials);
+													if (imageBlob) {
+															// Store downloaded image in IndexedDB for future use
+															await addImageDB({ id: imageId, blob: imageBlob, synced: true }); // Mark as synced since it came from S3
+															return new Response(imageBlob, {
+																	headers: {
+																			'Content-Type': imageBlob.type,
+																			'Cache-Control': 'max-age=31536000',
+																	},
+															});
+													}
+											} catch (s3Error) {
+													console.error(`SW: Failed to download image ${imageId} from S3:`, s3Error);
+											}
+									} else {
+											console.warn('SW: S3 credentials incomplete or invalid for download.');
+									}
+							} else {
+									console.log('SW: No S3 credentials or user ID found in IndexedDB for download.');
+							}
 						}
+					} catch (error) {
+						console.error(`SW: Failed to get image ${imageId} from DB or S3`, error);
 					}
-				} catch (error) {
-					console.error(`SW: Failed to get image ${imageId} from DB or S3`, error);
-				}
-				// If image not in DB, or on error, return 404
-				return new Response('Image not found', { status: 404 });
-			})()
-		);
-		return;
-	}
+					// If image not in DB, or on error, return 404
+					return new Response('Image not found', { status: 404 });
+				})()
+			);
+			return;
+		}
 
-	// Bypass caching for API requests.
-	if (url.pathname.startsWith('/api/')) {
-		try {
-			event.respondWith(fetch(event.request));
-		} catch (e) {}
-		return;
-	}
+		// Bypass caching for API requests.
+		if (url.pathname.startsWith('/api/')) {
+			try {
+				event.respondWith(fetch(event.request));
+			} catch (e) {}
+			return;
+		}
 
-	// Handle the share target separately.
-	if (event.request.method === 'POST' && url.pathname === '/share') {
-		event.respondWith(
-			(async () => {
-				try {
-					const formData = await event.request.formData();
-					const text = formData.get('text') || '';
-					const sharedUrl = formData.get('url') || '';
-					let title = formData.get('title') || '';
-					let content;
+		// Handle the share target separately.
+		if (event.request.method === 'POST' && url.pathname === '/share') {
+			event.respondWith(
+				(async () => {
+					try {
+						const formData = await event.request.formData();
+						const text = formData.get('text') || '';
+						const sharedUrl = formData.get('url') || '';
+						let title = formData.get('title') || '';
+						let content;
 
-					if (text && sharedUrl) {
-						content = `${text}\n-\n${sharedUrl}`;
-					} else {
-						content = text || sharedUrl;
-					}
-
-					let urlToFetch = sharedUrl;
-					if (!urlToFetch) {
-						const urlRegex = /(https?:\/\/[^\s]+)/;
-						const match = text.match(urlRegex);
-						if (match) {
-							urlToFetch = match[0];
+						if (text && sharedUrl) {
+							content = `${text}\n-\n${sharedUrl}`;
+						} else {
+							content = text || sharedUrl;
 						}
+
+						let urlToFetch = sharedUrl;
+						if (!urlToFetch) {
+							const urlRegex = /(https?:\/\/[^\s]+)/;
+							const match = text.match(urlRegex);
+							if (match) {
+								urlToFetch = match[0];
+							}
+						}
+
+						let tags = urlToFetch ? [`#needs-clipping`] : undefined;
+
+						if (content) {
+							await saveSharedContentToDB(title, content, tags);
+						}
+
+						// Redirect to the home page after sharing
+						return Response.redirect('/', 303);
+					} catch (criticalError) {
+						console.error('A critical error occurred in the /share handler:', criticalError);
+						// Still attempt to redirect the user back to the app to prevent a hanging screen.
+						return Response.redirect('/', 303);
 					}
-
-					let tags = urlToFetch ? [`#needs-clipping`] : undefined;
-
-					if (content) {
-						await saveSharedContentToDB(title, content, tags);
-					}
-
-					// Redirect to the home page after sharing
-					return Response.redirect('/', 303);
-				} catch (criticalError) {
-					console.error('A critical error occurred in the /share handler:', criticalError);
-					// Still attempt to redirect the user back to the app to prevent a hanging screen.
-					return Response.redirect('/', 303);
-				}
-			})()
-		);
-		return;
+				})()
+			);
+			return;
+		}
 	}
 
 	// For all other requests, use the network-first strategy.
