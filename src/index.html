@@ -31,7 +31,7 @@
 <body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
 	<header class="sticky top-0 z-10 w-full border-b bg-white">
-		<div class="container mx-auto flex h-16 items-center justify-between p-4">
+		<div class="container mx-auto flex h-16 items-center justify-between p-2 md:p-4">
 			<a href="#" class="flex items-center gap-2">
 				<!-- FeatherIcon Placeholder -->
 				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 1115 1115">
@@ -87,7 +87,7 @@
 	</header>
 
 	<!-- AppShellContent -->
-	<main class="flex-1 max-w-max mx-auto py-4 sm:px-6 lg:px-8 w-full"
+	<main class="flex-1 max-w-max mx-auto md:py-4 sm:px-6 lg:px-8 w-full"
 		:class="settingsDialogIsOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
 	>
 		<!-- Search Box & Add Note -->
@@ -107,20 +107,20 @@
 			</div>
 		</template>
 
-		<div id="welcome-section" x-show="notes.length === 0 && !loading" class="p-8 my-8 text-gray-600 bg-white rounded-lg w-full" style="display: block;">
+		<div id="welcome-section" x-show="notes.length === 0" class="p-8 my-8 text-gray-600 bg-white rounded-lg w-full" style="display: block;">
 			<!--WELCOME_CONTENT-->
 		</div>
 
 		<!-- Note Editor View -->
 		<template x-if="editingNoteId !== null">
-			<div class="bg-white rounded-lg h-4/5 p-4">
+			<div id="note-editor" class="bg-white md:rounded-md h-4/5 p-0.5 md:p-4">
 				<!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
 				<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
 					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 				</button> -->
 
-				<div class="flex justify-between items-center mb-4">
-					<h3 class="text-lg font-bold" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
+				<div class="flex justify-between items-center mb-1 md:mb-4">
+					<h3 class="text-base font-bold p-1 md:p-0" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
 					<button @click="saveNote();cancelEdit();" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
@@ -165,11 +165,11 @@
 
 		<!-- Notes List View -->
 		<template x-if="editingNoteId === null">
-			<div class="p-4 sm:px-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+			<div id="notes-list" class="p-4 sm:px-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
 						<div class="flex-grow" @click="editNote(note.id)">
-							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span> - Priority: <span x-text="note.priority || 0"></span></p>
+							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
 							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
 							<template x-if="getCoverImage(note)">
 								<img :src="getCoverImage(note)" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
@@ -188,12 +188,12 @@
 						</div>
 						<div class="flex justify-between items-center">
 							<div class="flex justify-start items-center gap-2 mt-2">
-								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-purple-500 hover:bg-purple-50" aria-label="Increase Priority">
+								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-green-500 hover:bg-green-50" aria-label="Increase Priority">
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 16 16">
 										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 11.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11.5z"/>
 									</svg>
 								</button>
-								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-purple-300 hover:bg-purple-50" aria-label="Decrease Priority">
+								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-green-300 hover:bg-green-50" aria-label="Decrease Priority">
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16">
 										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
 									</svg>
@@ -224,12 +224,10 @@
 			</div>
 		</template>
 
-
-
 		<!-- Loading State -->
 		<template x-if="!notes.length && loading">
-			<div class="px-4 py-6 sm:px-0">
-				<div class="border-4 border-dashed border-gray-200 rounded-lg h-96 flex items-center justify-center">
+			<div class="w-full px-4 py-6 sm:px-0">
+				<div class="w-full border-4 border-dashed border-gray-200 rounded-lg h-96 flex items-center justify-center">
 					<p class="text-gray-500 text-lg">Loading notes...</p>
 				</div>
 			</div>
