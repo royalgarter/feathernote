@@ -56,8 +56,8 @@
 				<!-- SettingsDialog Trigger -->
 				<button @click="loadSettingsFromStorage();settingsDialogIsOpen = true" class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Settings">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
-					  <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-					  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+						<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
 					</svg>
 				</button>
 				<!-- UserProfile -->
@@ -69,7 +69,7 @@
 							</template>
 							<template x-if="!user.picture">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6">
-								  <path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
+									<path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
 								</svg>
 							</template>
 						</div>
@@ -77,7 +77,7 @@
 					<template x-if="!user">
 						<div @click="signIn()" class="flex items-center gap-2">
 							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
-							  <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+								<path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
 							</svg>
 						</div>
 					</template>
@@ -291,7 +291,7 @@
 								:class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
 								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
 							<span :class="{ 'left-6': darkMode, 'left-1': !darkMode }"
-								  class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
 						</button>
 					</div>
 					<!-- Notification Settings -->
@@ -301,7 +301,7 @@
 								:class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
 								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
 							<span :class="{ 'left-6': notificationsEnabled, 'left-1': !notificationsEnabled }"
-								  class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
 						</button>
 					</div>
 					<p x-show="notificationPermissionStatus !== 'granted' && notificationPermissionStatus !== 'default'" class="text-xs text-red-500 mt-2">
@@ -524,4 +524,70 @@
 	</div>
 </div>
 <!-- Excalidraw -->
+
+
+<!-- Latex -->
+<script>
+	MathJax = {
+		tex: {
+			inlineMath: [['$', '$'], ['\\(', '\\)']],
+			displayMath: [['@', '@'], ['\\[', '\\]']],
+		}
+	};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.min.js" id="MathJax-script" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/3.0.7/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.18/katex.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.18/katex.min.js"></script>
+<script>
+	function renderMath(matches, text, inline=true, size=2) {
+		if (matches != null){
+			const options = inline ? {output: "html"} :  { displayMode: true, output: "html" };
+			for (const m of matches) {
+				let latex = m.substring(size, m.length - size);
+				let parsed;
+				try {
+					parsed = katex.renderToString(latex, options);
+				} catch (e) {
+					if (e.name === "ParseError"){
+						if (latex.indexOf("&") !== -1) {
+							latex = latex.replaceAll("&lt;", "<")
+							latex = latex.replaceAll("&gt;", ">")
+							parsed = katex.renderToString(latex, options);
+						}
+					}
+				}
+				text = text.replace(m, parsed)
+			}
+		}
+		return text;
+	}
+
+	marked.use({
+		renderer: {
+			text(text) {
+				// rendering $$
+				if (text.indexOf("$") !== -1) {
+					text = renderMath(text.match(/\$+([^$]+)\$+/g), text, true, 1)
+				}
+				// rendering @@
+				if (text.indexOf("@") !== -1) {
+					text = renderMath(text.match(/@+([^@]+)@+/g), text, false, 1)
+				}
+				return text;
+			},
+			html(text) {
+				if (text.indexOf("\(") !== -1) {
+					text = renderMath(text.match(/\\\(([^)]+)\\\)+/g), text)
+				}
+				if (text.indexOf("\[") !== -1) {
+					text = renderMath(text.match(/\\\[[^\]]+\\]/g), text, false)
+				}
+				return text;
+			}
+		}
+	});
+</script>
+<!-- Latex -->
+
 </html>

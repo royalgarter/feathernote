@@ -954,6 +954,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					text: "Autosaved: "
 				},
 				// forceSync: true,
+				previewRender: function(plainText) {return marked(plainText);},
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				toolbar: [
 					{
