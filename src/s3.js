@@ -26,7 +26,7 @@ const getS3Client = async (creds) => {
 
 const getS3ObjectKey = (noteId, creds) => {
 	const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
-	return noteId.includes('images/') ? `${path}${noteId}` : `${path}${noteId}.json` ;
+	return noteId?.includes('images/') ? `${path}${noteId}` : `${path}${noteId}.json` ;
 };
 
 const uploadNoteToS3 = async (note, creds) => {

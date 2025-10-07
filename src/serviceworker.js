@@ -1,3 +1,5 @@
+importScripts('./libs/aws-sdk-2.1692.0.min.js');
+importScripts('./s3.js');
 importScripts('./helpers.js');
 
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
@@ -65,30 +67,30 @@ self.addEventListener('fetch', (event) => {
 							console.log(`SW: Image ${imageId} not in DB, attempting S3 download.`);
 							const settingsPackage = await getEncryptedSettingsDB(); // Returns { encryptedSettings, userId }
 							if (settingsPackage.encryptedSettings) {
-									const { encryptedSettings, userId } = settingsPackage;
-									const credentials = await decryptSettings(encryptedSettings, userId);
+								const { encryptedSettings, userId } = settingsPackage;
+								const credentials = await decryptSettings(encryptedSettings, userId);
 
-									if (credentials && credentials.bucket && credentials.accessKeyId && credentials.secretAccessKey) {
-											try {
-													const imageBlob = await downloadImageFromS3(imageId, credentials);
-													if (imageBlob) {
-															// Store downloaded image in IndexedDB for future use
-															await addImageDB({ id: imageId, blob: imageBlob, synced: true }); // Mark as synced since it came from S3
-															return new Response(imageBlob, {
-																	headers: {
-																			'Content-Type': imageBlob.type,
-																			'Cache-Control': 'max-age=31536000',
-																	},
-															});
-													}
-											} catch (s3Error) {
-													console.error(`SW: Failed to download image ${imageId} from S3:`, s3Error);
-											}
-									} else {
-											console.warn('SW: S3 credentials incomplete or invalid for download.');
+								if (credentials && credentials.bucket && credentials.accessKeyId && credentials.secretAccessKey) {
+									try {
+										const imageBlob = await downloadImageFromS3(imageId, credentials);
+										if (imageBlob) {
+											// Store downloaded image in IndexedDB for future use
+											await addImageDB({ id: imageId, blob: imageBlob, synced: true }); // Mark as synced since it came from S3
+											return new Response(imageBlob, {
+												headers: {
+													'Content-Type': imageBlob.type,
+													'Cache-Control': 'max-age=31536000',
+												},
+											});
+										}
+									} catch (s3Error) {
+										console.error(`SW: Failed to download image ${imageId} from S3:`, s3Error);
 									}
+								} else {
+									console.warn('SW: S3 credentials incomplete or invalid for download.');
+								}
 							} else {
-									console.log('SW: No S3 credentials or user ID found in IndexedDB for download.');
+								console.log('SW: No S3 credentials or user ID found in IndexedDB for download.');
 							}
 						}
 					} catch (error) {
