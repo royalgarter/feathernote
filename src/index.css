@@ -97,6 +97,14 @@
 	background-color: slategray;
 }
 
+.dark .EasyMDEContainer .editor-toolbar {
+	background: #2d3748;
+}
+
+.dark .EasyMDEContainer .editor-toolbar.fullscreen {
+	background: #2d3748;
+}
+
 .EasyMDEContainer .editor-toolbar button {
 	max-width: 32px;
 }
@@ -150,4 +158,16 @@
 
 .EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
 	display: none;
+}
+
+.EasyMDEContainer [role="toolbar"].fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .CodeMirror-fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .editor-preview-active-side {
+	margin-top: 4rem;
 }

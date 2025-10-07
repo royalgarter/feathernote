@@ -87,8 +87,8 @@
 	</header>
 
 	<!-- AppShellContent -->
-	<main class="flex-1 max-w-max mx-auto py-1 md:py-4 sm:px-6 lg:px-8 w-full"
-		:class="settingsDialogIsOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
+	<main class="flex-1 py-1 md:py-4 w-full"
+		:class="{ 'max-w-max mx-auto sm:px-6 lg:px-8': editingNoteId === null, 'overflow-y-hidden': settingsDialogIsOpen, 'overflow-y-auto': !settingsDialogIsOpen }"
 	>
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
