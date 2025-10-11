@@ -968,16 +968,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					// const marked = new Marked(
-					// 	markedHighlight({
-					// 		emptyLangClass: 'hljs',
-					// 		langPrefix: 'hljs language-',
-					// 		highlight(code, lang, info) {
-					// 			const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-					// 			return hljs.highlight(code, { language }).value;
-					// 		}
-					// 	})
-					// );
 					return marked.parse(plainText);
 				},
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
@@ -1518,7 +1508,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// S3 pre-signed URL publishing
 		const storedData = await getEncryptedSettingsDB();
 		const encryptedSettings = storedData ? storedData.encryptedSettings : null;
-		if (encryptedSettings) {
+		if (false && encryptedSettings) {
 			const credentials = await decryptSettings(encryptedSettings, this.userId);
 			if (credentials && credentials.s3Bucket) {
 				try {

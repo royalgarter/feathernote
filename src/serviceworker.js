@@ -144,7 +144,7 @@ self.addEventListener('fetch', (event) => {
 							}
 						}
 
-						let tags = urlToFetch ? [`#needs-clipping`] : undefined;
+						let tags = urlToFetch ? [`shared`, `#needs-clipping`] : [`shared`];
 
 						if (content) {
 							await saveSharedContentToDB(title, content, tags);
