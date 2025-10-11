@@ -31,6 +31,13 @@ const urlsToCache = [
 	'https://cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js',
 	'https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css',
 	'https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js',
+	'https://cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js',
+	'https://cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js',
+	'https://cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js',
+	'https://cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js',
+	'https://cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css',
+	'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css',
+	'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js',
 ];
 
 self.addEventListener('install', (event) => {

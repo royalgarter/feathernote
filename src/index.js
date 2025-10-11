@@ -926,6 +926,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.noteEditorVisible = false;
 		this.easyMDEIniting = true;
 		try {
+			if (!window.easyMDEInstance && window.marked && window.markedKatex && window.markedHighlight && !marked.initedKatex) {
+				marked.use(markedKatex({throwOnError: false, nonStandard: true}));
+				marked.use(markedHighlight.markedHighlight({
+					emptyLangClass: 'hljs',
+					langPrefix: 'hljs language-',
+					highlight(code, lang, info) {
+						const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+						return hljs.highlight(code, { language }).value;
+					}
+				}));
+				marked.initedKatex = true;
+			}
+
 			window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
 				element: document.getElementById('note-content'),
 				unorderedListStyle: "-",
@@ -954,7 +967,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					text: "Autosaved: "
 				},
 				// forceSync: true,
-				previewRender: function(plainText) {return marked(plainText);},
+				previewRender: function(plainText) {
+					// const marked = new Marked(
+					// 	markedHighlight({
+					// 		emptyLangClass: 'hljs',
+					// 		langPrefix: 'hljs language-',
+					// 		highlight(code, lang, info) {
+					// 			const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+					// 			return hljs.highlight(code, { language }).value;
+					// 		}
+					// 	})
+					// );
+					return marked.parse(plainText);
+				},
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				toolbar: [
 					{

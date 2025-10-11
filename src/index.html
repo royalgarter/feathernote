@@ -107,7 +107,8 @@
 			</div>
 		</template>
 
-		<div id="welcome-section" x-show="notes.length === 0" class="p-1 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
+		<!-- Welcome -->
+		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="p-1 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
 			<!--WELCOME_CONTENT-->
 		</div>
 
@@ -525,69 +526,14 @@
 </div>
 <!-- Excalidraw -->
 
-
 <!-- Latex -->
-<script>
-	MathJax = {
-		tex: {
-			inlineMath: [['$', '$'], ['\\(', '\\)']],
-			displayMath: [['@', '@'], ['\\[', '\\]']],
-		}
-	};
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.min.js" id="MathJax-script" async></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/3.0.7/marked.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.18/katex.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.18/katex.min.js"></script>
-<script>
-	function renderMath(matches, text, inline=true, size=2) {
-		if (matches != null){
-			const options = inline ? {output: "html"} :  { displayMode: true, output: "html" };
-			for (const m of matches) {
-				let latex = m.substring(size, m.length - size);
-				let parsed;
-				try {
-					parsed = katex.renderToString(latex, options);
-				} catch (e) {
-					if (e.name === "ParseError"){
-						if (latex.indexOf("&") !== -1) {
-							latex = latex.replaceAll("&lt;", "<")
-							latex = latex.replaceAll("&gt;", ">")
-							parsed = katex.renderToString(latex, options);
-						}
-					}
-				}
-				text = text.replace(m, parsed)
-			}
-		}
-		return text;
-	}
-
-	marked.use({
-		renderer: {
-			text(text) {
-				// rendering $$
-				if (text.indexOf("$") !== -1) {
-					text = renderMath(text.match(/\$+([^$]+)\$+/g), text, true, 1)
-				}
-				// rendering @@
-				if (text.indexOf("@") !== -1) {
-					text = renderMath(text.match(/@+([^@]+)@+/g), text, false, 1)
-				}
-				return text;
-			},
-			html(text) {
-				if (text.indexOf("\(") !== -1) {
-					text = renderMath(text.match(/\\\(([^)]+)\\\)+/g), text)
-				}
-				if (text.indexOf("\[") !== -1) {
-					text = renderMath(text.match(/\\\[[^\]]+\\]/g), text, false)
-				}
-				return text;
-			}
-		}
-	});
-</script>
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css">
+<link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
+<script async defer src="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
 <!-- Latex -->
 
 </html>

@@ -276,7 +276,7 @@ let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 
 					.replace('<!--WELCOME_CONTENT-->', welcomeHtml);
 
 	app.listen(port, () => {
-		console.log(`Server listening at http://localhost:${port}/?v=${appVersion}&d=${publishedNotesDir}`);
+		console.log(`Server listening at http://localhost:${port}/?v=${appVersion}`);
 	});
 })();
 
