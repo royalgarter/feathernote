@@ -1508,7 +1508,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// S3 pre-signed URL publishing
 		const storedData = await getEncryptedSettingsDB();
 		const encryptedSettings = storedData ? storedData.encryptedSettings : null;
-		if (false && encryptedSettings) {
+		if (encryptedSettings) {
 			const credentials = await decryptSettings(encryptedSettings, this.userId);
 			if (credentials && credentials.s3Bucket) {
 				try {
@@ -1518,9 +1518,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						title: this.noteEditorTitle,
 						content: content,
 						updatedAt: new Date().toISOString(),
+						html: marked.parse(content),
 					};
 					await uploadNoteToS3(note, credentials);
-					const url = await getPresignedUrl(note.id, credentials);
+					const url = await getPresignedUrl(note, credentials);
 					if (url) {
 						published = true;
 						this.showToast({

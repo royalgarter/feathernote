@@ -21,25 +21,26 @@ const getS3Client = async (creds) => {
 		accessKeyId: creds.accessKeyId,
 		secretAccessKey: creds.secretAccessKey,
 		s3ForcePathStyle: !!creds.endpoint,
+		signatureVersion: 'v4',
 	});
 };
 
 const getS3ObjectKey = (noteId, creds) => {
 	const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
-	return noteId?.includes('images/') ? `${path}${noteId}` : `${path}${noteId}.json` ;
+	return (noteId?.includes('images/') || noteId.includes('.html')) ? `${path}${noteId}` : `${path}${noteId}.json` ;
 };
 
 const uploadNoteToS3 = async (note, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const noteJson = JSON.stringify(note, null, 2);
+	const body = note.html || JSON.stringify(note, null, 2);
 
 	const params = {
 		Bucket: creds.bucket,
-		Key: getS3ObjectKey(note.id, creds),
-		Body: noteJson,
-		ContentType: 'application/json',
+		Key: getS3ObjectKey(note.id + (note.html ? '.html' : ''), creds),
+		Body: body,
+		ContentType: note.html ? 'text/html' : 'application/json',
 	};
 
 	await s3.upload(params).promise();
@@ -275,7 +276,7 @@ const getPresignedUrl = async (note, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const key = getS3ObjectKey(note.id, creds);
+	const key = getS3ObjectKey(note.id + (note.html ? '.html' : ''), creds);
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,
