@@ -19,6 +19,7 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 ## Why FeatherNote?
 
 -   ✍️ **Effortless Markdown:** A clean, beautiful Markdown editor with a live preview. Formatting your thoughts has never been more satisfying.
+-   🚩 **Prioritize Your Notes:** Easily reorder your notes by priority to keep the most important ones at the top.
 -   ✂️ **Clip Note Content:** Easily clip and save snippets of content from your notes.
 -   ✈️ **Truly Offline-First:** No internet? No problem. Write, read, and edit your notes anytime, anywhere.
 -   🔒 **Privacy is Paramount:** Your S3 credentials are encrypted in your browser and are never sent to any server but your own. We can't see your notes, and neither can anyone else.

@@ -199,6 +199,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		if (window.location.hash === '#new_note') {
 			this.createNewNote();
+		} else if (window.location.hash.startsWith('#edit_note-')) {
+			const noteId = window.location.hash.replace('#edit_note-', '');
+			if (noteId) this.editNote(noteId);
 		} else if (window.location.hash === '#search') {
 			this.$nextTick(() => document.getElementById('searchInput')?.focus());
 		}
@@ -460,7 +463,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.loading = true;
 		try {
 			const notesFromDB = await getNotesDB();
-			this.notes = notesFromDB.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+			this.notes = notesFromDB.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
 			this.updateAppBadge();
 			this.miniSearch?.removeAll();
 
@@ -490,6 +493,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				updatedAt: now,
 				reminder: reminder || undefined,
 				tags: tags || [],
+				priority: 0,
 			};
 			await addNoteDB(newNote);
 			this.notes.unshift(newNote);
@@ -515,8 +519,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const titleChanged = updates.title && (noteToUpdate.title !== updates.title);
 			const contentChanged = updates.content && (noteToUpdate.content !== updates.content);
 			const tagsChanged = updates.tags && (JSON.stringify(noteToUpdate.tags || []) !== JSON.stringify(updates.tags || []));
+			const priorityChanged = updates.priority !== undefined && noteToUpdate.priority !== updates.priority;
 
-			if (titleChanged || contentChanged || tagsChanged) {
+			if (titleChanged || contentChanged || tagsChanged || priorityChanged) {
 				updates.updatedAt = new Date().toISOString();
 			}
 
@@ -530,7 +535,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (!this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
 
 			if (!isSilent) {
-				this.showToast({ title: 'Note Updated', description: 'Note saved successfully.' });
+				this.showToast({ quiet: true, title: 'Note Updated', description: 'Note saved successfully.' });
 			}
 			this.syncNotes(isSilent, 1, [updatedNote]);
 		} catch (error) {
@@ -591,6 +596,26 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 
 		this.showToast({ title: 'Note Restored', description: `"${noteToRestore.title}" has been restored.` });
+	},
+
+	async increasePriority(noteId) {
+		const note = this.notes.find(n => n.id === noteId);
+		if (note) {
+			const newPriority = (note.priority || 0) + 1;
+			await this.updateNote(noteId, { priority: newPriority }, true);
+			this.notes.find(n => n.id === noteId).priority = newPriority;
+			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+		}
+	},
+
+	async decreasePriority(noteId) {
+		const note = this.notes.find(n => n.id === noteId);
+		if (note) {
+			const newPriority = (note.priority || 0) - 1;
+			await this.updateNote(noteId, { priority: newPriority }, true);
+			this.notes.find(n => n.id === noteId).priority = newPriority;
+			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+		}
 	},
 
 	async deleteNote(id) {
@@ -806,6 +831,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 									description += ` ${deletedOrphanCount} orphaned images deleted.`;
 								}
 								this.showToast({
+									quiet: true,
 									title: 'Image Sync Complete',
 									description,
 								});
@@ -900,6 +926,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.noteEditorVisible = false;
 		this.easyMDEIniting = true;
 		try {
+			if (!window.easyMDEInstance && window.marked && window.markedKatex && window.markedHighlight && !marked.initedKatex) {
+				marked.use(markedKatex({throwOnError: false, nonStandard: true}));
+				marked.use(markedHighlight.markedHighlight({
+					emptyLangClass: 'hljs',
+					langPrefix: 'hljs language-',
+					highlight(code, lang, info) {
+						const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+						return hljs.highlight(code, { language }).value;
+					}
+				}));
+				marked.initedKatex = true;
+			}
+
 			window.easyMDEInstance = window.easyMDEInstance || new EasyMDE({
 				element: document.getElementById('note-content'),
 				unorderedListStyle: "-",
@@ -928,6 +967,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					text: "Autosaved: "
 				},
 				// forceSync: true,
+				previewRender: function(plainText) {
+					return marked.parse(plainText);
+				},
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				toolbar: [
 					{
@@ -1327,6 +1369,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							if (updatedNote) {
 								noteToLoad = updatedNote;
 								this.showToast({
+									quiet: true,
 									title: 'Note Updated',
 									description: 'A newer version of this note was found on the server and has been loaded.',
 									duration: 5000
@@ -1475,9 +1518,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						title: this.noteEditorTitle,
 						content: content,
 						updatedAt: new Date().toISOString(),
+						html: marked.parse(content),
 					};
 					await uploadNoteToS3(note, credentials);
-					const url = await getPresignedUrl(note.id, credentials);
+					const url = await getPresignedUrl(note, credentials);
 					if (url) {
 						published = true;
 						this.showToast({

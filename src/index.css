@@ -1,3 +1,28 @@
+#welcome-section {
+	line-height: 2rem;
+}
+#welcome-section [alt*="Logo"] {
+	display: none;
+}
+
+#welcome-section ul,#welcome-section ol {
+	padding-left: 1rem;
+}
+
+#welcome-section h1,#welcome-section h2,#welcome-section h3,#welcome-section h4 {
+	margin-top: 2rem;
+	font-weight: 900;
+	font-size: 1.5rem;
+}
+
+#welcome-section p {
+	margin-top: 1rem;
+}
+
+#welcome-section a {
+	text-decoration: underline;
+}
+
 .line-clamp-3 {
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
@@ -72,12 +97,20 @@
 	background-color: slategray;
 }
 
+.dark .EasyMDEContainer .editor-toolbar {
+	background: #2d3748;
+}
+
+.dark .EasyMDEContainer .editor-toolbar.fullscreen {
+	background: #2d3748;
+}
+
 .EasyMDEContainer .editor-toolbar button {
 	max-width: 32px;
 }
 
 .EasyMDEContainer .editor-preview {
-	padding-left: 40px;
+	/*padding-left: 40px;*/
 }
 
 .EasyMDEContainer .editor-preview ul {
@@ -125,4 +158,16 @@
 
 .EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
 	display: none;
+}
+
+.EasyMDEContainer [role="toolbar"].fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .CodeMirror-fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .editor-preview-active-side {
+	margin-top: 4rem;
 }
