@@ -486,7 +486,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		try {
 			const now = new Date().toISOString();
 			const newNote = {
-				id: crypto.randomUUID(),
+				id: generateUniqueId(),
 				title,
 				content,
 				createdAt: now,
@@ -1052,7 +1052,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 										return;
 									}
 
-									const imageId = crypto.randomUUID();
+const imageId = generateUniqueId();
 									const imageRecord = { id: imageId, blob: blob, synced: false };
 
 									await addImageDB(imageRecord);
@@ -1153,7 +1153,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					const blob = imageItem.getAsFile();
 					if (!blob) return;
 
-					const imageId = crypto.randomUUID();
+					const imageId = generateUniqueId();
 					const imageRecord = { id: imageId, blob: blob, synced: false };
 
 					addImageDB(imageRecord).then(() => {
@@ -1514,7 +1514,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				try {
 					this.showToast({ title: 'Publishing to S3...', description: 'Creating a shareable link via S3.' });
 					const note = {
-						id: this.noteEditorNoteId || crypto.randomUUID(),
+						id: this.noteEditorNoteId || generateUniqueId(),
 						title: this.noteEditorTitle,
 						content: content,
 						updatedAt: new Date().toISOString(),

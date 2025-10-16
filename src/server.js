@@ -169,9 +169,6 @@ app.post('/api/publish', async (req, res) => {
 
 app.get('/publish/:noteId', async (req, res) => {
 	const { noteId } = req.params;
-	if (!/^[a-f0-9]{16}$/.test(noteId)) {
-		return res.status(400).send('Invalid note ID format.');
-	}
 
 	try {
 		let note = null;

@@ -656,3 +656,7 @@ function removeTrackingParams(url) {
 		return url;
 	}
 }
+
+function generateUniqueId() {
+    return Date.now().toString(36).substr(4) + Math.random().toString(36).substring(2, 6);
+}
