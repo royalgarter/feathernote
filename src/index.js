@@ -499,6 +499,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (uniqueNotes.length < this.notes.length) {
 				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
 				this.notes = uniqueNotes;
+			}
 			this.miniSearch?.addAll(this.notes);
 			this.updateNotesCache();
 		} catch (error) {
