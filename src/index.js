@@ -481,7 +481,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	async updateNotesCache() {
 		try {
-			localStorage.setItem('feathernote-notes-cache', JSON.stringify(this.notes));
+			let saved = this.notes?.slice?.(0, 36).map(x => {
+				x.content = x?.content?.substr?.(0, 200);
+				return x;
+			});
+
+			localStorage.setItem('feathernote-notes-cache', JSON.stringify(saved));
 		} catch (error) {
 			console.error('Error updating notes cache:', error);
 		}
