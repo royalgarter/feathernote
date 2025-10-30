@@ -186,7 +186,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
 		}) : null;
 
-		this.fetchNotes();
+		this.loadNotesFromCacheAndFetch();
 		this.loadSettingsFromStorage().then(_ => {
 			this.syncNotes();
 		})
@@ -459,6 +459,34 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}) || [];
 	},
 
+	async loadNotesFromCacheAndFetch() {
+		this.loading = true;
+		try {
+			const cachedNotes = localStorage.getItem('feathernote-notes-cache');
+			if (cachedNotes) {
+				this.notes = JSON.parse(cachedNotes);
+				this.miniSearch?.removeAll();
+				this.miniSearch?.addAll(this.notes);
+				this.loading = false; // Stop loading indicator early
+			}
+		} catch (error) {
+			console.error('Error loading notes from cache:', error);
+			// If cache is corrupt, clear it
+			localStorage.removeItem('feathernote-notes-cache');
+		}
+
+		// Fetch latest notes from DB regardless of cache
+		await this.fetchNotes();
+	},
+
+	async updateNotesCache() {
+		try {
+			localStorage.setItem('feathernote-notes-cache', JSON.stringify(this.notes));
+		} catch (error) {
+			console.error('Error updating notes cache:', error);
+		}
+	},
+
 	async fetchNotes() {
 		this.loading = true;
 		try {
@@ -471,9 +499,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (uniqueNotes.length < this.notes.length) {
 				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
 				this.notes = uniqueNotes;
-			}
-
 			this.miniSearch?.addAll(this.notes);
+			this.updateNotesCache();
 		} catch (error) {
 			console.error('Error in fetchNotes:', error);
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
@@ -500,6 +527,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.scheduleNotification(newNote);
 			this.updateAppBadge();
 			this.miniSearch?.add(newNote);
+			this.updateNotesCache();
 			// this.showToast({ title: 'Note Added', description: 'New note created.' });
 			this.syncNotes(false, 1, [newNote]);
 			return newNote;
@@ -533,6 +561,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			// this.miniSearch?.removeAll();
 
 			if (!this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
+			this.updateNotesCache();
 
 			if (!isSilent) {
 				this.showToast({ quiet: true, title: 'Note Updated', description: 'Note saved successfully.' });
@@ -590,6 +619,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// Add back to local state and DB
 		this.notes.unshift(noteToRestore);
 		await addNoteDB(noteToRestore);
+		this.updateNotesCache();
 
 		// Remove from the S3 deletion queue
 		this.deletedNoteIds = this.deletedNoteIds.filter(id => id !== noteToRestore.id);
@@ -605,6 +635,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			await this.updateNote(noteId, { priority: newPriority }, true);
 			this.notes.find(n => n.id === noteId).priority = newPriority;
 			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+			this.updateNotesCache();
 		}
 	},
 
@@ -615,6 +646,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			await this.updateNote(noteId, { priority: newPriority }, true);
 			this.notes.find(n => n.id === noteId).priority = newPriority;
 			this.notes.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
+			this.updateNotesCache();
 		}
 	},
 
@@ -634,6 +666,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Remove from UI
 			this.notes = this.notes.filter((note) => note.id !== id);
+			this.updateNotesCache();
 
 			// Add to deletion queue for next sync
 			if (!this.deletedNoteIds.includes(id)) {
@@ -723,6 +756,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			const updatedNote = { ...remoteNote, content: finalContent, updatedAt: new Date().toISOString() };
 			await updateNoteDB(updatedNote);
+			this.updateNotesCache();
 
 			this.showToast({ quiet: true, title: 'Merge Successful', description: 'Your changes have been merged with a newer version.' });
 
@@ -737,6 +771,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 
 			await updateNoteDB(remoteNote);
+			this.updateNotesCache();
 
 			// If the user is currently editing this note, refresh their editor with the new content
 			if (isEditingThisNote) {
@@ -788,6 +823,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (result.success) {
 				if (result.gdrive) {
 					this.fetchNotes(); // Refresh notes from DB
+					this.updateNotesCache();
 					if (!isSilent) {
 						this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
 					}
@@ -816,6 +852,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					}
 
 					await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
+					this.updateNotesCache();
 
 					this.lastSync = new Date().toISOString();
 					localStorage.setItem('feathernote-lastSync', this.lastSync);
