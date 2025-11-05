@@ -1215,7 +1215,7 @@ const imageId = generateUniqueId();
 						if (urlToParse.length < 2083 && urlRegex.test(urlToParse)) {
 							urlToParse = removeTrackingParams(urlToParse);
 
-							if (confirm('Extracting the web content?')) {
+							if (false && confirm('Extracting the web content?')) {
 								document.body.style.cursor = 'wait';
 								let html;
 								try {
@@ -1317,7 +1317,11 @@ const imageId = generateUniqueId();
 		try {
 			const note = await this.getNote(noteId);
 
-			let content = window.easyMDEInstance?.value?.() || this.noteEditorContent || note?.content || '';
+			let content = window.easyMDEInstance?.codemirror?.getSelection?.()
+				|| window.easyMDEInstance?.value?.() 
+				|| this.noteEditorContent 
+				|| note?.content 
+				|| '';
 
 			const urlRegex = /(https?:\/\/[^\s\(\)\[\]]+)/;
 			const match = note.content.match(urlRegex);

@@ -123,31 +123,54 @@ self.addEventListener('fetch', (event) => {
 			event.respondWith(
 				(async () => {
 					try {
+						const TITLE_SHARED = 'Shared Inbox';
+
 						const formData = await event.request.formData();
 						const text = formData.get('text') || '';
 						const sharedUrl = formData.get('url') || '';
-						let title = formData.get('title') || '';
-						let content;
+						const title = formData.get('title') || '';
 
-						if (text && sharedUrl) {
-							content = `${text}\n-\n${sharedUrl}`;
-						} else {
-							content = text || sharedUrl;
+						let newItem = '- ';
+						if (title && sharedUrl) {
+							newItem += `[${title}](${sharedUrl})`;
+						} else if (title) {
+							newItem += title;
+						} else if (sharedUrl) {
+							newItem += `[${sharedUrl}](${sharedUrl})`;
 						}
 
-						let urlToFetch = sharedUrl;
-						if (!urlToFetch) {
-							const urlRegex = /(https?:\/\/[^\s]+)/;
-							const match = text.match(urlRegex);
-							if (match) {
-								urlToFetch = match[0];
+						if (text) {
+							if (title || sharedUrl) {
+								newItem += ` > ${text}`;
+							} else {
+								newItem += text;
 							}
 						}
 
-						let tags = urlToFetch ? [`shared`, `#needs-clipping`] : [`shared`];
+						if (newItem.trim() !== '*') {
+							const allNotes = await getNotesDB();
+							let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
 
-						if (content) {
-							await saveSharedContentToDB(title, content, tags);
+							if (inboxNote) {
+								if (inboxNote.content) {
+									inboxNote.content += '\n' + newItem;
+								} else {
+									inboxNote.content = newItem;
+								}
+								inboxNote.updatedAt = new Date().toISOString();
+								await updateNoteDB(inboxNote);
+							} else {
+								// Create a new inbox note
+								const newNote = {
+									id: generateUniqueId(),
+									title: TITLE_SHARED,
+									content: newItem,
+									createdAt: new Date().toISOString(),
+									updatedAt: new Date().toISOString(),
+									tags: ['shared', 'inbox'],
+								};
+								await addNoteDB(newNote);
+							}
 						}
 
 						// Redirect to the home page after sharing
@@ -187,10 +210,6 @@ self.addEventListener('fetch', (event) => {
 			})
 	);
 });
-
-async function saveSharedContentToDB(title, content, tags) {
-	return addSharedContentDB({ title, content, tags });
-}
 
 
 self.addEventListener('activate', (event) => {
