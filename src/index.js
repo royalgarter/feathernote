@@ -1533,7 +1533,7 @@ const imageId = generateUniqueId();
 						description: 'A shareable link has been created and copied to your clipboard.'
 					});
 					navigator.clipboard.writeText(result.url);
-					prompt('Share this Nostr URL:', result.url);
+					prompt('Share this Nostr URL (copied to clipboard):', result.url);
 
 				} else {
 					throw new Error(result.error || 'Failed to publish to Nostr relays.');
@@ -1573,7 +1573,7 @@ const imageId = generateUniqueId();
 							description: 'A shareable link has been created and copied to your clipboard.'
 						});
 						navigator.clipboard.writeText(url);
-						prompt('Share this S3 URL:', url);
+						prompt('Share this S3 URL (copied to clipboard):', url);
 					} else {
 						throw new Error('Failed to create S3 pre-signed URL.');
 					}
@@ -1613,7 +1613,7 @@ const imageId = generateUniqueId();
 					description: 'A shareable link has been created and copied to your clipboard.'
 				});
 				navigator.clipboard.writeText(fullUrl);
-				prompt('Share this URL:', fullUrl);
+				prompt('Share this URL (copied to clipboard):', fullUrl);
 			} else {
 				throw new Error(data.error || 'Failed to create shareable link.');
 			}
