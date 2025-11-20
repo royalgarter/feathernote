@@ -219,10 +219,34 @@ async function performDBOperation(storeName, mode, operation, ...args) {
 	});
 }
 
-const saveEncryptedSettingsDB = (encryptedSettings, userId) => performDBOperation(S3_CREDENTIALS_STORE, 'readwrite', 'put', { id: 's3-credentials', data: { encryptedSettings, userId } });
+const saveEncryptedSettingsDB = (encryptedSettings, userId) => {
+	localStorage.setItem('s3-credentials', JSON.stringify({ encryptedSettings, userId }));
+	performDBOperation(S3_CREDENTIALS_STORE, 'readwrite', 'put', { id: 's3-credentials', data: { encryptedSettings, userId } });
+};
 const getEncryptedSettingsDB = async () => {
-	const result = await performDBOperation(S3_CREDENTIALS_STORE, 'readonly', 'get', 's3-credentials');
-	return result ? result.data : null;
+	try {
+		const result = await performDBOperation(S3_CREDENTIALS_STORE, 'readonly', 'get', 's3-credentials');
+		if (result && result.data) {
+			// If we get data from IndexedDB, make sure localStorage is also up-to-date.
+			localStorage.setItem('s3-credentials', JSON.stringify(result.data));
+			return result.data;
+		}
+	} catch (error) {
+		console.warn('Could not fetch settings from IndexedDB, falling back to localStorage.', error);
+	}
+
+	// If IndexedDB fails or returns no data, try localStorage.
+	const fromStorage = localStorage.getItem('s3-credentials');
+	if (fromStorage) {
+		try {
+			return JSON.parse(fromStorage);
+		} catch (error) {
+			console.error('Could not parse settings from localStorage.', error);
+			return null;
+		}
+	}
+
+	return null;
 };
 
 const addImageDB = (image) => performDBOperation(IMAGE_STORE, 'readwrite', 'add', image);
