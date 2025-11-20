@@ -130,7 +130,7 @@ self.addEventListener('fetch', (event) => {
 						const sharedUrl = formData.get('url') || '';
 						const title = formData.get('title') || '';
 
-						let newItem = '- ';
+						let newItem = '- [ ] ';
 						if (title && sharedUrl) {
 							newItem += `[${title}](${sharedUrl})`;
 						} else if (title) {
@@ -153,7 +153,7 @@ self.addEventListener('fetch', (event) => {
 
 							if (inboxNote) {
 								if (inboxNote.content) {
-									inboxNote.content += '\n' + newItem;
+									inboxNote.content = newItem + '\n' + inboxNote.content;
 								} else {
 									inboxNote.content = newItem;
 								}
