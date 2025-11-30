@@ -162,7 +162,7 @@ self.addEventListener('fetch', (event) => {
 							} else {
 								// Create a new inbox note
 								const newNote = {
-									id: generateUniqueId(),
+									id: 'shared-inbox-' + generateUniqueId(),
 									title: TITLE_SHARED,
 									content: newItem,
 									createdAt: new Date().toISOString(),
