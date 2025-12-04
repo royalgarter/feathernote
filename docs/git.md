@@ -30,10 +30,10 @@ A new module `src/git.js` was created to encapsulate all Git-related operations:
 - **`finishGitSync(creds)`:** Commits any staged changes (uploads/deletes) and pushes them to the remote repository.
 
 ### 3. Integration (`src/helpers.js`)
-The central `synchronize` function was updated to orchestrate the Git flow:
-1.  **Init:** Calls `initGit` to pull the latest changes from the remote.
+The central `synchronize` function in `src/helpers.js` orchestrates the sync flow, treating Git as another remote provider alongside S3 and Nostr:
+1.  **Init:** Calls `initGit` to pull the latest changes from the remote repository.
 2.  **List:** Fetches the state of the local Git repo (via `listNotesInGit`) and merges it with states from S3/Nostr.
-3.  **Upload/Delete:** When a note needs to be uploaded or deleted, `uploadNoteToGit` or `deleteNoteFromGit` is called respectively. These update the *local* Git repo state.
+3.  **Upload/Delete:** When a note needs to be uploaded or deleted, `uploadNoteToGit` or `deleteNoteFromGit` is called respectively. These functions update the *local* Git repo state (Working Directory & Index).
 4.  **Push:** After all note operations are complete, `finishGitSync` is called to create a commit and push it to the remote server.
 
 ### 4. UI & State (`src/index.js`, `src/index.html`)
