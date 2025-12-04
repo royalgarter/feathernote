@@ -277,8 +277,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 		// Initialize Git if configured
 		if (gitCredentials?.repoUrl) {
-			if (typeof initGit === 'function') {
-				await initGit(gitCredentials);
+			if (typeof window.initGit === 'function') {
+				await window.initGit(gitCredentials);
 			}
 		}
 
@@ -337,8 +337,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		
 		// Commit and Push Git if we made changes (Uploads or Deletes)
 		if (gitCredentials?.repoUrl && (successfulUploadedCount > 0 || successfulDeletedCount > 0)) {
-			if (typeof finishGitSync === 'function') {
-				await finishGitSync(gitCredentials);
+			if (typeof window.finishGitSync === 'function') {
+				await window.finishGitSync(gitCredentials);
 			}
 		}
 
@@ -526,7 +526,7 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 	await Promise.allSettled([
 		credentials.secretAccessKey ? uploadNoteToS3(note, credentials) : null,
 		nostrPrivateKey ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
-		(gitCredentials?.repoUrl && typeof uploadNoteToGit === 'function') ? uploadNoteToGit(note, gitCredentials) : null,
+		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function') ? window.uploadNoteToGit(note, gitCredentials) : null,
 	].filter(x => x));
 }
 
@@ -558,8 +558,8 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 	}
 
 	let gitNotesPromise;
-	if (gitCredentials?.repoUrl && typeof listNotesInGit === 'function') {
-		gitNotesPromise = listNotesInGit(gitCredentials);
+	if (gitCredentials?.repoUrl && typeof window.listNotesInGit === 'function') {
+		gitNotesPromise = window.listNotesInGit(gitCredentials);
 	} else {
 		gitNotesPromise = Promise.resolve([]);
 	}
@@ -654,8 +654,8 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
 	}
 
-	if (gitCredentials?.repoUrl && typeof deleteNoteFromGit === 'function') {
-		promises.push(deleteNoteFromGit(noteId, gitCredentials));
+	if (gitCredentials?.repoUrl && typeof window.deleteNoteFromGit === 'function') {
+		promises.push(window.deleteNoteFromGit(noteId, gitCredentials));
 	}
 
 	await Promise.all(promises);

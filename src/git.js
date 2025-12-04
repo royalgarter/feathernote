@@ -32,25 +32,8 @@ const getGitConfig = (creds) => {
 // Helper to parse Frontmatter
 const parseFrontmatter = (text) => {
     const result = { metadata: {}, body: text };
-    // Regex for frontmatter:
-    // ^---		Start with ---
-    // 		Optional whitespace
-    // [
-]+	Newline
-    // ([
-]*?)	Capture metadata (non-greedy)
-    // [
-]+	Newline
-    // ---		Separator
-    // 		Optional whitespace
-    // [
-]+	Newline
-    // ([
-]*)	Capture body
-    const match = text.match(/^---\s*[
-]+([\s\S]*?)[
-]+---\s*[
-]+([\s\S]*)$/);
+    // Regex for frontmatter
+    const match = text.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---\s*[\r\n]+([\s\S]*)$/);
     
     if (match) {
         const yamlBlock = match[1];
@@ -100,8 +83,9 @@ const createMarkdownContent = (note) => {
 };
 
 // --- Exported Functions ---
+// Explicitly attach to window to ensure global availability across scripts
 
-const initGit = async (creds) => {
+window.initGit = async (creds) => {
     if (!creds.repoUrl) return;
 
     try {
@@ -143,7 +127,7 @@ const initGit = async (creds) => {
     }
 };
 
-const listNotesInGit = async (creds) => {
+window.listNotesInGit = async (creds) => {
     try {
         // Check if dir exists
         try {
@@ -166,8 +150,6 @@ const listNotesInGit = async (creds) => {
                     const id = metadata.id || file.replace(/\.md$/, '');
                     
                     // Date strategy: Metadata updatedAt -> File Mtime
-                    // Note: File Mtime in browser FS might be 'time of clone', not 'time of edit'.
-                    // Trusting metadata.updatedAt is crucial.
                     const updatedAt = metadata.updatedAt || new Date(stat.mtimeMs).toISOString();
 
                     notes.push({
@@ -193,7 +175,7 @@ const listNotesInGit = async (creds) => {
     }
 };
 
-const uploadNoteToGit = async (note, creds) => {
+window.uploadNoteToGit = async (note, creds) => {
     const filename = `${note.id}.md`;
     const content = createMarkdownContent(note);
     
@@ -204,7 +186,7 @@ const uploadNoteToGit = async (note, creds) => {
     await git.add({ fs, dir: GIT_DIR, filepath: filename });
 };
 
-const deleteNoteFromGit = async (noteId, creds) => {
+window.deleteNoteFromGit = async (noteId, creds) => {
     const filename = `${noteId}.md`;
     try {
         await git.remove({ fs, dir: GIT_DIR, filepath: filename });
@@ -217,7 +199,7 @@ const deleteNoteFromGit = async (noteId, creds) => {
     } catch (e) {}
 };
 
-const finishGitSync = async (creds) => {
+window.finishGitSync = async (creds) => {
     if (!creds.repoUrl) return;
 
     // Simple check: try to commit. 
