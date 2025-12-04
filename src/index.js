@@ -14,6 +14,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		user: null,
 	},
 
+	// --- Git Settings ---
+	gitRepoUrl: '',
+	gitBranch: '',
+	gitUsername: '',
+	gitToken: '',
+	gitCorsProxy: '',
+	gitEmail: '',
+
 	// --- Auth Data ---
 	user: null,
 	isGsiLoaded: false,
@@ -812,6 +820,15 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			const credentials = await decryptSettings(encryptedSettings, userId);
 
+			const gitCredentials = {
+				repoUrl: this.gitRepoUrl,
+				branch: this.gitBranch,
+				username: this.gitUsername,
+				token: this.gitToken,
+				corsProxy: this.gitCorsProxy,
+				email: this.gitEmail
+			};
+
 			const result = await synchronize({
 				notes,
 				deletedNoteIds: this.deletedNoteIds,
@@ -821,6 +838,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				nostrRelays: this.nostrRelays,
 				gdriveStore: this.gdriveStore,
 				lastSync: this.lastSync,
+				gitCredentials
 			});
 
 			if (result.success) {
@@ -1789,6 +1807,13 @@ const imageId = generateUniqueId();
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
+
+		this.gitRepoUrl = decrypted.gitRepoUrl || '';
+		this.gitBranch = decrypted.gitBranch || '';
+		this.gitUsername = decrypted.gitUsername || '';
+		this.gitToken = decrypted.gitToken || '';
+		this.gitCorsProxy = decrypted.gitCorsProxy || '';
+		this.gitEmail = decrypted.gitEmail || '';
 	},
 
 	async handleSave() {
@@ -1813,7 +1838,13 @@ const imageId = generateUniqueId();
 			nostrPrivateKey: this.nostrPrivateKey,
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
-			aiModel: this.aiModel
+			aiModel: this.aiModel,
+			gitRepoUrl: this.gitRepoUrl,
+			gitBranch: this.gitBranch,
+			gitUsername: this.gitUsername,
+			gitToken: this.gitToken,
+			gitCorsProxy: this.gitCorsProxy,
+			gitEmail: this.gitEmail
 		};
 
 		if (this.secretAccessKey) {

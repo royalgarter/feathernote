@@ -268,20 +268,27 @@ const getSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'reado
 const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'add', item);
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
 
-async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync}) {
+async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials}) {
 	try {
 		if (gdriveStore.connected && typeof syncNotesWithGoogleDrive === 'function') {
 			await syncNotesWithGoogleDrive(isSilent, deletedNoteIds)
 			return { success: true, gdrive: true };
 		}
 
-		if (!credentials.secretAccessKey) return {
+		// Initialize Git if configured
+		if (gitCredentials?.repoUrl) {
+			if (typeof initGit === 'function') {
+				await initGit(gitCredentials);
+			}
+		}
+
+		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl) return {
 			success: false,
-			error: 'S3 credentials is missing',
+			error: 'S3 credentials and Git Repo URL are missing',
 		};
 
 		// --- Step 1: Get remote state FIRST ---
-		const remoteNoteMetadata = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync});
+		const remoteNoteMetadata = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -302,10 +309,10 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			return localDate > remoteDate;
 		});
 
-		const uploadPromises = notesToUpload.map(note => uploadNote({note, credentials, nostrPrivateKey, nostrRelays}));
+		const uploadPromises = notesToUpload.map(note => uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials}));
 
-		// --- Step 3: Determine which notes to delete from S3 ---
-		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore}));
+		// --- Step 3: Determine which notes to delete from Remotes ---
+		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials}));
 
 		// --- Step 4: Execute uploads and deletes ---
 		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
@@ -327,6 +334,13 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		});
 		const successfulDeletedCount = successfulDeletedIds.length;
+		
+		// Commit and Push Git if we made changes (Uploads or Deletes)
+		if (gitCredentials?.repoUrl && (successfulUploadedCount > 0 || successfulDeletedCount > 0)) {
+			if (typeof finishGitSync === 'function') {
+				await finishGitSync(gitCredentials);
+			}
+		}
 
 
 		// --- Step 5: Determine which notes to download or delete locally ---
@@ -373,7 +387,18 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 		notesToDeleteLocally.push(...remotelyDeletedNoteIds);
 
-		const downloadPromises = notesToDownload.map(remoteMeta => downloadNoteFromS3(remoteMeta.id, credentials));
+		const downloadPromises = notesToDownload.map(remoteMeta => {
+			if (remoteMeta.source === 'git') {
+				// We already have the content from listNotesInGit? 
+				// listNotesInGit returns full note objects with content!
+				// So we don't need to download again. We just return it.
+				return Promise.resolve(remoteMeta);
+			} else if (remoteMeta.source === 'nostr') {
+				return Promise.resolve(remoteMeta); // Nostr also returns full event/note
+			} else {
+				return downloadNoteFromS3(remoteMeta.id, credentials);
+			}
+		});
 		const downloadResults = await Promise.allSettled(downloadPromises);
 
 		const updatedNotes = [];
@@ -385,7 +410,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				// If a note was listed in metadata but fails to download with NoSuchKey,
 				// it means it was deleted between the list and get operations.
 				// We should treat it as a remote deletion.
-				if (result.reason.code === 'NoSuchKey') {
+				if (result.reason && result.reason.code === 'NoSuchKey') {
 					notesToDeleteLocally.push(notesToDownload[idx].id);
 				}
 			}
@@ -497,10 +522,11 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 	}
 }
 
-async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays}) {
+async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials}) {
 	await Promise.allSettled([
 		credentials.secretAccessKey ? uploadNoteToS3(note, credentials) : null,
 		nostrPrivateKey ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+		(gitCredentials?.repoUrl && typeof uploadNoteToGit === 'function') ? uploadNoteToGit(note, gitCredentials) : null,
 	].filter(x => x));
 }
 
@@ -520,7 +546,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 	await Promise.all(promises);
 }
 
-async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync}) {
+async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials}) {
 	const s3NotesPromise = listNotesInS3(credentials, lastSync);
 
 	let nostrNotesPromise;
@@ -531,7 +557,14 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync}) 
 		nostrNotesPromise = Promise.resolve([]);
 	}
 
-	const [s3Notes, nostrNotes] = await Promise.all([s3NotesPromise, nostrNotesPromise]);
+	let gitNotesPromise;
+	if (gitCredentials?.repoUrl && typeof listNotesInGit === 'function') {
+		gitNotesPromise = listNotesInGit(gitCredentials);
+	} else {
+		gitNotesPromise = Promise.resolve([]);
+	}
+
+	const [s3Notes, nostrNotes, gitNotes] = await Promise.all([s3NotesPromise, nostrNotesPromise, gitNotesPromise]);
 
 	const mergedNotes = new Map();
 
@@ -547,6 +580,20 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync}) 
 			const s3LastModified = new Date(existingNote.updatedAt);
 			if (nostrLastModified > s3LastModified) {
 				mergedNotes.set(note.id, { ...note, updatedAt: nostrLastModified, source: 'nostr' });
+			}
+		}
+	});
+
+	gitNotes.forEach(note => {
+		const existingNote = mergedNotes.get(note.id);
+		const gitLastModified = new Date(note.updatedAt || note.createdAt);
+
+		if (!existingNote) {
+			mergedNotes.set(note.id, { ...note, updatedAt: gitLastModified, source: 'git' });
+		} else {
+			const existingLastModified = new Date(existingNote.updatedAt);
+			if (gitLastModified > existingLastModified) {
+				mergedNotes.set(note.id, { ...note, updatedAt: gitLastModified, source: 'git' });
 			}
 		}
 	});
@@ -590,7 +637,7 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 	return Array.from(mergedImages.values());
 }
 
-async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore}) {
+async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials}) {
 	const promises = [];
 
 	// Remote deletions
@@ -605,6 +652,10 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	if ( nostrPrivateKey && nostrRelays ) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
+	}
+
+	if (gitCredentials?.repoUrl && typeof deleteNoteFromGit === 'function') {
+		promises.push(deleteNoteFromGit(noteId, gitCredentials));
 	}
 
 	await Promise.all(promises);
