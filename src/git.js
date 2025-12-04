@@ -5,18 +5,14 @@
 const fs = new LightningFS('feathernote-fs');
 const pfs = fs.promises;
 
-// Setup Git plugin
-// We rely on window.git and window.GitHttp being available from loaded libs
-if (window.git && window.GitHttp) {
-    git.plugins.set('fs', fs);
-    git.plugins.set('http', window.GitHttp);
-}
+// Note: isomorphic-git v1.x does not use git.plugins.set('fs', ...) or 'http'.
+// Instead, we pass 'fs' and 'http' in the options object for each command.
 
 const GIT_DIR = '/repo';
 
 // Helper to get git config object
 const getGitConfig = (creds) => {
-    return {
+    const config = {
         fs,
         dir: GIT_DIR,
         corsProxy: creds.corsProxy || 'https://cors.isomorphic-git.org',
@@ -27,6 +23,11 @@ const getGitConfig = (creds) => {
             email: creds.email || 'user@feathernote.app',
         },
     };
+
+    if (window.GitHttp) {
+        config.http = window.GitHttp;
+    }
+    return config;
 };
 
 // Helper to parse Frontmatter
