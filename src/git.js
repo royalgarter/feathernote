@@ -163,7 +163,25 @@ window.listNotesInGit = async (creds) => {
                     const id = metadata.id || file.replace(/\.md$/, '');
                     
                     // Date strategy: Metadata updatedAt -> File Mtime
-                    const updatedAt = metadata.updatedAt || new Date(stat.mtimeMs).toISOString();
+                    let updatedAt = metadata.updatedAt;
+                    if (!updatedAt) {
+                        const mDate = new Date(stat.mtimeMs);
+                        if (isNaN(mDate.getTime())) {
+                            console.warn(`Skipping ${file}: Invalid mtimeMs timestamp`);
+                            continue;
+                        }
+                        updatedAt = mDate.toISOString();
+                    }
+
+                    let createdAt = metadata.createdAt;
+                    if (!createdAt) {
+                        const bDate = new Date(stat.birthtimeMs || stat.mtimeMs);
+                        if (isNaN(bDate.getTime())) {
+                            console.warn(`Skipping ${file}: Invalid birthtimeMs timestamp`);
+                            continue;
+                        }
+                        createdAt = bDate.toISOString();
+                    }
 
                     notes.push({
                         id: id,
@@ -171,7 +189,7 @@ window.listNotesInGit = async (creds) => {
                         content: body,
                         tags: metadata.tags || [],
                         updatedAt: updatedAt,
-                        createdAt: metadata.createdAt || new Date(stat.birthtimeMs).toISOString(),
+                        createdAt: createdAt,
                         reminder: metadata.reminder || null,
                         priority: metadata.priority || 0,
                         source: 'git'
