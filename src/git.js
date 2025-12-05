@@ -22,11 +22,23 @@ const getGitConfig = (creds) => {
             name: creds.username || 'FeatherNote User',
             email: creds.email || 'user@feathernote.app',
         },
+        headers: {},
     };
 
     if (window.GitHttp) {
         config.http = window.GitHttp;
     }
+
+    // Explicitly add Basic Auth header to ensure it passes through proxies
+    if (config.username && config.password) {
+        try {
+            const authString = btoa(`${config.username}:${config.password}`);
+            config.headers['Authorization'] = `Basic ${authString}`;
+        } catch (e) {
+            console.error('Error constructing auth header:', e);
+        }
+    }
+
     return config;
 };
 
@@ -165,7 +177,7 @@ window.listNotesInGit = async (creds) => {
                         source: 'git'
                     });
                 } catch (readErr) {
-                    console.error(`Error reading/parsing file ${file}:`, readErr);
+                    console.error(`Error reading/parsing file ${file}:`, readErr.message);
                 }
             }
         }
