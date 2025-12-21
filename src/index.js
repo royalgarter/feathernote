@@ -978,6 +978,39 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		});
 	},
 
+	async loadExcalidrawResources() {
+		if (window.ExcalidrawLib) return;
+
+		this.showToast({ title: 'Loading...', description: 'Downloading Excalidraw resources...' });
+
+		// Load CSS
+		const link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.href = 'https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css';
+		document.head.appendChild(link);
+
+		window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+
+		try {
+			const [ExcalidrawLib, React, ReactDOM] = await Promise.all([
+				import('https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom'),
+				import('https://esm.sh/react@18.0.0'),
+				import('https://esm.sh/react-dom@18.0.0')
+			]);
+
+			window.ExcalidrawLib = ExcalidrawLib;
+			window.React = React.default || React;
+			window.ReactDOM = ReactDOM.default || ReactDOM;
+
+			this.showToast({ quiet: true, title: 'Loaded', description: 'Excalidraw ready.' });
+
+		} catch (e) {
+			console.error("Excalidraw load error:", e);
+			this.showToast({ variant: 'error', title: 'Load Failed', description: 'Could not load Excalidraw.' });
+			throw e;
+		}
+	},
+
 	prepareEasyMDE(id) {
 		if (!window.EasyMDE) return;
 
@@ -1058,7 +1091,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					"link", "image",
 					{
 						name: "image",
-						action: function(editor) {
+						action: async function(editor) {
+							const app = Alpine.$data(document.querySelector('body'));
+							if (!window.ExcalidrawLib) {
+								try {
+									await app.loadExcalidrawResources();
+								} catch (e) {
+									return; // Stop if load failed
+								}
+							}
+
 							if (!window.ExcalidrawLib || !window.React || !window.ReactDOM) {
 								const excalidrawWindow = window.open("https://excalidraw.com", "_blank");
 
