@@ -22,11 +22,23 @@ const getGitConfig = (creds) => {
             name: creds.username || 'FeatherNote User',
             email: creds.email || 'user@feathernote.app',
         },
+        headers: {},
     };
 
     if (window.GitHttp) {
         config.http = window.GitHttp;
     }
+
+    // Explicitly add Basic Auth header to ensure it passes through proxies
+    if (config.username && config.password) {
+        try {
+            const authString = btoa(`${config.username}:${config.password}`);
+            config.headers['Authorization'] = `Basic ${authString}`;
+        } catch (e) {
+            console.error('Error constructing auth header:', e);
+        }
+    }
+
     return config;
 };
 
@@ -151,7 +163,25 @@ window.listNotesInGit = async (creds) => {
                     const id = metadata.id || file.replace(/\.md$/, '');
                     
                     // Date strategy: Metadata updatedAt -> File Mtime
-                    const updatedAt = metadata.updatedAt || new Date(stat.mtimeMs).toISOString();
+                    let updatedAt = metadata.updatedAt;
+                    if (!updatedAt) {
+                        const mDate = new Date(stat.mtimeMs);
+                        if (isNaN(mDate.getTime())) {
+                            console.warn(`Skipping ${file}: Invalid mtimeMs timestamp`);
+                            continue;
+                        }
+                        updatedAt = mDate.toISOString();
+                    }
+
+                    let createdAt = metadata.createdAt;
+                    if (!createdAt) {
+                        const bDate = new Date(stat.birthtimeMs || stat.mtimeMs);
+                        if (isNaN(bDate.getTime())) {
+                            console.warn(`Skipping ${file}: Invalid birthtimeMs timestamp`);
+                            continue;
+                        }
+                        createdAt = bDate.toISOString();
+                    }
 
                     notes.push({
                         id: id,
@@ -159,13 +189,13 @@ window.listNotesInGit = async (creds) => {
                         content: body,
                         tags: metadata.tags || [],
                         updatedAt: updatedAt,
-                        createdAt: metadata.createdAt || new Date(stat.birthtimeMs).toISOString(),
+                        createdAt: createdAt,
                         reminder: metadata.reminder || null,
                         priority: metadata.priority || 0,
                         source: 'git'
                     });
                 } catch (readErr) {
-                    console.error(`Error reading/parsing file ${file}:`, readErr);
+                    console.error(`Error reading/parsing file ${file}:`, readErr.message);
                 }
             }
         }
