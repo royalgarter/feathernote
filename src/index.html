@@ -191,12 +191,12 @@
 						</div>
 						<div class="flex justify-between items-center">
 							<div class="flex justify-start items-center gap-2 mt-2">
-								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-500 hover:bg-green-600" aria-label="Increase Priority">
+								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-600 hover:bg-green-700" aria-label="Increase Priority">
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 16 16">
 										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 11.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11.5z"/>
 									</svg>
 								</button>
-								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-300 hover:bg-green-400" aria-label="Decrease Priority">
+								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-400 hover:bg-green-500" aria-label="Decrease Priority">
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16">
 										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
 									</svg>
@@ -481,7 +481,7 @@
 	</div>
 
 	<!-- Toasts Container -->
-	<div class="fixed top-2 left-2 z-50 flex flex-col space-y-2">
+	<div class="fixed top-1 left-1 z-50 flex flex-col space-y-2">
 		<template x-for="toast in toasts" :key="toast.id">
 			<div
 				x-show="toast.show"
@@ -493,7 +493,7 @@
 			>
 				<div>
 					<h4 class="font-semibold text-sm" x-text="toast.title"></h4>
-					<p class="text-xs" x-text="toast.description"></p>
+					<p class="text-xs line-clamp-3" x-text="toast.description"></p>
 				</div>
 				<button @click="dismissToast(toast.id)" class="absolute top-1 right-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
