@@ -119,23 +119,23 @@
 }
 
 .EasyMDEContainer .editor-toolbar button[aria-label="Save"] {
-	color: var(--color-green-500);
+	color: var(--color-green-400);
 }
 
 .EasyMDEContainer .editor-toolbar button[aria-label="Delete"] {
-	color: var(--color-red-500);
+	color: var(--color-red-400);
 }
 
 .EasyMDEContainer .editor-toolbar button[aria-label="Share"] {
-	color: var(--color-blue-500);
+	color: var(--color-blue-400);
 }
 
 .EasyMDEContainer .editor-toolbar button[aria-label*="AI"] {
-	color: var(--color-yellow-500);
+	color: var(--color-yellow-400);
 }
 
 .EasyMDEContainer .editor-toolbar button[aria-label*="Clip Content"] {
-	color: var(--color-blue-700);
+	color: var(--color-yellow-300);
 }
 
 .EasyMDEContainer .editor-preview {
