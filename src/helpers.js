@@ -751,6 +751,10 @@ function removeTrackingParams(url) {
 	}
 }
 
-function generateUniqueId() {
-    return Date.now().toString(36).substr(4) + Math.random().toString(36).substring(2, 6);
+function generateUniqueId(title) {
+	return [
+		title?.toLowerCase()?.replace(/[^a-z0-9\s]/g,'')?.replace(/\s/g, '-')?.slice(0, 80) || '',
+		Date.now().toString(36).substr(4),
+		Math.random().toString(36).substring(2, 6),
+	].join('').trim();
 }
