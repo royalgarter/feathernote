@@ -1,5 +1,5 @@
 document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
-	GOOGLE_CLIENT_ID: "___GOOGLE_CLIENT_ID___",
+	GOOGLE_CLIENT_ID: document.querySelector('head meta[name="GOOGLE_CLIENT_ID"]').content || '',
 
 	// --- App Data ---
 	toasts: [],
