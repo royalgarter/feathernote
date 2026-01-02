@@ -92,7 +92,7 @@
 	>
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
-			<div id="search" class="flex justify-between items-center px-1 md:px-4 py-2 gap-4">
+			<div id="search" class="flex justify-between items-center px-2 md:px-4 py-2 gap-4">
 				<div class="relative w-full max-w-xs">
 					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="w-full border border-gray-300 rounded-md py-2 px-4" placeholder="🔍 Search notes..." />
 					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-60 overflow-y-auto">
@@ -108,25 +108,25 @@
 		</template>
 
 		<!-- Welcome -->
-		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="p-1 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
+		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="py-1 px-3 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
 			<!--WELCOME_CONTENT-->
 		</div>
 
 		<!-- Note Editor View -->
 		<template x-if="editingNoteId !== null">
-			<div id="note-editor" class="bg-white md:rounded-md h-4/5 p-0.5 md:p-4">
+			<div id="note-editor" class="bg-white md:rounded-md h-4/5 p-1 md:p-4">
 				<!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
 				<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
 					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 				</button> -->
 
-				<div class="flex justify-between items-center mb-1 md:mb-4">
-					<h3 class="text-base font-bold p-1 md:p-0" x-text="noteEditorNoteId ? ('Editing: ' + noteEditorNoteId) : 'New Note'"></h3>
+				<div class="flex justify-between items-center mb-2 md:mb-4">
+					<h3 class="text-lg font-bold p-1 md:p-0" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
 					<button @click="saveNote();cancelEdit();" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
 				</div>
-				<div class="mb-4">
+				<div class="mb-2 md:mb-4">
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
 				</div>
 				<div class="mb-4">
@@ -166,7 +166,7 @@
 
 		<!-- Notes List View -->
 		<template x-if="editingNoteId === null">
-			<div id="notes-list" class="px-0 md:px-4 py-2 md:py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+			<div id="notes-list" class="px-2 md:px-4 py-2 md:py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
 						<div class="flex-grow" @click="editNote(note.id)">
@@ -181,7 +181,7 @@
 							</template>
 						</div>
 						<div class="mt-4">
-							<div class="flex flex-wrap gap-1">
+							<div class="flex flex-wrap gap-1 mb-2">
 								<template x-for="tag in note.tags" :key="tag">
 									<span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
 								</template>
@@ -268,7 +268,7 @@
 		>
 			<div class="flex justify-between items-center">
 				<div class="flex items-baseline gap-4">
-					<h3 class="text-lg font-bold">Settings <span class="text-sm font-light text-gray-400" x-text="'v.'+appVersion"></span></h3>
+					<h3 class="text-lg font-bold">Settings <span class="text-sm pl-2 font-light text-gray-400" x-text="'v.'+appVersion"></span></h3>
 					<a href="/about" target="_blank" class="text-sm text-blue-500 hover:underline">About</a>
 					<a href="https://github.com/royalgarter/feathernote" target="_blank" class="text-sm text-blue-500 hover:underline">Repo</a>
 				</div>
@@ -286,7 +286,7 @@
 
 				<div class="border-t gap-2 pt-4">
 					<!-- Dark Mode Toggle -->
-					<div class="flex items-center justify-between">
+					<div class="flex items-center py-2 justify-between">
 						<p class="text-sm text-gray-600">Dark Mode</p>
 						<button @click="toggleDarkMode()"
 								:class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
@@ -296,7 +296,7 @@
 						</button>
 					</div>
 					<!-- Notification Settings -->
-					<div class="flex items-center justify-between">
+					<div class="flex items-center py-2 justify-between">
 						<p class="text-sm text-gray-600">Reminder Notifications</p>
 						<button @click="togglePushNotifications()"
 								:class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
@@ -310,7 +310,7 @@
 					</p>
 
 					<!-- Google Drive -->
-					<div class="flex items-center justify-between">
+					<div class="flex items-center py-2 justify-between hidden">
 						<p class="text-sm text-gray-600">Google Drive</p>
 						<div class="col-span-3">
 							<template x-if="!gdriveStore.connected">
@@ -330,7 +330,7 @@
 					</div>
 				</div>
 
-				<fieldset class="grid gap-2 border-t py-2" __disabled="!isSyncConfigured" >
+				<fieldset class="grid gap-2 border-t pt-4 text-sm" __disabled="!isSyncConfigured" >
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-region" class="text-right">S3 Region</label>
 						<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
@@ -357,7 +357,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t py-2">
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-repo-url" class="text-right text-sm">Git Repo URL</label>
 						<input id="git-repo-url" x-model="gitRepoUrl" class="col-span-3 border rounded-md p-2" placeholder="https://github.com/user/feathernote.git" autocomplete="url" />
@@ -376,15 +376,15 @@
 					</div>
 					<!-- <div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-email" class="text-right text-sm">Email</label>
-						<input id="git-email" x-model="gitEmail" class="col-span-3 border rounded-md p-2" placeholder="user@example.com (for commits)" /> -->
-					</div>
+						<input id="git-email" x-model="gitEmail" class="col-span-3 border rounded-md p-2" placeholder="user@example.com (for commits)" />
+					</div> -->
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-cors-proxy" class="text-right text-sm">CORS Proxy</label>
 						<input id="git-cors-proxy" x-model="gitCorsProxy" class="col-span-3 border rounded-md p-2" placeholder="https://cors.isomorphic-git.org (default)" />
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t py-2">
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
 						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
@@ -395,7 +395,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t py-2">
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-api-key" class="text-right">AI API Key</label>
 						<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border rounded-md p-2" placeholder="sk-B14h8lah..." autocomplete="new-password" />

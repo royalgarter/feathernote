@@ -32,6 +32,15 @@
 	overflow: hidden;
 }
 
+.line-clamp-5 {
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+	display: -webkit-box;
+	text-overflow: ellipsis;
+	word-break: break-word;
+	overflow: hidden;
+}
+
 .dark {
 	background-color: #1a202c;
 	color: #e2e8f0;
@@ -109,31 +118,60 @@
 	max-width: 32px;
 }
 
+.EasyMDEContainer .editor-toolbar button[aria-label="Save"] {
+	color: var(--color-green-500);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label="Delete"] {
+	color: var(--color-red-500);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label="Share"] {
+	color: var(--color-blue-500);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label*="AI"] {
+	color: var(--color-yellow-500);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label*="Clip Content"] {
+	color: var(--color-blue-700);
+}
+
 .EasyMDEContainer .editor-preview {
 	/*padding-left: 40px;*/
 }
 
 .EasyMDEContainer .editor-preview ul {
-	list-style: unset;
+	list-style: disc;
+	padding-left: 1rem;
 }
 
 .EasyMDEContainer .editor-preview ol {
 	list-style: auto;
+	padding-left: 1rem;
 }
 
 .EasyMDEContainer .editor-preview h1 {
 	font-size: 32px;
 	font-weight: 700;
+	margin: 8px 0px;
 }
 
 .EasyMDEContainer .editor-preview h2 {
 	font-size: 24px;
 	font-weight: 700;
+	margin: 6px 0px;
 }
 
 .EasyMDEContainer .editor-preview h3 {
 	font-size: 18px;
 	font-weight: 700;
+	margin: 4px 0px;
+}
+
+.EasyMDEContainer .editor-preview hr {
+	margin: 10px 0px;
 }
 
 .EasyMDEContainer .editor-preview blockquote {
@@ -142,6 +180,8 @@
 	border-left: solid;
 	padding-left: 4px;
 }
+
+
 
 .EasyMDEContainer .CodeMirror {
 	padding: 0px;

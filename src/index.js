@@ -1920,7 +1920,7 @@ const imageId = generateUniqueId();
 			this.showToast({ variant: 'error', title: 'Nothing to Export', description: 'No saved settings found.' });
 		}
 		this.showExportModal = true; // Ensure the modal opens
-		this.$nextTick(() => document.querySelector('[x-model="exportString"]').scrollIntoView());
+		setTimeout(_ => document.querySelector('[x-model="exportString"]').scrollIntoView(), 0.5e3);
 	},
 
 	copyExportStringToClipboard() {
@@ -1935,7 +1935,7 @@ const imageId = generateUniqueId();
 	async openImport() {
 		this.importString = '';
 		this.showImportModal = true;
-		this.$nextTick(() => document.querySelector('[x-model="importString"]').scrollIntoView());
+		setTimeout(_ => document.querySelector('[x-model="importString"]').scrollIntoView(), 0.5e3);
 	},
 
 	async handleImport() {
