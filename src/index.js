@@ -308,9 +308,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			localStorage.setItem('feathernote-has-logged-in', 'true');
 			this.showToast({ title: 'Signed In', description: `Welcome, ${newUser.name}!` });
 
-			if (confirm('Signed in. Do you want to connect to Google Drive (optional)?')) {
-				this.signInToGoogleDrive();
-			}
+			// if (confirm('Signed in. Do you want to connect to Google Drive (optional)?')) {
+			// 	this.signInToGoogleDrive();
+			// }
 		} catch (error) {
 			console.error("Error processing credential:", error);
 			this.showToast({ variant: 'error', title: 'Sign In Failed', description: 'Could not verify Google credential. ' + error.message });
@@ -1811,6 +1811,7 @@ const imageId = generateUniqueId();
 	accessKeyId: '',
 	secretAccessKey: '',
 	isManualSyncing: false,
+	isSavingSettings: false,
 	exportString: '',
 	importString: '',
 	showImportModal: false,
@@ -1859,6 +1860,7 @@ const imageId = generateUniqueId();
 	},
 
 	async handleSave() {
+		this.isSavingSettings = true;
 		localStorage.setItem('feathernote-nostr-relays', this.nostrRelays);
 
 		// Get existing settings to preserve the secret key if not changed
@@ -1900,6 +1902,8 @@ const imageId = generateUniqueId();
 		await saveEncryptedSettingsDB(encryptedSettings, this.userId);
 		console.log('handleSave: Encrypted settings saved to IndexedDB.');
 
+		this.isSavingSettings = false;
+		
 		this.showToast({ title: 'Settings Saved', description: 'Your encrypted settings have been updated.' });
 		// this.settingsDialogIsOpen = false;
 		this.syncNotes(true);

@@ -7,6 +7,11 @@ const TEXT_DECODER = TextDecoder;
 const FETCH = self.fetch;
 const INDEXED_DB = self.indexedDB;
 
+const promiseTimeout = (p, ms=30e3) => Promise.race([
+	p,
+	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+]);
+
 // --- Crypto Helpers ---
 
 // Helper function to convert buffer to base64
@@ -543,7 +548,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 		promises.push(window.publishImageToRelays(relays, nostrPrivateKey, image));
 	}
 
-	await Promise.all(promises);
+	await Promise.allSettled(promises);
 }
 
 async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials}) {
@@ -564,7 +569,15 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		gitNotesPromise = Promise.resolve([]);
 	}
 
-	const [s3Notes, nostrNotes, gitNotes] = await Promise.all([s3NotesPromise, nostrNotesPromise, gitNotesPromise]);
+	const [s3Res, nostrRes, gitRes] = await Promise.allSettled([
+		promiseTimeout(s3NotesPromise),
+		promiseTimeout(nostrNotesPromise),
+		promiseTimeout(gitNotesPromise)
+	]);
+
+	const s3Notes = s3Res.status === 'fulfilled' ? s3Res.value : [];
+	const nostrNotes = nostrRes.status === 'fulfilled' ? nostrRes.value : [];
+	const gitNotes = gitRes.status === 'fulfilled' ? gitRes.value : [];
 
 	const mergedNotes = new Map();
 
@@ -612,7 +625,13 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 		nostrImagesPromise = Promise.resolve([]);
 	}
 
-	const [s3Images, nostrImageRecords] = await Promise.all([s3ImagesPromise, nostrImagesPromise]);
+	const [s3Res, nostrRes] = await Promise.allSettled([
+		promiseTimeout(s3ImagesPromise),
+		promiseTimeout(nostrImagesPromise)
+	]);
+
+	const s3Images = s3Res.status === 'fulfilled' ? s3Res.value : [];
+	const nostrImageRecords = nostrRes.status === 'fulfilled' ? nostrRes.value : [];
 
 	const mergedImages = new Map();
 
@@ -658,7 +677,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(window.deleteNoteFromGit(noteId, gitCredentials));
 	}
 
-	await Promise.all(promises);
+	await Promise.allSettled(promises);
 }
 
 async function deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, nostrRelays}) {
@@ -675,7 +694,7 @@ async function deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, no
 		promises.push(window.publishImageDeletionToRelays(relays, nostrPrivateKey, imageId));
 	}
 
-	await Promise.all(promises);
+	await Promise.allSettled(promises);
 }
 
 async function verifyGoogleJwt(token, clientId) {
