@@ -571,7 +571,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.updateAppBadge();
 			// this.miniSearch?.removeAll();
 
-			if (!this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
+			if (this.miniSearch && !this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
 			this.updateNotesCache();
 
 			if (!isSilent) {
@@ -909,8 +909,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 					if (!isSilent) {
 						this.showToast({
-							title: 'Sync Successful',
-							description: `Uploaded: ${result.uploadedCount}, Downloaded/Updated: ${downloadedCount}, Deleted: ${result.deletedCount}, Remotely Deleted: ${notesToDeleteLocally.length}.`,
+							title: 'Synced',
+							description: `Up ${result.uploadedCount} Down ${downloadedCount} Del ${result.deletedCount} Remote Del ${notesToDeleteLocally.length}`,
 						});
 					}
 
