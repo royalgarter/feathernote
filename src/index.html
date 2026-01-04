@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>FeatherNote</title>
+	<meta name="description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
+	<meta name="keywords" content="note taking, pwa, offline-first, markdown, s3 sync, privacy, open source, javascript, nostr, decentralized">
+	<meta name="author" content="royalgarter">
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="https://feathernote.deno.dev">
+	<meta property="og:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
+	<meta property="og:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
+	<meta property="og:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+
+	<!-- Twitter -->
+	<meta property="twitter:card" content="summary_large_image">
+	<meta property="twitter:url" content="https://feathernote.deno.dev">
+	<meta property="twitter:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
+	<meta property="twitter:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
+	<meta property="twitter:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+
+	<link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/icons/ios/32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/icons/ios/16.png">
+	<link rel="manifest" href="/manifest.json">
+	<meta name="theme-color" content="#A2D2FF">
+	<meta name="GOOGLE_CLIENT_ID" content="___GOOGLE_CLIENT_ID___">
+	<meta name="VERSION" content="___VERSION___">
+</head>
+<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
+	<!-- AppShellHeader -->
+	<header class="sticky top-0 z-10 w-full border-b bg-white">
+		<div class="container mx-auto flex h-16 items-center justify-between p-2 md:p-4">
+			<a href="#" class="flex items-center gap-2">
+				<!-- FeatherIcon Placeholder -->
+				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 1115 1115">
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M678.345,436.489 L248.424,866.410 "/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M345.298,769.537 L338.934,514.271 L563.794,289.411 C563.794,289.411 705.043,190.244 813.402,298.603 C921.761,406.962 828.853,553.268 828.853,553.268 L603.391,778.729 L345.298,769.537 Z"/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M720.771,652.864 L477.460,652.864 "/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
+				</svg>
+
+				<span class="font-bold text-lg font-sans text-gray-900" style="color:#A2D2FF;">FeatherNote</span>
+			</a>
+			<div class="flex items-center gap-2">
+				<!-- SyncStatus -->
+				<div>
+					<template x-if="syncStatusMessage || isSyncing">
+						<span class="text-sm text-gray-300 animate-pulse" x-text="syncStatusMessage || isSyncing"></span>
+					</template>
+					<!-- <template x-if="!isSyncing">
+						<span class="text-sm text-gray-400">Synced</span>
+					</template> -->
+				</div>
+				<!-- SettingsDialog Trigger -->
+				<button @click="loadSettingsFromStorage();settingsDialogIsOpen = true" class="cursor-pointer p-2 rounded-full hover:bg-gray-200" aria-label="Settings">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+						<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+					</svg>
+				</button>
+				<!-- UserProfile -->
+				<div class="cursor-pointer p-2 rounded-full hover:bg-gray-200">
+					<template x-if="user">
+						<div @click="signOut()" class="flex items-center gap-2">
+							<template x-if="user.picture">
+								<img :src="user.picture" alt="User Picture" class="h-6 w-6 rounded-full" />
+							</template>
+							<template x-if="!user.picture">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6">
+									<path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
+								</svg>
+							</template>
+						</div>
+					</template>
+					<template x-if="!user">
+						<div @click="signIn()" class="flex items-center gap-2">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+							</svg>
+						</div>
+					</template>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<!-- AppShellContent -->
+	<main class="flex-1 py-1 md:py-4 w-full"
+		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto sm:px-6 lg:px-8': editingNoteId === null, 'overflow-y-hidden': settingsDialogIsOpen, 'overflow-y-auto': !settingsDialogIsOpen }"
+	>
+		<!-- Search Box & Add Note -->
+		<template x-if="editingNoteId === null">
+			<div id="search" class="flex justify-between items-center px-2 md:px-4 py-2 gap-4">
+				<div class="relative w-full max-w-xs">
+					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="w-full border border-gray-300 rounded-md py-2 px-4" placeholder="🔍 Search notes..." />
+					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-60 overflow-y-auto">
+						<template x-for="suggestion in suggestions" :key="suggestion.id">
+							<div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:bg-gray-100">
+								<span x-text="suggestion.suggestion"></span>
+							</div>
+						</template>
+					</div>
+				</div>
+				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 rounded-md bg-green-600 text-white hover:bg-green-700">Add Note</button>
+			</div>
+		</template>
+
+		<!-- Welcome -->
+		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="py-1 px-3 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
+			<!--WELCOME_CONTENT-->
+		</div>
+
+		<!-- Note Editor View -->
+		<template x-if="editingNoteId !== null">
+			<div id="note-editor" class="bg-white md:rounded-md h-4/5 p-1 md:p-4">
+				<!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
+				<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				</button> -->
+
+				<div class="flex justify-between items-center mb-2 md:mb-4">
+					<h3 class="text-lg font-bold p-1 md:p-0" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
+					<button @click="saveNote();cancelEdit();" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+					</button>
+				</div>
+				<div class="mb-2 md:mb-4">
+					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
+				</div>
+				<div class="mb-4">
+					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full rounded-md border border-gray-300 p-4">
+						<div class="flex animate-pulse space-x-4">
+							<div class="size-10 rounded-full bg-gray-200"></div>
+							<div class="flex-1 space-y-6 py-1">
+								<div class="h-2 rounded bg-gray-200"></div>
+								<div class="space-y-3">
+									<div class="grid grid-cols-3 gap-4">
+										<div class="col-span-2 h-2 rounded bg-gray-200"></div>
+										<div class="col-span-1 h-2 rounded bg-gray-200"></div>
+									</div>
+									<div class="h-2 rounded bg-gray-200"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
+				</div>
+				<div class="mb-4">
+					<label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
+					<input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="e.g. work, personal, ideas" />
+				</div>
+				<div class="mb-4">
+					<label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
+					<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md p-2" />
+				</div>
+				<!-- <div class="flex justify-end space-x-3">
+					<button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+					<button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+					<button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">Share</button>
+					<button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Save</button>
+				</div> -->
+			</div>
+		</template>
+
+		<!-- Notes List View -->
+		<template x-if="editingNoteId === null">
+			<div id="notes-list" class="px-2 md:px-4 py-2 md:py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+				<template x-for="note in paginatedNotes" :key="note.id">
+					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full bg-white rounded-lg p-4">
+						<div class="flex-grow" @click="editNote(note.id)">
+							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
+							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
+							<template x-if="getCoverImage(note)">
+								<img :src="getCoverImage(note)" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
+							</template>
+							<p class="cursor-pointer text-sm text-gray-600 line-clamp-5 pl-1" x-text="getNotePreview(note.content)"></p>
+							<template x-if="note.reminder">
+								<p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
+							</template>
+						</div>
+						<div class="mt-4">
+							<div class="flex flex-wrap gap-1 mb-2">
+								<template x-for="tag in note.tags" :key="tag">
+									<span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
+								</template>
+							</div>
+						</div>
+						<div class="flex justify-between items-center">
+							<div class="flex justify-start items-center gap-2 mt-2">
+								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-600 hover:bg-green-700" aria-label="Increase Priority">
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 16 16">
+										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 11.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V11.5z"/>
+									</svg>
+								</button>
+								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-400 hover:bg-green-500" aria-label="Decrease Priority">
+									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 16 16">
+										<path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V4.5z"/>
+									</svg>
+								</button>
+							</div>
+							<div class="flex justify-end items-center gap-4 mt-2">
+								<button class="cursor-pointer rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
+									<!-- Edit Icon -->
+									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
+								</button>
+								<button class="cursor-pointer rounded-full hover:bg-red-100 text-red-500" aria-label="Delete note" @click="deleteNote(note.id); $dispatch('close-delete-modal')">
+									<!-- Trash Icon -->
+									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg>
+								</button>
+							</div>
+						</div>
+
+					</div>
+				</template>
+			</div>
+			<!-- Pagination Controls -->
+			<div class="flex justify-center items-center space-x-2 mt-4">
+				<button @click="prevPage()" :disabled="currentPage === 1" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+				<template x-for="page in totalPages" :key="page">
+					<button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
+				</template>
+				<button @click="nextPage()" :disabled="currentPage === totalPages" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+			</div>
+		</template>
+
+		<!-- Loading State -->
+		<template x-if="!notes.length && loading">
+			<div class="w-full px-4 py-6 sm:px-0">
+				<div class="w-full border-4 border-dashed border-gray-200 rounded-lg h-96 flex items-center justify-center">
+					<p class="text-gray-500 text-lg">Loading notes...</p>
+				</div>
+			</div>
+		</template>
+
+		<!-- Delete Confirmation Modal -->
+		<div x-data="{ showModal: false, noteToDelete: null }"
+			 @open-delete-modal.window="showModal = true; noteToDelete = $event.detail"
+			 @close-delete-modal.window="showModal = false"
+			 x-show="showModal"
+			 class="fixed inset-0 z-40 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+			 style="display: none;"
+		>
+			<div class="relative bg-white p-6 w-full mx-auto"
+				 @click.away="showModal = false"
+			>
+				<h3 class="text-lg font-bold mb-4">Are you sure?</h3>
+				<p class="text-sm text-gray-600 mb-6">
+					This action cannot be undone. This will permanently delete your
+					note titled "<span x-text="noteToDelete ? noteToDelete.title : ''"></span>".
+				</p>
+				<div class="flex justify-end gap-2">
+					<button @click="showModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<!-- Settings Dialog -->
+	<div x-show="settingsDialogIsOpen"
+		 class="fixed inset-0 z-10 w-full h-full flex items-center justify-center overflow-x-hidden"
+		 :class="isSavingSettings ? 'cursor-wait' : 'cursor-pointer'"
+		 style="display: none;background-color: #0e0e0ee6;"
+	>
+		<div class="fixed inset-0 size-auto h-full md:h-auto max-h-full max-w-none md:m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent"
+			 @click.away="settingsDialogIsOpen = false"
+		>
+			<div class="flex justify-between items-center">
+				<div class="flex items-baseline gap-4">
+					<h3 class="text-lg font-bold">Settings <span class="text-sm pl-2 font-light text-gray-400" x-text="'v.'+appVersion"></span></h3>
+					<a href="/about" target="_blank" class="text-sm text-blue-500 hover:underline">About</a>
+					<a href="https://github.com/royalgarter/feathernote" target="_blank" class="text-sm text-blue-500 hover:underline">Repo</a>
+				</div>
+				<button @click="settingsDialogIsOpen = false" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				</button>
+			</div>
+
+			<div class="grid gap-4 py-2">
+				<!-- Login Required Alert -->
+				<!-- <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
+					<strong class="font-bold">Login Required:</strong>
+					<span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
+				</div> -->
+
+				<div class="border-t gap-2 pt-4">
+					<!-- Dark Mode Toggle -->
+					<div class="flex items-center py-2 justify-between">
+						<p class="text-sm text-gray-600">Dark Mode</p>
+						<button @click="toggleDarkMode()"
+								:class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
+								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+							<span :class="{ 'left-6': darkMode, 'left-1': !darkMode }"
+									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+						</button>
+					</div>
+					<!-- Notification Settings -->
+					<div class="flex items-center py-2 justify-between">
+						<p class="text-sm text-gray-600">Reminder Notifications</p>
+						<button @click="togglePushNotifications()"
+								:class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
+								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
+							<span :class="{ 'left-6': notificationsEnabled, 'left-1': !notificationsEnabled }"
+									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
+						</button>
+					</div>
+					<p x-show="notificationPermissionStatus !== 'granted' && notificationPermissionStatus !== 'default'" class="text-xs text-red-500 mt-2">
+						Notification permission is <span x-text="notificationPermissionStatus"></span>. Enable it in your browser settings.
+					</p>
+
+					<!-- Google Drive -->
+					<div class="flex items-center py-2 justify-between hidden">
+						<p class="text-sm text-gray-600">Google Drive</p>
+						<div class="col-span-3">
+							<template x-if="!gdriveStore.connected">
+								<button @click="signInToGoogleDrive()" class="px-2 py-1 rounded-sm bg-blue-600 text-sm text-white hover:bg-blue-700">
+									Connect
+								</button>
+							</template>
+							<template x-if="gdriveStore.connected">
+								<div class="flex items-center gap-2">
+									<span class="ml-1 text-green-600" x-text="`(${gdriveStore.user?.email})`"></span>
+									<button class="px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+										@click="signOutFromGoogleDrive()"
+									>Disconnect</button>
+								</div>
+							</template>
+						</div>
+					</div>
+				</div>
+
+				<fieldset class="grid gap-2 border-t pt-4 text-sm" __disabled="!isSyncConfigured" >
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="s3-region" class="text-right">S3 Region</label>
+						<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="s3-bucket" class="text-right">S3 Bucket</label>
+						<input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="s3-subfolder" class="text-right">S3 Subfolder</label>
+						<input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="s3-endpoint" class="text-right">S3 Endpoint</label>
+						<input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing" autocomplete="url" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="access-key" class="text-right">S3 Access Key</label>
+						<input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing"/>
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="secret-key" class="text-right">S3 Secret Key</label>
+						<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+					</div>
+				</fieldset>
+
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-repo-url" class="text-right text-sm">Git Repo URL</label>
+						<input id="git-repo-url" x-model="gitRepoUrl" class="col-span-3 border rounded-md p-2" placeholder="https://github.com/user/feathernote.git" autocomplete="url" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-branch" class="text-right text-sm">Branch</label>
+						<input id="git-branch" x-model="gitBranch" class="col-span-3 border rounded-md p-2" placeholder="main" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-username" class="text-right text-sm">Username</label>
+						<input id="git-username" x-model="gitUsername" class="col-span-3 border rounded-md p-2" placeholder="GitHub Username" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-token" class="text-right text-sm">Token/Pass</label>
+						<input id="git-token" type="password" x-model="gitToken" class="col-span-3 border rounded-md p-2" placeholder="Personal Access Token" autocomplete="new-password" />
+					</div>
+					<!-- <div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-email" class="text-right text-sm">Email</label>
+						<input id="git-email" x-model="gitEmail" class="col-span-3 border rounded-md p-2" placeholder="user@example.com (for commits)" />
+					</div> -->
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="git-cors-proxy" class="text-right text-sm">CORS Proxy</label>
+						<input id="git-cors-proxy" x-model="gitCorsProxy" class="col-span-3 border rounded-md p-2" placeholder="https://cors.isomorphic-git.org (default)" />
+					</div>
+				</fieldset>
+
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
+						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="nostr-relays" class="text-right">Nostr Relays</label>
+						<input id="nostr-relays" x-model="nostrRelays" class="col-span-3 border rounded-md p-2" placeholder="wss://relay.damus.io,wss://relay.snort.social,wss://relay.primal.net,wss://fiatjaf.nostr1.com" autocomplete="url" />
+					</div>
+				</fieldset>
+
+				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="ai-api-key" class="text-right">AI API Key</label>
+						<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border rounded-md p-2" placeholder="sk-B14h8lah..." autocomplete="new-password" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="ai-api-route" class="text-right">AI API Endpoint</label>
+						<input id="ai-api-route" x-model="aiApiRoute" class="col-span-3 border rounded-md p-2" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" autocomplete="url" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="ai-model" class="text-right">AI Model</label>
+						<input id="ai-model" x-model="aiModel" class="col-span-3 border rounded-md p-2" placeholder="gemini-flash-lite-latest" autocomplete="off" />
+					</div>
+				</fieldset>
+
+				<!-- Security Note Alert -->
+				<!-- <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 p-4 rounded relative" role="alert">
+					<span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
+				</div> -->
+			</div>
+
+			<!-- Import Dialog -->
+			<div x-show="showImportModal"
+				 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
+				 style="display: none;"
+			>
+				<div class="relative bg-white p-2 mx-auto"
+					 @click.away="showImportModal = false"
+				>
+					<textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste the encrypted settings string from another device to import your S3 configuration..."></textarea>
+					<div class="flex justify-end gap-2">
+						<button @click="showImportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+						<button @click="handleImport()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Export Dialog -->
+			<div x-show="showExportModal"
+				 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
+				 style="display: none;"
+			>
+				<div class="relative bg-white p-2 mx-auto"
+					 @click.away="showExportModal = false"
+				>
+					<p class="text-sm text-gray-600 my-4">Copy this encrypted string and import it on another device to transfer your S3 configuration.</p>
+					<div class="relative">
+						<textarea readonly x-model="exportString" class="w-full border rounded-md p-2" rows="5"></textarea>
+						<button @click="copyExportStringToClipboard()" class="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200" aria-label="Copy">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					</div>
+					<div class="flex justify-end gap-2">
+						<button @click="showExportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Close</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Buttons -->
+			<div class="flex justify-end gap-2 mt-2">
+				<button @click="openImport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
+				<button @click="handleExport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
+				<button @click="handleSync()" __disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center" :class="isManualSyncing ? 'cursor-wait' : 'cursor-pointer'">
+					<svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Sync</span>
+				</button>
+				<button @click="handleSave()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 flex items-center" :class="isSavingSettings ? 'cursor-wait' : 'cursor-pointer'">
+					<svg x-show="isSavingSettings" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					<span>Save</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Toasts Container -->
+	<div class="fixed top-1 left-1 z-50 flex flex-col space-y-2">
+		<template x-for="toast in toasts" :key="toast.id">
+			<div
+				x-show="toast.show"
+				:class="{
+					'bg-white border border-gray-200 text-gray-900': toast.variant === 'default',
+					'bg-red-600 border border-red-700 text-white': toast.variant === 'error'
+				}"
+				class="relative w-full max-w-xs p-2 rounded-md flex items-center justify-between"
+			>
+				<div>
+					<h4 class="font-semibold text-sm" x-text="toast.title"></h4>
+					<p class="text-xs line-clamp-3" x-text="toast.description"></p>
+				</div>
+				<button @click="dismissToast(toast.id)" class="absolute top-1 right-1 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+		</template>
+	</div>
+</body>
+
+<link rel="preload" as="style" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" />
+<link rel="preload" as="font" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0" />
+
+<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+
+<!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
+<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
+
+<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
+<script async defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
+
+<link rel="stylesheet" href="/index.css?v=___VERSION___"/>
+
+<script defer src="/libs/diff_match_patch.js"></script>
+<script defer src="/libs/isomorphic-git.min.js"></script>
+<script defer src="/libs/lightning-fs.min.js"></script>
+<script defer src="/libs/http.min.js"></script>
+<script defer src="/git.js?v=___VERSION___"></script>
+
+<script defer src="/s3.js?v=___VERSION___"></script>
+<script defer src="/nostr.js?v=___VERSION___"></script>
+<script defer src="/gdrive.js?v=___VERSION___"></script>
+<script defer src="/helpers.js?v=___VERSION___"></script>
+<script defer src="/index.js?v=___VERSION___"></script>
+
+<!-- AlpineJS (should be load after the other required x-data functions are loaded) -->
+<script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<!-- AlpineJS -->
+
+<!-- Excalidraw -->
+<!-- 
+<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"/>
+<script>
+	window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+</script>
+ -->
+<script type="importmap">
+	{
+		"imports": {
+			"react": "https://esm.sh/react@18.0.0",
+			"react/jsx-runtime": "https://esm.sh/react@18.0.0/jsx-runtime",
+			"react-dom": "https://esm.sh/react-dom@18.0.0"
+		}
+	}
+</script>
+<!-- 
+<script type="module">
+	import * as ExcalidrawLib from 'https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom';
+	import React from "https://esm.sh/react@18.0.0";
+	import ReactDOM from "https://esm.sh/react-dom@18.0.0"
+
+	window.ExcalidrawLib = ExcalidrawLib;
+	window.React = React;
+	window.ReactDOM = ReactDOM;
+	// console.log("Excalidraw library", ExcalidrawLib, React, ReactDOM);
+</script>
+ -->
+<div id="excalidraw-modal" 
+	class="fixed inset-0 z-50 w-full h-full flex items-center justify-center" 
+	style="display: none; background-color: rgba(0,0,0,0.5);" >
+	<div class="bg-white rounded-lg shadow-lg w-11/12 h-5/6">
+		<div id="excalidraw-container" class="w-full h-full"></div>
+	</div>
+</div>
+<!-- Excalidraw -->
+
+<!-- Latex -->
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css">
+<link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
+<script async defer src="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js"></script>
+<script async defer src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+<!-- Latex -->
+
+</html>

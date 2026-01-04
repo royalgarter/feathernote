@@ -1,0 +1,53 @@
+{
+  "name": "FeatherNote",
+  "short_name": "FeatherNote",
+  "description": "Featherweight offline-first PWA Note with Markdown, S3 Sync, Share Target API",
+  "start_url": "/",
+  "display": "minimal-ui",
+  "background_color": "#F5F5F5",
+  "theme_color": "#A2D2FF",
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "icons": [
+    {
+      "src": "/icons/ios/512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "note_taking": {
+    "new_note_url": "/#new_note"
+  },
+  "shortcuts": [
+    {
+      "name": "New Note",
+      "short_name": "New",
+      "description": "Create a new note",
+      "url": "/#new_note",
+      "icons": [{ "src": "/icons/ios/192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Search Notes",
+      "short_name": "Search",
+      "description": "Search through your notes",
+      "url": "/#search",
+      "icons": [{ "src": "/icons/ios/192.png", "sizes": "192x192" }]
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "categories": [
+    "personalization",
+    "productivity",
+    "utilities"
+  ]
+}

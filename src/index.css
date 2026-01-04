@@ -1,0 +1,237 @@
+#welcome-section {
+	line-height: 2rem;
+}
+#welcome-section [alt*="Logo"] {
+	display: none;
+}
+
+#welcome-section ul,#welcome-section ol {
+	padding-left: 1rem;
+}
+
+#welcome-section h1,#welcome-section h2,#welcome-section h3,#welcome-section h4 {
+	margin-top: 2rem;
+	font-weight: 900;
+	font-size: 1.5rem;
+}
+
+#welcome-section p {
+	margin-top: 1rem;
+}
+
+#welcome-section a {
+	text-decoration: underline;
+}
+
+.line-clamp-3 {
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	display: -webkit-box;
+	text-overflow: ellipsis;
+	word-break: break-word;
+	overflow: hidden;
+}
+
+.line-clamp-5 {
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+	display: -webkit-box;
+	text-overflow: ellipsis;
+	word-break: break-word;
+	overflow: hidden;
+}
+
+.dark {
+	background-color: #1a202c;
+	color: #e2e8f0;
+}
+.dark .bg-white {
+	background-color: #2d3748;
+}
+.dark .text-gray-900 {
+	color: #e2e8f0;
+}
+.dark .text-gray-800 {
+	color: #e2e8f0;
+}
+.dark .text-gray-700 {
+	color: #a0aec0;
+}
+.dark .text-gray-600 {
+	color: #a0aec0;
+}
+.dark .text-gray-500 {
+	color: #cbd5e0;
+}
+.dark .text-gray-400 {
+	color: #a0aec0;
+}
+.dark .border-gray-200 {
+	border-color: #4a5568;
+}
+.dark .border-gray-300 {
+	border-color: #4a5568;
+}
+.dark .hover\:bg-gray-50:hover {
+	background-color: #4a5568;
+}
+.dark .hover\:bg-gray-100:hover {
+	background-color: #4a5568;
+}
+.dark .hover\:bg-gray-200:hover {
+	background-color: #4a5568;
+}
+.dark .bg-purple-100 {
+	background-color: #5a67d8;
+}
+.dark .text-purple-800 {
+	color: #e2e8f0;
+}
+.dark input {
+	background-color: #2d3748;
+	color: #e2e8f0;
+}
+.dark .EasyMDEContainer .editor-preview {
+	background-color: #2d3748;
+}
+.dark .EasyMDEContainer .CodeMirror {
+	background-color: #2d3748;
+	color: #bdbdbd;
+}
+.dark .EasyMDEContainer .CodeMirror-gutters {
+	background-color: #354154;
+}
+
+.dark .EasyMDEContainer .CodeMirror-selectedtext {
+	background-color: slategray;
+}
+
+.dark .EasyMDEContainer .editor-toolbar {
+	background: #2d3748;
+}
+
+.dark .EasyMDEContainer .editor-toolbar.fullscreen {
+	background: #2d3748;
+}
+
+.EasyMDEContainer .editor-toolbar button {
+	max-width: 32px;
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label="Save"] {
+	color: var(--color-green-400);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label="Delete"] {
+	color: var(--color-red-400);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label="Share"] {
+	color: var(--color-blue-400);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label*="AI"] {
+	color: var(--color-yellow-400);
+}
+
+.EasyMDEContainer .editor-toolbar button[aria-label*="Clip Content"] {
+	color: var(--color-yellow-300);
+}
+
+.EasyMDEContainer .editor-preview {
+	/*padding-left: 40px;*/
+}
+
+.EasyMDEContainer .editor-preview ul {
+	list-style: disc;
+	padding-left: 1rem;
+}
+
+.EasyMDEContainer .editor-preview ol {
+	list-style: auto;
+	padding-left: 1rem;
+}
+
+.EasyMDEContainer .editor-preview h1 {
+	font-size: 32px;
+	font-weight: 700;
+	margin: 8px 0px;
+}
+
+.EasyMDEContainer .editor-preview h2 {
+	font-size: 24px;
+	font-weight: 700;
+	margin: 6px 0px;
+}
+
+.EasyMDEContainer .editor-preview h3 {
+	font-size: 18px;
+	font-weight: 700;
+	margin: 4px 0px;
+}
+
+.EasyMDEContainer .editor-preview hr {
+	margin: 10px 0px;
+}
+
+.EasyMDEContainer .editor-preview blockquote {
+	color: #7f8c8d;
+	font-style: italic;
+	border-left: solid;
+	padding-left: 4px;
+}
+
+
+
+.EasyMDEContainer .CodeMirror {
+	padding: 0px;
+}
+
+.EasyMDEContainer .editor-preview code {
+	background-color: slategray;
+}
+
+.EasyMDEContainer .CodeMirror-line span.cm-link:hover {
+	cursor: pointer;
+	color: royalblue;
+}
+
+.EasyMDEContainer .CodeMirror-line span[data-img-src^="data:image/"] [class="cm-string cm-url"] {
+	display: none;
+}
+
+.EasyMDEContainer [role="toolbar"].fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .CodeMirror-fullscreen {
+	margin-top: 4rem;
+}
+
+.EasyMDEContainer .editor-preview-active-side {
+	margin-top: 4rem;
+}
+
+.cm-s-easymde .cm-header-1 {
+	font-size: 1.3rem;
+}
+
+.cm-s-easymde .cm-header-2 {
+	font-size: 1.2rem;
+}
+
+.cm-s-easymde .cm-header-3 {
+	font-size: 1.15rem;
+}
+
+.cm-s-easymde .cm-header-4 {
+	font-size: 1.1rem;
+}
+
+.cm-s-easymde .cm-header-5 {
+	font-size: 1.05rem;
+}
+
+.cm-s-easymde .cm-header-6 {
+	font-size: 1rem;
+}
