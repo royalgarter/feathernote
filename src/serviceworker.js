@@ -18,6 +18,10 @@ const urlsToCache = [
 	'/favicon.ico',
 	'/favicon.png',
 	'/icons/icons.json',
+	'/icons/ios/180.png',
+	'/icons/ios/32.png',
+	'/icons/ios/16.png',
+	'/icons/ios/512.png',
 	'/libs/diff_match_patch.js',
 	'/libs/aws-sdk-2.1692.0.min.js',
 	'/libs/isomorphic-git.min.js',
@@ -126,98 +130,91 @@ self.addEventListener('fetch', (event) => {
 		if (event.request.method === 'POST' && url.pathname === '/share') {
 			event.respondWith(
 				(async () => {
-					const formDataPromise = event.request.formData();
-
-					event.waitUntil((async () => {
-						try {
-							const TITLE_SHARED = 'Shared Inbox';
-							const formData = await formDataPromise;
-
-							let text = formData.get('text') || '';
-							let title = formData.get('title') || '';
-							let sharedUrl = formData.get('url') || '';
-
-							title = title.replace(/\n/g, ' ');
-							
-							const urlRegex = /(https?:\/\/[^\s]+)/g;
-							
-							if (!sharedUrl) {
-								// Try to find URL in text or title if not explicitly provided
-								const textUrlMatch = text.match(urlRegex);
-								const titleUrlMatch = title.match(urlRegex);
-								
-								if (textUrlMatch) {
-									sharedUrl = textUrlMatch[0];
-								} else if (titleUrlMatch) {
-									sharedUrl = titleUrlMatch[0];
-								} else {
-									// Fallback: try decoding if it looks like an encoded URL
-									try {
-										const decodedText = decodeURIComponent(text);
-										const decodedMatch = decodedText.match(urlRegex);
-										if (decodedMatch) sharedUrl = decodedMatch[0];
-									} catch (e) {}
-								}
-							}
-
-							let newItem = '- [ ] ';
-							if (title && sharedUrl) {
-								newItem += `[${title}](${sharedUrl})`;
-							} else if (title) {
-								newItem += title;
-							} else if (sharedUrl) {
-								newItem += `[${sharedUrl}](${sharedUrl})`;
-							}
-
-							if (text) {
-								if (text.includes('\n')) {
-									text = '\n```\n' + text + '\n```\n';
-								}
-
-								if (title || sharedUrl) {
-									newItem += ` > ${text}`;
-								} else {
-									newItem += text;
-								}
-							}
-
-							if (newItem.trim() !== '*') {
-								const allNotes = await getNotesDB();
-								let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
-
-								if (inboxNote) {
-									if (inboxNote.content) {
-										inboxNote.content = newItem + '\n' + inboxNote.content;
-									} else {
-										inboxNote.content = newItem;
-									}
-									inboxNote.updatedAt = new Date().toISOString();
-									await updateNoteDB(inboxNote);
-								} else {
-									// Create a new inbox note
-									const newNote = {
-										id: 'shared-inbox-' + generateUniqueId(),
-										title: TITLE_SHARED,
-										content: newItem,
-										createdAt: new Date().toISOString(),
-										updatedAt: new Date().toISOString(),
-										tags: ['shared', 'inbox'],
-									};
-									await addNoteDB(newNote);
-								}
-							}
-						} catch (criticalError) {
-							console.error('A critical error occurred in the /share handler:', criticalError);
-						}
-					})());
-
-					// Redirect immediately after ensuring we have the form data
+					let noteIdToRedirect = '';
 					try {
-						await formDataPromise;
-					} catch (e) {
-						// Proceed to redirect even if parsing fails, to avoid hanging
+						const formData = await event.request.formData();
+						const TITLE_SHARED = 'Shared Inbox';
+
+						let text = formData.get('text') || '';
+						let title = formData.get('title') || '';
+						let sharedUrl = formData.get('url') || '';
+
+						title = title.replace(/\n/g, ' ');
+						
+						const urlRegex = /(https?:\/\/[^\s]+)/g;
+						
+						if (!sharedUrl) {
+							// Try to find URL in text or title if not explicitly provided
+							const textUrlMatch = text.match(urlRegex);
+							const titleUrlMatch = title.match(urlRegex);
+							
+							if (textUrlMatch) {
+								sharedUrl = textUrlMatch[0];
+							} else if (titleUrlMatch) {
+								sharedUrl = titleUrlMatch[0];
+							} else {
+								// Fallback: try decoding if it looks like an encoded URL
+								try {
+									const decodedText = decodeURIComponent(text);
+									const decodedMatch = decodedText.match(urlRegex);
+									if (decodedMatch) sharedUrl = decodedMatch[0];
+								} catch (e) {}
+							}
+						}
+
+						let newItem = '- [ ] ';
+						if (title && sharedUrl) {
+							newItem += `[${title}](${sharedUrl})`;
+						} else if (title) {
+							newItem += title;
+						} else if (sharedUrl) {
+							newItem += `[${sharedUrl}](${sharedUrl})`;
+						}
+
+						if (text) {
+							if (text.includes('\n')) {
+								text = '\n```\n' + text + '\n```\n';
+							}
+
+							if (title || sharedUrl) {
+								newItem += ` > ${text}`;
+							} else {
+								newItem += text;
+							}
+						}
+
+						if (newItem.trim() !== '*') {
+							const allNotes = await getNotesDB();
+							let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
+
+							if (inboxNote) {
+								if (inboxNote.content) {
+									inboxNote.content = newItem + '\n' + inboxNote.content;
+								} else {
+									inboxNote.content = newItem;
+								}
+								inboxNote.updatedAt = new Date().toISOString();
+								await updateNoteDB(inboxNote);
+								noteIdToRedirect = inboxNote.id;
+							} else {
+								// Create a new inbox note
+								const newNote = {
+									id: 'shared-inbox-' + generateUniqueId(),
+									title: TITLE_SHARED,
+									content: newItem,
+									createdAt: new Date().toISOString(),
+									updatedAt: new Date().toISOString(),
+									tags: ['shared', 'inbox'],
+								};
+								await addNoteDB(newNote);
+								noteIdToRedirect = newNote.id;
+							}
+						}
+					} catch (criticalError) {
+						console.error('A critical error occurred in the /share handler:', criticalError);
 					}
-					return Response.redirect('/', 303);
+
+					return Response.redirect('/' + (noteIdToRedirect ? `#edit_note-${noteIdToRedirect}` : ''), 303);
 				})()
 			);
 			return;
