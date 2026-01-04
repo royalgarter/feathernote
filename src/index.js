@@ -248,7 +248,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return new Date(isoString).toLocaleString();
 	},
 	getNotePreview(content) {
-		return content ? `${content.substring(0, 200)}...` : 'No content preview';
+		return content ? `${content.trim().replace(/(\r?\n)+/g, '\n').substring(0, 300)}...` : '<!-- EMPTY -->';
 	},
 
 	getCoverImage(note) {

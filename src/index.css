@@ -30,6 +30,7 @@
 	text-overflow: ellipsis;
 	word-break: break-word;
 	overflow: hidden;
+	white-space: pre-wrap;
 }
 
 .line-clamp-5 {
@@ -39,6 +40,7 @@
 	text-overflow: ellipsis;
 	word-break: break-word;
 	overflow: hidden;
+	white-space: pre-wrap;
 }
 
 .dark {
@@ -181,10 +183,9 @@
 	padding-left: 4px;
 }
 
-
-
 .EasyMDEContainer .CodeMirror {
 	padding: 0px;
+	color: dimgray;
 }
 
 .EasyMDEContainer .editor-preview code {
