@@ -133,9 +133,32 @@ self.addEventListener('fetch', (event) => {
 							const TITLE_SHARED = 'Shared Inbox';
 							const formData = await formDataPromise;
 
-							const text = formData.get('text') || '';
-							const sharedUrl = formData.get('url') || '';
-							const title = formData.get('title') || '';
+							let text = formData.get('text') || '';
+							let title = formData.get('title') || '';
+							let sharedUrl = formData.get('url') || '';
+
+							title = title.replace(/\n/g, ' ');
+							
+							const urlRegex = /(https?:\/\/[^\s]+)/g;
+							
+							if (!sharedUrl) {
+								// Try to find URL in text or title if not explicitly provided
+								const textUrlMatch = text.match(urlRegex);
+								const titleUrlMatch = title.match(urlRegex);
+								
+								if (textUrlMatch) {
+									sharedUrl = textUrlMatch[0];
+								} else if (titleUrlMatch) {
+									sharedUrl = titleUrlMatch[0];
+								} else {
+									// Fallback: try decoding if it looks like an encoded URL
+									try {
+										const decodedText = decodeURIComponent(text);
+										const decodedMatch = decodedText.match(urlRegex);
+										if (decodedMatch) sharedUrl = decodedMatch[0];
+									} catch (e) {}
+								}
+							}
 
 							let newItem = '- [ ] ';
 							if (title && sharedUrl) {
@@ -147,6 +170,10 @@ self.addEventListener('fetch', (event) => {
 							}
 
 							if (text) {
+								if (text.includes('\n')) {
+									text = '\n```\n' + text + '\n```\n';
+								}
+
 								if (title || sharedUrl) {
 									newItem += ` > ${text}`;
 								} else {
@@ -197,28 +224,30 @@ self.addEventListener('fetch', (event) => {
 		}
 	}
 
-	// For all other requests, use the network-first strategy.
+	// For all other requests, use Stale-While-Revalidate strategy.
 	event.respondWith(
-		fetch(event.request)
-			.then((networkResponse) => {
-				if (
-					networkResponse &&
-					networkResponse.status === 200 &&
-					event.request.method === 'GET' &&
-					(event.request.url.startsWith('http') || event.request.url.startsWith('https'))
-				) {
-					const responseToCache = networkResponse.clone();
-					caches.open(CACHE_NAME).then((cache) => {
-						cache.put(event.request, responseToCache).catch(err => {
-							console.warn(`Failed to cache ${event.request.url}:`, err);
-						});
-					});
+		caches.open(CACHE_NAME).then((cache) => {
+			return cache.match(event.request).then((cachedResponse) => {
+				const fetchPromise = fetch(event.request).then((networkResponse) => {
+					if (
+						networkResponse &&
+						networkResponse.status === 200 &&
+						event.request.method === 'GET' &&
+						(event.request.url.startsWith('http') || event.request.url.startsWith('https'))
+					) {
+						cache.put(event.request, networkResponse.clone());
+					}
+					return networkResponse;
+				});
+
+				if (cachedResponse) {
+					event.waitUntil(fetchPromise.catch(() => {}));
+					return cachedResponse;
 				}
-				return networkResponse;
-			})
-			.catch(() => {
-				return caches.match(event.request);
-			})
+
+				return fetchPromise;
+			});
+		})
 	);
 });
 
