@@ -293,7 +293,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		};
 
 		// --- Step 1: Get remote state FIRST ---
-		const remoteNoteMetadata = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -304,17 +304,30 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 			const remoteMeta = remoteMetaMap.get(localNote.id);
 			if (!remoteMeta) {
-				// Note doesn't exist remotely, so it's new. Upload it.
+				// Note doesn't exist remotely at all, so it's new.
 				return true;
 			}
 
-			// Note exists remotely. Only upload if local is newer.
 			const remoteDate = new Date(remoteMeta.updatedAt);
 			const localDate = new Date(localNote.updatedAt);
+
+			// If it's missing from any of our active sync providers, we need to upload.
+			if (gitCredentials?.repoUrl && !gitIds.has(localNote.id)) return true;
+			if (credentials.secretAccessKey && !s3Ids.has(localNote.id)) return true;
+			if (nostrPrivateKey && !nostrIds.has(localNote.id)) return true;
+
+			// If the remote version is strictly newer, don't push the local version yet.
+			// We'll download the remote version later in this sync cycle.
+			if (localDate < remoteDate) return false;
+
+			// Note exists remotely. Only upload if local is newer than the newest remote.
 			return localDate > remoteDate;
 		});
 
-		const uploadPromises = notesToUpload.map(note => uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials}));
+		const uploadPromises = notesToUpload.map(note => uploadNote({
+			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials,
+			s3Ids, gitIds, nostrIds, remoteMetaMap
+		}));
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
 		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials}));
@@ -527,11 +540,15 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 	}
 }
 
-async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials}) {
+async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, s3Ids, gitIds, nostrIds, remoteMetaMap}) {
+	const localDate = new Date(note.updatedAt);
+	const remoteMeta = remoteMetaMap?.get(note.id);
+	const isNewerLocally = remoteMeta && localDate > new Date(remoteMeta.updatedAt);
+
 	await Promise.allSettled([
-		credentials.secretAccessKey ? uploadNoteToS3(note, credentials) : null,
-		nostrPrivateKey ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
-		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function') ? window.uploadNoteToGit(note, gitCredentials) : null,
+		(credentials.secretAccessKey && (isNewerLocally || !s3Ids?.has(note.id))) ? uploadNoteToS3(note, credentials) : null,
+		(nostrPrivateKey && (isNewerLocally || !nostrIds?.has(note.id))) ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (isNewerLocally || !gitIds?.has(note.id))) ? window.uploadNoteToGit(note, gitCredentials) : null,
 	].filter(x => x));
 }
 
@@ -611,7 +628,12 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		}
 	});
 
-	return Array.from(mergedNotes.values());
+	return {
+		mergedNotes: Array.from(mergedNotes.values()),
+		s3Ids: new Set(s3Notes.map(n => n.id)),
+		gitIds: new Set(gitNotes.map(n => n.id)),
+		nostrIds: new Set(nostrNotes.map(n => n.id))
+	};
 }
 
 async function listImages({credentials, nostrPrivateKey, nostrRelays}) {

@@ -113,7 +113,7 @@ window.initGit = async (creds) => {
 
     if (!isRepo) {
         // Clone
-        console.log('Cloning Git Repo...');
+        console.log('GIT: Cloning...');
         await git.clone({
             ...getGitConfig(creds),
             url: creds.repoUrl,
@@ -123,16 +123,18 @@ window.initGit = async (creds) => {
         });
     } else {
         // Pull
-        console.log('Pulling Git Repo...');
+        console.log('GIT: Pulling...');
         try {
             await git.pull({
                 ...getGitConfig(creds),
                 url: creds.repoUrl,
                 ref: creds.branch || 'main',
                 singleBranch: true,
-                fastForward: true,
-                author: getGitConfig(creds).author // author needed for merge commit if not ff
+                // fastForward: true, // Removed to allow merge
+                author: getGitConfig(creds).author
             });
+
+            console.log('GIT: Pulled (and Merged)');
         } catch (e) {
             console.warn('Git pull failed (might be offline or conflict), continuing with local state:', e);
             // We continue. Synchronization will happen against local FS state.
@@ -195,13 +197,13 @@ window.listNotesInGit = async (creds) => {
                         source: 'git'
                     });
                 } catch (readErr) {
-                    console.error(`Error reading/parsing file ${file}:`, readErr.message);
+                    console.error(`GIT: Error reading/parsing file ${file}:`, readErr.message);
                 }
             }
         }
         return notes;
     } catch (err) {
-        console.error('Error listing notes in git:', err);
+        console.error('GIT: Error listing notes in git:', err);
         return [];
     }
 };
@@ -222,7 +224,7 @@ window.deleteNoteFromGit = async (noteId, creds) => {
     try {
         await git.remove({ fs, dir: GIT_DIR, filepath: filename });
     } catch (e) {
-        console.log('Git remove failed (file might not exist):', e);
+        console.log('GIT: Git remove failed (file might not exist):', e);
     }
     try {
         // Ensure physical removal if git remove didn't do it (it should, but safety first)
@@ -233,30 +235,61 @@ window.deleteNoteFromGit = async (noteId, creds) => {
 window.finishGitSync = async (creds) => {
     if (!creds.repoUrl) return;
 
-    // Simple check: try to commit. 
     try {
-        const sha = await git.commit({
-            ...getGitConfig(creds),
-            message: `Sync from FeatherNote: ${new Date().toISOString()}`,
-        });
-        console.log('Committed:', sha);
+        const config = getGitConfig(creds);
+        const remoteRef = creds.branch || 'main';
+
+        // 1. Commit
+        try {
+            const sha = await git.commit({
+                ...config,
+                message: `Sync from FeatherNote: ${new Date().toISOString()}`,
+            });
+            console.log('GIT: Committed:', sha);
+        } catch (e) {
+             if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
+                console.log('GIT: Nothing to commit.');
+                return; // Nothing to push either
+            }
+            throw e; // Rethrow other errors
+        }
         
-        // Push
-        console.log('Pushing...');
-        await git.push({
-            ...getGitConfig(creds),
-            url: creds.repoUrl,
-            ref: creds.branch || 'main',
-        });
-        console.log('Pushed successfully.');
+        // 2. Push with Fallbacks
+        const pushOptions = { ...config, url: creds.repoUrl, ref: remoteRef };
+
+        try {
+            // Attempt 1: Standard Push
+            console.log('GIT: Pushing...');
+            await git.push(pushOptions);
+            console.log('GIT: Pushed successfully.');
+
+        } catch (pushErr) {
+            console.warn('GIT: Push failed, attempting to pull and retry:', pushErr);
+            
+            try {
+                // Attempt 2: Pull (Fetch + Merge) then Push
+                await git.pull({
+                    ...pushOptions,
+                    singleBranch: true,
+                    author: config.author
+                });
+                console.log('GIT: Pull successful. Retrying push...');
+                
+                await git.push(pushOptions);
+                console.log('GIT: Pushed successfully after merge.');
+
+            } catch (retryErr) {
+                // Attempt 3: Force Push
+                console.warn('GIT: Standard push failed after merge. Attempting force push as final fallback:', retryErr);
+                await git.push({ ...pushOptions, force: true });
+                console.log('GIT: Force push successful.');
+            }
+        }
     } catch (e) {
         if (e.code === 'MissingName') {
-             console.error('Git Commit Failed: Missing Author Name/Email');
-        } else if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
-            // Ignore
-            console.log('Nothing to commit.');
+             console.error('GIT: Git Commit Failed: Missing Author Name/Email');
         } else {
-            console.error('Git Commit/Push Error:', e);
+            console.error('GIT: Git Sync Error:', e);
         }
     }
 };
