@@ -29,6 +29,9 @@
 	<meta name="theme-color" content="#A2D2FF">
 	<meta name="GOOGLE_CLIENT_ID" content="___GOOGLE_CLIENT_ID___">
 	<meta name="VERSION" content="___VERSION___">
+
+	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
 <body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
@@ -507,21 +510,25 @@
 	</div>
 </body>
 
-<link rel="preload" as="style" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" />
-<link rel="preload" as="font" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0" />
+<link rel="preload" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" /></noscript>
+<link rel="preload" as="font" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0" crossorigin />
 
-<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+<link rel="preload" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" /></noscript>
 <script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 
 <!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
-<link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" />
+<link rel="preload" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" /></noscript>
 
 <script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
 <script async defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
 
-<link rel="stylesheet" href="/index.css?v=___VERSION___"/>
+<link rel="preload" href="/index.css?v=___VERSION___" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="/index.css?v=___VERSION___"/></noscript>
 
 <script defer src="/libs/diff_match_patch.js"></script>
 <script defer src="/libs/isomorphic-git.min.js"></script>
@@ -577,8 +584,10 @@
 <!-- Excalidraw -->
 
 <!-- Latex -->
-<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css">
-<link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
+<link rel="preload" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css"></noscript>
+<link rel="preload" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css"></noscript>
 <script async defer src="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js"></script>
