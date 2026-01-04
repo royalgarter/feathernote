@@ -11,14 +11,18 @@ const urlsToCache = [
 	'/index.css',
 	'/helpers.js',
 	'/s3.js',
+	'/git.js',
 	'/nostr.js',
 	'/gdrive.js',
 	'/manifest.json',
 	'/favicon.ico',
 	'/favicon.png',
-	'/libs/diff_match_patch.js',
 	'/icons/icons.json',
+	'/libs/diff_match_patch.js',
 	'/libs/aws-sdk-2.1692.0.min.js',
+	'/libs/isomorphic-git.min.js',
+	'/libs/lightning-fs.min.js',
+	'/libs/http.min.js',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0',
 	'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
@@ -122,64 +126,71 @@ self.addEventListener('fetch', (event) => {
 		if (event.request.method === 'POST' && url.pathname === '/share') {
 			event.respondWith(
 				(async () => {
-					try {
-						const TITLE_SHARED = 'Shared Inbox';
+					const formDataPromise = event.request.formData();
 
-						const formData = await event.request.formData();
-						const text = formData.get('text') || '';
-						const sharedUrl = formData.get('url') || '';
-						const title = formData.get('title') || '';
+					event.waitUntil((async () => {
+						try {
+							const TITLE_SHARED = 'Shared Inbox';
+							const formData = await formDataPromise;
 
-						let newItem = '- [ ] ';
-						if (title && sharedUrl) {
-							newItem += `[${title}](${sharedUrl})`;
-						} else if (title) {
-							newItem += title;
-						} else if (sharedUrl) {
-							newItem += `[${sharedUrl}](${sharedUrl})`;
-						}
+							const text = formData.get('text') || '';
+							const sharedUrl = formData.get('url') || '';
+							const title = formData.get('title') || '';
 
-						if (text) {
-							if (title || sharedUrl) {
-								newItem += ` > ${text}`;
-							} else {
-								newItem += text;
+							let newItem = '- [ ] ';
+							if (title && sharedUrl) {
+								newItem += `[${title}](${sharedUrl})`;
+							} else if (title) {
+								newItem += title;
+							} else if (sharedUrl) {
+								newItem += `[${sharedUrl}](${sharedUrl})`;
 							}
-						}
 
-						if (newItem.trim() !== '*') {
-							const allNotes = await getNotesDB();
-							let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
-
-							if (inboxNote) {
-								if (inboxNote.content) {
-									inboxNote.content = newItem + '\n' + inboxNote.content;
+							if (text) {
+								if (title || sharedUrl) {
+									newItem += ` > ${text}`;
 								} else {
-									inboxNote.content = newItem;
+									newItem += text;
 								}
-								inboxNote.updatedAt = new Date().toISOString();
-								await updateNoteDB(inboxNote);
-							} else {
-								// Create a new inbox note
-								const newNote = {
-									id: 'shared-inbox-' + generateUniqueId(),
-									title: TITLE_SHARED,
-									content: newItem,
-									createdAt: new Date().toISOString(),
-									updatedAt: new Date().toISOString(),
-									tags: ['shared', 'inbox'],
-								};
-								await addNoteDB(newNote);
 							}
-						}
 
-						// Redirect to the home page after sharing
-						return Response.redirect('/', 303);
-					} catch (criticalError) {
-						console.error('A critical error occurred in the /share handler:', criticalError);
-						// Still attempt to redirect the user back to the app to prevent a hanging screen.
-						return Response.redirect('/', 303);
+							if (newItem.trim() !== '*') {
+								const allNotes = await getNotesDB();
+								let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
+
+								if (inboxNote) {
+									if (inboxNote.content) {
+										inboxNote.content = newItem + '\n' + inboxNote.content;
+									} else {
+										inboxNote.content = newItem;
+									}
+									inboxNote.updatedAt = new Date().toISOString();
+									await updateNoteDB(inboxNote);
+								} else {
+									// Create a new inbox note
+									const newNote = {
+										id: 'shared-inbox-' + generateUniqueId(),
+										title: TITLE_SHARED,
+										content: newItem,
+										createdAt: new Date().toISOString(),
+										updatedAt: new Date().toISOString(),
+										tags: ['shared', 'inbox'],
+									};
+									await addNoteDB(newNote);
+								}
+							}
+						} catch (criticalError) {
+							console.error('A critical error occurred in the /share handler:', criticalError);
+						}
+					})());
+
+					// Redirect immediately after ensuring we have the form data
+					try {
+						await formDataPromise;
+					} catch (e) {
+						// Proceed to redirect even if parsing fails, to avoid hanging
 					}
+					return Response.redirect('/', 303);
 				})()
 			);
 			return;
