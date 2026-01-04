@@ -915,8 +915,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					}
 
 					// S3/Nostr sync was successful, filter the pending deletions
-					if (result.successfulDeletedIds) {
-						 this.deletedNoteIds = this.deletedNoteIds.filter(id => !result.successfulDeletedIds.includes(id));
+					// We only remove IDs from the deletion queue if they are NO LONGER present on the remote.
+					// If an ID is still in result.finalRemoteIds, it means the remote still had it when we started this sync.
+					if (result.finalRemoteIds) {
+						 this.deletedNoteIds = this.deletedNoteIds.filter(id => result.finalRemoteIds.includes(id));
 						 localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 					}
 				}
