@@ -178,7 +178,7 @@
 							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
 							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
 							<template x-if="getCoverImage(note)">
-								<img :src="getCoverImage(note)" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
+								<img :src="getCoverImage(note)" loading="lazy" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
 							</template>
 							<p class="cursor-pointer text-sm text-gray-600 line-clamp-5 pl-1" x-text="getNotePreview(note.content)"></p>
 							<template x-if="note.reminder">
@@ -197,7 +197,6 @@
 								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-500 hover:bg-green-700" aria-label="Increase Priority">
 									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 20 20">
 										<path fillRule="evenodd" d="M9.47 6.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 1 1-1.06 1.06L10 8.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06l4.25-4.25Z" clipRule="evenodd" />
-
 									</svg>
 								</button>
 								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-400 hover:bg-green-300" aria-label="Decrease Priority">
@@ -514,18 +513,12 @@
 <noscript><link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" /></noscript>
 <link rel="preload" as="font" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0" crossorigin />
 
-<link rel="preload" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" /></noscript>
-<script async defer src="//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-
-<!-- <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script> -->
 <link rel="preload" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
 <noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" /></noscript>
 
 <script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
-<script async defer src="/libs/aws-sdk-2.1692.0.min.js"></script>
 
 <link rel="preload" href="/index.css?v=___VERSION___" as="style" onload="this.onload=null;this.rel='stylesheet'" />
 <noscript><link rel="stylesheet" href="/index.css?v=___VERSION___"/></noscript>
@@ -584,15 +577,7 @@
 <!-- Excalidraw -->
 
 <!-- Latex -->
-<link rel="preload" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css"></noscript>
-<link rel="preload" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css"></noscript>
-<script async defer src="//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+<!-- Loaded dynamically -->
 <!-- Latex -->
 
 </html>

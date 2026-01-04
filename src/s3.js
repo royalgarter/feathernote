@@ -1,8 +1,17 @@
 // --- S3 Functions (Client-side AWS SDK v2) ---
-// Assumes AWS SDK is loaded globally
+// Assumes AWS SDK is loaded globally or loaded dynamically
 const getS3Client = async (creds) => {
-	const maxWaitTime = 30000; // 30 seconds
-	const interval = 1000; // 1 second
+	if (!self.AWS && typeof loadScript === 'function') {
+		try {
+			await loadScript('/libs/aws-sdk-2.1692.0.min.js', 'aws-sdk-js');
+		} catch (e) {
+			console.error('Failed to load AWS SDK', e);
+			throw new Error('AWS SDK failed to load. Check your connection.');
+		}
+	}
+
+	const maxWaitTime = 5000; // Reduced wait time since we use loadScript
+	const interval = 500;
 	let elapsedTime = 0;
 
 	while (!self.AWS && elapsedTime < maxWaitTime) {
@@ -11,7 +20,7 @@ const getS3Client = async (creds) => {
 	}
 
 	if (!self.AWS) {
-		throw new Error('AWS SDK failed to load within 30 seconds.');
+		throw new Error('AWS SDK failed to load.');
 	}
 
 	// The AWS object will be in the global scope (window or self)

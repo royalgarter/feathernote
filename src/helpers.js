@@ -12,6 +12,32 @@ const promiseTimeout = (p, ms=30e3) => Promise.race([
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
 ]);
 
+const loadScript = (src, id) => {
+	return new Promise((resolve, reject) => {
+		if (document.getElementById(id)) return resolve();
+		const script = document.createElement('script');
+		script.src = src;
+		script.id = id;
+		script.async = true;
+		script.onload = resolve;
+		script.onerror = reject;
+		document.head.appendChild(script);
+	});
+};
+
+const loadStyle = (href, id) => {
+	return new Promise((resolve, reject) => {
+		if (document.getElementById(id)) return resolve();
+		const link = document.createElement('link');
+		link.href = href;
+		link.id = id;
+		link.rel = 'stylesheet';
+		link.onload = resolve;
+		link.onerror = reject;
+		document.head.appendChild(link);
+	});
+};
+
 // --- Crypto Helpers ---
 
 // Helper function to convert buffer to base64

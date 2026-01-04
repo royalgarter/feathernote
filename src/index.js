@@ -1011,7 +1011,32 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	prepareEasyMDE(id) {
+	async prepareEasyMDE(id) {
+		if (!window.EasyMDE || !window.marked) {
+			this.easyMDEIniting = true;
+			try {
+				await Promise.all([
+					loadStyle('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css', 'easymde-css'),
+					loadScript('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js', 'easymde-js'),
+					loadScript('//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js', 'marked-js'),
+					
+					loadStyle('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css', 'katex-css'),
+					loadScript('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js', 'katex-js'),
+					loadStyle('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css', 'highlight-css'),
+					loadScript('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js', 'highlight-js'),
+				]);
+				await Promise.all([
+					loadScript('//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js', 'marked-katex-js'),
+					loadScript('//cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js', 'marked-highlight-js'),
+				]);
+			} catch (e) {
+				console.error('Failed to load editor resources', e);
+				this.easyMDEIniting = false;
+				this.showToast({ variant: 'error', title: 'Error', description: 'Failed to load editor resources. Check your connection.' });
+				return;
+			}
+		}
+
 		if (!window.EasyMDE) return;
 
 		this.noteEditorVisible = false;
