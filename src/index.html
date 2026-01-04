@@ -219,11 +219,11 @@
 			</div>
 			<!-- Pagination Controls -->
 			<div class="flex justify-center items-center space-x-2 mt-4">
-				<button @click="prevPage()" :disabled="currentPage === 1" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+				<button @click="prevPage()" :disabled="currentPage === 1" class="cursor-pointer px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
 				<template x-for="page in totalPages" :key="page">
-					<button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
+					<button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
 				</template>
-				<button @click="nextPage()" :disabled="currentPage === totalPages" class="px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
 			</div>
 		</template>
 
@@ -253,8 +253,8 @@
 					note titled "<span x-text="noteToDelete ? noteToDelete.title : ''"></span>".
 				</p>
 				<div class="flex justify-end gap-2">
-					<button @click="showModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+					<button @click="showModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
 				</div>
 			</div>
 		</div>
@@ -317,14 +317,14 @@
 						<p class="text-sm text-gray-600">Google Drive</p>
 						<div class="col-span-3">
 							<template x-if="!gdriveStore.connected">
-								<button @click="signInToGoogleDrive()" class="px-2 py-1 rounded-sm bg-blue-600 text-sm text-white hover:bg-blue-700">
+								<button @click="signInToGoogleDrive()" class="cursor-pointer px-2 py-1 rounded-sm bg-blue-600 text-sm text-white hover:bg-blue-700">
 									Connect
 								</button>
 							</template>
 							<template x-if="gdriveStore.connected">
 								<div class="flex items-center gap-2">
 									<span class="ml-1 text-green-600" x-text="`(${gdriveStore.user?.email})`"></span>
-									<button class="px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+									<button class="cursor-pointer px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
 										@click="signOutFromGoogleDrive()"
 									>Disconnect</button>
 								</div>
@@ -429,8 +429,8 @@
 				>
 					<textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste the encrypted settings string from another device to import your S3 configuration..."></textarea>
 					<div class="flex justify-end gap-2">
-						<button @click="showImportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-						<button @click="handleImport()" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
+						<button @click="showImportModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+						<button @click="handleImport()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
 					</div>
 				</div>
 			</div>
@@ -446,14 +446,14 @@
 					<p class="text-sm text-gray-600 my-4">Copy this encrypted string and import it on another device to transfer your S3 configuration.</p>
 					<div class="relative">
 						<textarea readonly x-model="exportString" class="w-full border rounded-md p-2" rows="5"></textarea>
-						<button @click="copyExportStringToClipboard()" class="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200" aria-label="Copy">
+						<button @click="copyExportStringToClipboard()" class="cursor-pointer absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200" aria-label="Copy">
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 							</svg>
 						</button>
 					</div>
 					<div class="flex justify-end gap-2">
-						<button @click="showExportModal = false" class="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Close</button>
+						<button @click="showExportModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Close</button>
 					</div>
 				</div>
 			</div>
@@ -495,7 +495,7 @@
 					<h4 class="font-bold text-sm" x-text="toast.title"></h4>
 					<p class="text-xs line-clamp-3" x-text="toast.description"></p>
 				</div>
-				<button @click="dismissToast(toast.id)" class="absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
+				<button @click="dismissToast(toast.id)" class="cursor-pointer absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
