@@ -228,6 +228,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					event.preventDefault();
 					this.revertDelete();
 				}
+			} else if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+				if (!this.editingNoteId) {
+					event.preventDefault();
+					this.createNewNote();
+				}
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
@@ -685,7 +690,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 			}
 
-			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo. Syncing to remove from other devices.' });
+			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
 			this.cancelEdit();
 
 			// Trigger a silent sync to process the remote deletion
