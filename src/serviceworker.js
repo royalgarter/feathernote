@@ -140,14 +140,14 @@ self.addEventListener('fetch', (event) => {
 						let sharedUrl = formData.get('url') || '';
 
 						title = title.replace(/\n/g, ' ');
-						
+
 						const urlRegex = /(https?:\/\/[^\s]+)/g;
-						
+
 						if (!sharedUrl) {
 							// Try to find URL in text or title if not explicitly provided
 							const textUrlMatch = text.match(urlRegex);
 							const titleUrlMatch = title.match(urlRegex);
-							
+
 							if (textUrlMatch) {
 								sharedUrl = textUrlMatch[0];
 							} else if (titleUrlMatch) {
@@ -172,7 +172,7 @@ self.addEventListener('fetch', (event) => {
 						}
 
 						if (text) {
-							if (text.includes('\n')) {
+							if (text.trim().includes('\n')) {
 								text = '\n```\n' + text + '\n```\n';
 							}
 
@@ -224,7 +224,7 @@ self.addEventListener('fetch', (event) => {
 	// For all other requests, use Stale-While-Revalidate strategy.
 	event.respondWith(
 		caches.open(CACHE_NAME).then((cache) => {
-			return cache.match(event.request, {ignoreSearch: true}).then((cachedResponse) => {
+			return cache.match(event.request, {ignoreSearch: false}).then((cachedResponse) => {
 				const fetchPromise = fetch(event.request).then((networkResponse) => {
 					if (
 						networkResponse &&

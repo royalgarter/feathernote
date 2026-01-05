@@ -453,7 +453,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const reminderNotesCount = this.notes.filter(note => !!note.reminder).length;
 			if (reminderNotesCount > 0) {
 				await navigator.setAppBadge(reminderNotesCount);
-				console.log(`App badge set to ${reminderNotesCount}`);
+				console.log(`App badge set to ${reminderNotesCount} reminders`);
 			} else {
 				await navigator.clearAppBadge();
 				// console.log('App badge cleared.');
@@ -473,14 +473,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async loadNotesFromCacheAndFetch() {
-		this.loading = true;
+		// this.loading = true;
 		try {
 			const cachedNotes = localStorage.getItem('feathernote-notes-cache');
 			if (cachedNotes) {
 				this.notes = JSON.parse(cachedNotes);
-				this.miniSearch?.removeAll();
-				this.miniSearch?.addAll(this.notes);
-				this.loading = false; // Stop loading indicator early
+				// this.miniSearch?.removeAll();
+				// this.miniSearch?.addAll(this.notes);
+				// this.loading = false; // Stop loading indicator early
 			}
 		} catch (error) {
 			console.error('Error loading notes from cache:', error);
@@ -1026,7 +1026,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					loadStyle('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css', 'easymde-css'),
 					loadScript('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js', 'easymde-js'),
 					loadScript('//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js', 'marked-js'),
-					
+
 					loadStyle('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css', 'katex-css'),
 					loadScript('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js', 'katex-js'),
 					loadStyle('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css', 'highlight-css'),
@@ -1091,8 +1091,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					return marked.parse(plainText);
+					return (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
+							? marked.parse(plainText)
+							: window.easyMDEInstance.markdown(plainText);
 				},
+				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				toolbar: [
 					{
