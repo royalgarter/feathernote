@@ -423,10 +423,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const now = new Date().getTime();
 		const delay = reminderTime - now;
 
-		console.log('scheduleNotification', new Date(reminderTime), new Date(), delay);
+		console.log('scheduleNotification', new Date(reminderTime), new Date(), delay, 'ms');
 
 		if (delay > 0) {
-			const timeoutId = setTimeout(() => {
+			this.scheduledNotifications[note.id] = setTimeout(() => {
 				navigator.serviceWorker.ready.then(registration => {
 					registration.showNotification(note.title, {
 						body: note.content.substring(0, 100),
@@ -436,9 +436,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					});
 				});
 			}, delay);
-
-			this.scheduledNotifications[note.id] = timeoutId;
 			console.log(`Reminder scheduled for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+
+			navigator.serviceWorker.ready.then(registration => {
+				if (registration.active) {
+					registration.active.postMessage({
+						action: 'SCHEDULE_NOTIFICATION',
+						id: note.id,
+						title: note.title,
+						content: note.content ? note.content.substring(0, 100) : '',
+						delay: delay,
+						url: `/#note/${note.id}`
+					});
+					console.log(`Reminder scheduled (SW) for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+				}
+			});
 		}
 	},
 
@@ -448,6 +460,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			delete this.scheduledNotifications[noteId];
 			console.log(`Cancelled reminder for note ${noteId}`);
 		}
+
+		navigator.serviceWorker.ready.then(registration => {
+			if (registration.active) {
+				registration.active.postMessage({
+					action: 'CANCEL_NOTIFICATION',
+					id: noteId
+				});
+			}
+		});
+		console.log(`Cancelled reminder (SW) for note ${noteId}`);
 	},
 
 	scheduleAllFutureReminders() {

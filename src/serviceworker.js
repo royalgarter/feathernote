@@ -267,6 +267,44 @@ self.addEventListener('activate', (event) => {
 
 
 
+
+const scheduledNotifications = new Map();
+
+self.addEventListener('message', (event) => {
+	if (!event.data) return;
+
+	if (event.data.action === 'SCHEDULE_NOTIFICATION') {
+		const { id, title, content, delay, url } = event.data;
+
+		// Cancel existing if any
+		if (scheduledNotifications.has(id)) {
+			clearTimeout(scheduledNotifications.get(id));
+			scheduledNotifications.delete(id);
+		}
+
+		if (delay > 0) {
+			const timeoutId = setTimeout(() => {
+				self.registration.showNotification(title, {
+					body: content,
+					icon: '/favicon.png',
+					badge: '/favicon.png',
+					data: { url: url }
+				});
+				scheduledNotifications.delete(id);
+			}, delay);
+			scheduledNotifications.set(id, timeoutId);
+			console.log(`SW: Scheduled notification for note ${id} in ${Math.floor(delay / 1000)}s`);
+		}
+	} else if (event.data.action === 'CANCEL_NOTIFICATION') {
+		const { id } = event.data;
+		if (scheduledNotifications.has(id)) {
+			clearTimeout(scheduledNotifications.get(id));
+			scheduledNotifications.delete(id);
+			console.log(`SW: Cancelled notification for note ${id}`);
+		}
+	}
+});
+
 self.addEventListener('notificationclick', (event) => {
 	event.notification.close();
 	const urlToOpen = event.notification.data.url || '/';
