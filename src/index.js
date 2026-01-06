@@ -443,6 +443,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	scheduleAllFutureReminders() {
+		console.log('scheduleAllFutureReminders');
 		if (this.notificationPermissionStatus !== 'granted') return;
 		this.notes.forEach(note => this.scheduleNotification(note));
 	},
@@ -522,6 +523,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
 		} finally {
 			this.loading = false;
+			this.scheduleAllFutureReminders();
 		}
 	},
 
