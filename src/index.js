@@ -413,9 +413,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			return;
 		}
 
-		const reminderTime = new Date(note.reminder).getTime();
+		const offset = new Date().getTimezoneOffset(); // Offset in minutes
+		const sign = offset > 0 ? '-' : '+';
+		const absOffset = Math.abs(offset);
+		const hours = Math.floor(absOffset / 60);
+		const minutes = absOffset % 60;
+
+		const reminderTime = new Date(`${note.reminder}:00.000`).getTime();
 		const now = new Date().getTime();
 		const delay = reminderTime - now;
+
+		console.log('scheduleNotification', new Date(reminderTime), new Date(), delay);
 
 		if (delay > 0) {
 			const timeoutId = setTimeout(() => {
@@ -430,7 +438,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}, delay);
 
 			this.scheduledNotifications[note.id] = timeoutId;
-			console.log(`Reminder scheduled for note ${note.id} in ${delay}ms`);
+			console.log(`Reminder scheduled for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
 		}
 	},
 
