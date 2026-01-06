@@ -407,11 +407,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	scheduleNotification(note) {
-		this.cancelNotification(note.id);
-
-		if (!note.reminder || this.notificationPermissionStatus !== 'granted') {
+		if (!note || !note.reminder || this.notificationPermissionStatus !== 'granted') {
 			return;
 		}
+
+		this.cancelNotification(note);
 
 		const offset = new Date().getTimezoneOffset(); // Offset in minutes
 		const sign = offset > 0 ? '-' : '+';
@@ -454,22 +454,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	cancelNotification(noteId) {
-		if (this.scheduledNotifications[noteId]) {
-			clearTimeout(this.scheduledNotifications[noteId]);
-			delete this.scheduledNotifications[noteId];
-			console.log(`Cancelled reminder for note ${noteId}`);
+	cancelNotification(note) {
+		if (!note || !note.reminder) return;
+
+		if (this.scheduledNotifications[note.id]) {
+			clearTimeout(this.scheduledNotifications[note.id]);
+			delete this.scheduledNotifications[note.id];
+			// console.log(`Cancelled reminder for note ${note.id}`);
 		}
 
 		navigator.serviceWorker.ready.then(registration => {
 			if (registration.active) {
 				registration.active.postMessage({
 					action: 'CANCEL_NOTIFICATION',
-					id: noteId
+					id: note.id
 				});
+				// console.log(`Cancelled reminder (SW) for note ${note.id}`);
 			}
 		});
-		console.log(`Cancelled reminder (SW) for note ${noteId}`);
 	},
 
 	scheduleAllFutureReminders() {
