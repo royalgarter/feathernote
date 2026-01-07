@@ -228,6 +228,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					event.preventDefault();
 					this.revertDelete();
 				}
+			} else if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+				if (!this.editingNoteId) {
+					event.preventDefault();
+					this.createNewNote();
+				}
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
@@ -402,18 +407,26 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	scheduleNotification(note) {
-		this.cancelNotification(note.id);
-
-		if (!note.reminder || this.notificationPermissionStatus !== 'granted') {
+		if (!note || !note.reminder || this.notificationPermissionStatus !== 'granted') {
 			return;
 		}
 
-		const reminderTime = new Date(note.reminder).getTime();
+		this.cancelNotification(note);
+
+		const offset = new Date().getTimezoneOffset(); // Offset in minutes
+		const sign = offset > 0 ? '-' : '+';
+		const absOffset = Math.abs(offset);
+		const hours = Math.floor(absOffset / 60);
+		const minutes = absOffset % 60;
+
+		const reminderTime = new Date(`${note.reminder}:00.000`).getTime();
 		const now = new Date().getTime();
 		const delay = reminderTime - now;
 
+		console.log('scheduleNotification', new Date(reminderTime), new Date(), delay, 'ms');
+
 		if (delay > 0) {
-			const timeoutId = setTimeout(() => {
+			this.scheduledNotifications[note.id] = setTimeout(() => {
 				navigator.serviceWorker.ready.then(registration => {
 					registration.showNotification(note.title, {
 						body: note.content.substring(0, 100),
@@ -423,21 +436,46 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					});
 				});
 			}, delay);
+			console.log(`Reminder scheduled for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
 
-			this.scheduledNotifications[note.id] = timeoutId;
-			console.log(`Reminder scheduled for note ${note.id} in ${delay}ms`);
+			navigator.serviceWorker.ready.then(registration => {
+				if (registration.active) {
+					registration.active.postMessage({
+						action: 'SCHEDULE_NOTIFICATION',
+						id: note.id,
+						title: note.title,
+						content: note.content ? note.content.substring(0, 100) : '',
+						delay: delay,
+						url: `/#note/${note.id}`
+					});
+					console.log(`Reminder scheduled (SW) for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+				}
+			});
 		}
 	},
 
-	cancelNotification(noteId) {
-		if (this.scheduledNotifications[noteId]) {
-			clearTimeout(this.scheduledNotifications[noteId]);
-			delete this.scheduledNotifications[noteId];
-			console.log(`Cancelled reminder for note ${noteId}`);
+	cancelNotification(note) {
+		if (!note || !note.reminder) return;
+
+		if (this.scheduledNotifications[note.id]) {
+			clearTimeout(this.scheduledNotifications[note.id]);
+			delete this.scheduledNotifications[note.id];
+			// console.log(`Cancelled reminder for note ${note.id}`);
 		}
+
+		navigator.serviceWorker.ready.then(registration => {
+			if (registration.active) {
+				registration.active.postMessage({
+					action: 'CANCEL_NOTIFICATION',
+					id: note.id
+				});
+				// console.log(`Cancelled reminder (SW) for note ${note.id}`);
+			}
+		});
 	},
 
 	scheduleAllFutureReminders() {
+		console.log('scheduleAllFutureReminders');
 		if (this.notificationPermissionStatus !== 'granted') return;
 		this.notes.forEach(note => this.scheduleNotification(note));
 	},
@@ -448,7 +486,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const reminderNotesCount = this.notes.filter(note => !!note.reminder).length;
 			if (reminderNotesCount > 0) {
 				await navigator.setAppBadge(reminderNotesCount);
-				console.log(`App badge set to ${reminderNotesCount}`);
+				console.log(`App badge set to ${reminderNotesCount} reminders`);
 			} else {
 				await navigator.clearAppBadge();
 				// console.log('App badge cleared.');
@@ -468,14 +506,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async loadNotesFromCacheAndFetch() {
-		this.loading = true;
+		// this.loading = true;
 		try {
 			const cachedNotes = localStorage.getItem('feathernote-notes-cache');
 			if (cachedNotes) {
 				this.notes = JSON.parse(cachedNotes);
-				this.miniSearch?.removeAll();
-				this.miniSearch?.addAll(this.notes);
-				this.loading = false; // Stop loading indicator early
+				// this.miniSearch?.removeAll();
+				// this.miniSearch?.addAll(this.notes);
+				// this.loading = false; // Stop loading indicator early
 			}
 		} catch (error) {
 			console.error('Error loading notes from cache:', error);
@@ -517,6 +555,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
 		} finally {
 			this.loading = false;
+			this.scheduleAllFutureReminders();
 		}
 	},
 
@@ -685,7 +724,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 			}
 
-			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo. Syncing to remove from other devices.' });
+			this.showToast({ title: 'Note Deleted', description: 'Press Ctrl+Z to undo.' });
 			this.cancelEdit();
 
 			// Trigger a silent sync to process the remote deletion
@@ -1021,7 +1060,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					loadStyle('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css', 'easymde-css'),
 					loadScript('//cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js', 'easymde-js'),
 					loadScript('//cdn.jsdelivr.net/npm/marked@16.4.0/lib/marked.umd.min.js', 'marked-js'),
-					
+
 					loadStyle('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css', 'katex-css'),
 					loadScript('//cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.js', 'katex-js'),
 					loadStyle('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css', 'highlight-css'),
@@ -1086,8 +1125,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					return marked.parse(plainText);
+					return (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
+							? marked.parse(plainText)
+							: window.easyMDEInstance.markdown(plainText);
 				},
+				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				toolbar: [
 					{

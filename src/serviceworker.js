@@ -140,14 +140,14 @@ self.addEventListener('fetch', (event) => {
 						let sharedUrl = formData.get('url') || '';
 
 						title = title.replace(/\n/g, ' ');
-						
+
 						const urlRegex = /(https?:\/\/[^\s]+)/g;
-						
+
 						if (!sharedUrl) {
 							// Try to find URL in text or title if not explicitly provided
 							const textUrlMatch = text.match(urlRegex);
 							const titleUrlMatch = title.match(urlRegex);
-							
+
 							if (textUrlMatch) {
 								sharedUrl = textUrlMatch[0];
 							} else if (titleUrlMatch) {
@@ -172,7 +172,7 @@ self.addEventListener('fetch', (event) => {
 						}
 
 						if (text) {
-							if (text.includes('\n')) {
+							if (text.trim().includes('\n')) {
 								text = '\n```\n' + text + '\n```\n';
 							}
 
@@ -224,7 +224,7 @@ self.addEventListener('fetch', (event) => {
 	// For all other requests, use Stale-While-Revalidate strategy.
 	event.respondWith(
 		caches.open(CACHE_NAME).then((cache) => {
-			return cache.match(event.request, {ignoreSearch: true}).then((cachedResponse) => {
+			return cache.match(event.request, {ignoreSearch: false}).then((cachedResponse) => {
 				const fetchPromise = fetch(event.request).then((networkResponse) => {
 					if (
 						networkResponse &&
@@ -266,6 +266,44 @@ self.addEventListener('activate', (event) => {
 });
 
 
+
+
+const scheduledNotifications = new Map();
+
+self.addEventListener('message', (event) => {
+	if (!event.data) return;
+
+	if (event.data.action === 'SCHEDULE_NOTIFICATION') {
+		const { id, title, content, delay, url } = event.data;
+
+		// Cancel existing if any
+		if (scheduledNotifications.has(id)) {
+			clearTimeout(scheduledNotifications.get(id));
+			scheduledNotifications.delete(id);
+		}
+
+		if (delay > 0) {
+			const timeoutId = setTimeout(() => {
+				self.registration.showNotification(title, {
+					body: content,
+					icon: '/favicon.png',
+					badge: '/favicon.png',
+					data: { url: url }
+				});
+				scheduledNotifications.delete(id);
+			}, delay);
+			scheduledNotifications.set(id, timeoutId);
+			console.log(`SW: Scheduled notification for note ${id} in ${Math.floor(delay / 1000)}s`);
+		}
+	} else if (event.data.action === 'CANCEL_NOTIFICATION') {
+		const { id } = event.data;
+		if (scheduledNotifications.has(id)) {
+			clearTimeout(scheduledNotifications.get(id));
+			scheduledNotifications.delete(id);
+			console.log(`SW: Cancelled notification for note ${id}`);
+		}
+	}
+});
 
 self.addEventListener('notificationclick', (event) => {
 	event.notification.close();

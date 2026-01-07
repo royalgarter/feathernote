@@ -12,6 +12,8 @@ const promiseTimeout = (p, ms=30e3) => Promise.race([
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
 ]);
 
+const pad = (num) => num.toString().padStart(2, '0');
+
 const loadScript = (src, id) => {
 	return new Promise((resolve, reject) => {
 		if (document.getElementById(id)) return resolve();
