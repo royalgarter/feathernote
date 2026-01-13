@@ -936,13 +936,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				if (!isSilent) {
 					let syncDescription = `Sync completed: ${result.uploadedCount || 0} uploaded, ${downloadedCount} downloaded, ${result.deletedCount || 0} remote deletes.`;
 					this.showToast({ title: 'Sync Successful', description: syncDescription });
-				}
-			} else {
-							title: 'Synced',
-							description: `Up ${result.uploadedCount} Down ${downloadedCount} Del ${result.deletedCount} Remote Del ${notesToDeleteLocally.length}`,
-						});
-					}
-
+				} else {
 					// S3/Nostr sync was successful, filter the pending deletions
 					// We only remove IDs from the deletion queue if they are NO LONGER present on the remote.
 					// If an ID is still in result.finalRemoteIds, it means the remote still had it when we started this sync.
