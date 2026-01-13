@@ -161,102 +161,162 @@ function signOutFromGoogleDrive() {
 
 // --- Sync Logic ---
 let REMOTE_GOOGLEDRIVE_FILES = [];
+
 /**
+ * DEPRECATED: Use the granular functions below via synchronize() in helpers.js.
  * Main function to synchronize notes with Google Drive.
  * Implements a "last-write-wins" strategy.
  */
 async function syncNotesWithGoogleDrive(isSilent = false, deletedNoteIds = []) {
-	if (!accessToken) {
-		throw new Error("Google Drive sync cancelled: Not authenticated.");
-	}
+	console.warn('syncNotesWithGoogleDrive is deprecated. Please use the unified synchronize() function.');
+	return;
+}
 
-	console.log("Starting Google Drive sync...");
-	const app = Alpine.$data(document.querySelector('#main-app'));
-	app.gdriveStore.isSyncing = true;
-
+/**
+ * Lists all notes in Google Drive.
+ * @returns {Promise<Array>} List of note metadata { id, updatedAt, source: 'gdrive', fileId }
+ */
+async function listNotesInGDrive() {
+	if (!accessToken) return [];
 	try {
-		// 1. Fetch all local notes and remote files in parallel
-		const [localNotes, remoteFiles] = await Promise.all([
-			getNotesDB(),
-			listAllFilesFromGoogleDrive()
-		]);
-
-		const remoteFilesMap = new Map(remoteFiles.map(file => [file.name.replace('.json', ''), file]));
-
-		// 2. Handle deletions on remote
-		const deletePromises = deletedNoteIds.map(id => deleteNoteFromGoogleDrive(id, remoteFiles));
-
-		// 3. Compare and decide which notes to upload or download
-		const toUpload = [];
-		const toDownload = [];
-		const localNotesMap = new Map(localNotes.map(note => [note.id, note]));
-
-		// Check for notes to upload
-		for (const localNote of localNotes) {
-			if (deletedNoteIds.includes(localNote.id)) continue; // Don't upload notes marked for deletion
-
-			const remoteFile = remoteFilesMap.get(localNote.id);
-			if (!remoteFile) {
-				toUpload.push({ note: localNote, existingFile: null });
-			} else {
-				const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
-				const localTimestamp = new Date(localNote.updatedAt).getTime();
-				if (localTimestamp > remoteTimestamp) {
-					toUpload.push({ note: localNote, existingFile: remoteFile });
-				}
-			}
-		}
-
-		// Check for notes to download and notes to delete locally
-		const remoteIds = new Set(remoteFiles.map(f => f.name.replace('.json', '')));
-		const notesToDeleteLocally = [];
-
-		for (const remoteFile of remoteFiles) {
-			const noteId = remoteFile.name.replace('.json', '');
-			const localNote = localNotesMap.get(noteId);
-			if (!localNote) {
-				if (!deletedNoteIds.includes(noteId)) { // Don't download if it was just deleted locally
-					toDownload.push(remoteFile);
-				}
-			} else {
-				const remoteTimestamp = new Date(remoteFile.modifiedTime).getTime();
-				const localTimestamp = new Date(localNote.updatedAt).getTime();
-				if (remoteTimestamp > localTimestamp) {
-					toDownload.push(remoteFile);
-				}
-			}
-		}
-
-		for (const localNote of localNotes) {
-			if (!remoteIds.has(localNote.id) && !toUpload.some(item => item.note.id === localNote.id)) {
-				notesToDeleteLocally.push(localNote.id);
-			}
-		}
-		const localDeletePromises = notesToDeleteLocally.map(id => deleteNoteDB(id));
-
-		console.log(`To Upload: ${toUpload.length}, To Download: ${toDownload.length}, To Delete Remote: ${deletePromises.length}, To Delete Local: ${localDeletePromises.length}`);
-
-		// 4. Execute all operations
-		const uploadPromises = toUpload.map(({ note, existingFile }) => uploadNoteToGoogleDrive(note, existingFile));
-		const downloadPromises = toDownload.map(file => downloadNoteFromGoogleDrive(file.id, file.name.replace('.json', '')));
-
-		await Promise.all([
-			...uploadPromises,
-			...downloadPromises,
-			...deletePromises,
-			...localDeletePromises
-		]);
-
-		console.log("Google Drive sync finished.");
-
+		const files = await listAllFilesFromGoogleDrive();
+		// Convert to unified metadata format
+		return files.map(file => ({
+			id: file.name.replace('.json', ''),
+			updatedAt: new Date(file.modifiedTime).toISOString(),
+			source: 'gdrive',
+			fileId: file.id
+		}));
 	} catch (error) {
-		console.error("Google Drive sync failed:", error);
-		app.showToast({ variant: 'error', title: 'Sync Failed', description: error.message });
-	} finally {
-		app.gdriveStore.isSyncing = false;
+		console.error('Error listing GDrive notes:', error);
+		return [];
 	}
 }
 
+/**
+ * Downloads a note from Google Drive.
+ * @param {string} fileId The ID of the file to download.
+ * @param {string} noteId The expected note ID.
+ * @returns {Promise<Object|null>} A promise that resolves with the note object or null.
+ */
+async function downloadNoteFromGDrive(fileId, noteId) {
+	try {
+		const response = await gapi.client.drive.files.get({
+			fileId: fileId,
+			alt: 'media'
+		});
+
+		// Verification: Ensure the downloaded data is valid
+		if (!response.body || response.body === "{}") {
+			console.warn(`Downloaded file ${fileId} for note ${noteId} is empty. Skipping.`);
+			return null;
+		}
+
+		const noteData = JSON.parse(response.body);
+
+		// Verification: Ensure content property exists
+		if (typeof noteData.content === 'undefined') {
+			console.warn(`Downloaded note ${noteId} has no content property. Skipping.`);
+			return null;
+		}
+
+		// Ensure the note object has the correct ID, overriding file content
+		return { ...noteData, id: noteId };
+	} catch (err) {
+		console.error(`Error downloading file ${fileId} for note ${noteId}:`, err);
+		return null;
+	}
+}
+
+/**
+ * Uploads a note to Google Drive. Handles both creation and updates.
+ * @param {Object} note The note object to upload.
+ * @param {Object} remoteMeta Metadata of the remote note (optional).
+ */
+async function uploadNoteToGoogleDrive(note, remoteMeta = null) {
+	if (!accessToken) return;
+
+	const noteId = note.id;
+	const boundary = '-------314159265358979323846';
+	const delimiter = "\r\n--" + boundary + "\r\n";
+	const close_delim = "\r\n--" + boundary + "--";
+
+	const metadata = {
+		'name': `${noteId}.json`,
+		'mimeType': 'application/json',
+	};
+
+	let existingFileId = remoteMeta?.fileId;
+	if (!existingFileId) {
+		// Try to find it if not provided in meta (fallback)
+		// This might be slow if we do it for every upload without meta, but usually meta is provided.
+		// For now, assume if not in meta, it's new. 
+		// Use listAllFilesFromGoogleDrive check if absolutely necessary, but listNotesInGDrive should have covered it.
+		metadata.parents = ['appDataFolder'];
+	}
+
+	const multipartRequestBody =
+		delimiter +
+		'Content-Type: application/json\r\n\r\n' +
+		JSON.stringify(metadata) +
+		delimiter +
+		'Content-Type: application/json\r\n\r\n' +
+		JSON.stringify(note) +
+		close_delim;
+
+	const path = existingFileId ? `/upload/drive/v3/files/${existingFileId}` : '/upload/drive/v3/files';
+
+	const request = () => gapi.client.request({
+		'path': path,
+		'method': existingFileId ? 'PATCH' : 'POST',
+		'params': { 'uploadType': 'multipart' },
+		'headers': {
+			'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+		},
+		'body': multipartRequestBody
+	});
+
+	try {
+		await callDriveApi(request);
+		// console.log(`Successfully uploaded note ${noteId} to GDrive`);
+	} catch (err) {
+		console.error(`Error uploading note ${noteId} to GDrive:`, err);
+	}
+}
+
+/**
+ * Deletes a note from Google Drive.
+ * @param {string} noteId The ID of the note to delete.
+ * @param {Object} remoteMeta Metadata of the remote note (optional).
+ */
+async function deleteNoteFromGoogleDrive(noteId, remoteMeta = null) {
+	if (!accessToken) return;
+
+	let fileId = remoteMeta?.fileId;
+
+	if (!fileId) {
+		// Fallback: try to find the file
+		// Note: This relies on REMOTE_GOOGLEDRIVE_FILES being populated or re-fetching.
+		// Ideally we should pass the fileId from the listNotes phase.
+		// If we don't have it, we might skip or do a costly search.
+		// For safety, let's just skip if we don't have the ID, as listNotes should have provided it.
+		console.warn(`Skipping GDrive delete for ${noteId}: fileId not found in metadata.`);
+		return;
+	}
+
+	try {
+		await gapi.client.drive.files.delete({
+			fileId: fileId
+		});
+		console.log(`Successfully deleted note ${noteId} from Drive.`);
+	} catch (err) {
+		console.error(`Error deleting note ${noteId} from Drive:`, err);
+	}
+}
+
+// Keep the old function for now but pointing to nowhere or removed? 
+// The prompt asked to "Make it consistent logic like Git", effectively replacing it.
+// I've deprecated the main function above.
 
 // --- Google Drive API Helper Functions ---
 
@@ -304,117 +364,5 @@ async function listAllFilesFromGoogleDrive() {
 	} catch (err) {
 		console.error("Error listing files:", err);
 		return [];
-	}
-}
-
-/**
- * Downloads a note from Google Drive and saves it to IndexedDB.
- * @param {string} fileId The ID of the file to download.
- * @returns {Promise<Object|null>} A promise that resolves with the note object or null.
- */
-async function downloadNoteFromGoogleDrive(fileId, noteId) {
-	try {
-		const response = await gapi.client.drive.files.get({
-			fileId: fileId,
-			alt: 'media'
-		});
-
-		// Verification: Ensure the downloaded data is valid
-		if (!response.body || response.body === "{}") {
-			console.warn(`Downloaded file ${fileId} for note ${noteId} is empty. Skipping.`);
-			return null;
-		}
-
-		const noteData = JSON.parse(response.body);
-
-		// Verification: Ensure content property exists
-		if (typeof noteData.content === 'undefined') {
-			console.warn(`Downloaded note ${noteId} has no content property. Skipping.`);
-			return null;
-		}
-
-		// Ensure the note object has the correct ID, overriding file content
-		const note = { ...noteData, id: noteId };
-
-		const existingNote = await getNoteDB(noteId);
-		if (existingNote) {
-			await updateNoteDB(note);
-		} else {
-			await addNoteDB(note);
-		}
-
-		return note;
-	} catch (err) {
-		console.error(`Error downloading file ${fileId} for note ${noteId}:`, err);
-		return null;
-	}
-}
-
-/**
- * Uploads a note to Google Drive. Handles both creation and updates.
- * @param {Object} note The note object to upload.
- */
-async function uploadNoteToGoogleDrive(note, existingFile = null) {
-	const noteId = note.id;
-	const boundary = '-------314159265358979323846';
-	const delimiter = "\r\n--" + boundary + "\r\n";
-	const close_delim = "\r\n--" + boundary + "--";
-
-	const metadata = {
-		'name': `${noteId}.json`,
-		'mimeType': 'application/json',
-	};
-
-	if (!existingFile) {
-		metadata.parents = ['appDataFolder'];
-	}
-
-
-	const multipartRequestBody =
-		delimiter +
-		'Content-Type: application/json\r\n\r\n' +
-		JSON.stringify(metadata) +
-		delimiter +
-		'Content-Type: application/json\r\n\r\n' +
-		JSON.stringify(note) +
-		close_delim;
-
-	const path = existingFile ? `/upload/drive/v3/files/${existingFile.id}` : '/upload/drive/v3/files';
-
-	const request = () => gapi.client.request({
-		'path': path,
-		'method': existingFile ? 'PATCH' : 'POST',
-		'params': { 'uploadType': 'multipart' },
-		'headers': {
-			'Content-Type': 'multipart/related; boundary="' + boundary + '"'
-		},
-		'body': multipartRequestBody
-	});
-
-	try {
-		await callDriveApi(request);
-		console.log(`Successfully uploaded note ${noteId}`);
-	} catch (err) {
-		console.error(`Error uploading note ${noteId}:`, err);
-	}
-}
-
-/**
- * Deletes a note from Google Drive.
- * @param {string} noteId The ID of the note to delete.
- */
-async function deleteNoteFromGoogleDrive(noteId, remoteFiles = REMOTE_GOOGLEDRIVE_FILES) {
-	// Find the file ID first
-	const fileToDelete = remoteFiles.find(f => f.name === `${noteId}.json`);
-
-	if (fileToDelete) {
-		try {
-			await gapi.client.drive.files.delete({
-				fileId: fileToDelete.id
-			});
-			console.log(`Successfully deleted note ${noteId} from Drive.`);
-		} catch (err) {
-			console.error(`Error deleting note ${noteId} from Drive:`, err);
-		}
 	}
 }

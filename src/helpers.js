@@ -303,11 +303,6 @@ const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'rea
 
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials}) {
 	try {
-		if (gdriveStore.connected && typeof syncNotesWithGoogleDrive === 'function') {
-			await syncNotesWithGoogleDrive(isSilent, deletedNoteIds)
-			return { success: true, gdrive: true };
-		}
-
 		// Initialize Git if configured
 		if (gitCredentials?.repoUrl) {
 			if (typeof window.initGit === 'function') {
@@ -315,13 +310,13 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		}
 
-		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl) return {
+		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected) return {
 			success: false,
-			error: 'S3 credentials and Git Repo URL are missing',
+			error: 'No sync provider configured (S3, Git, or GDrive)',
 		};
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -343,6 +338,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			if (gitCredentials?.repoUrl && !gitIds.has(localNote.id)) return true;
 			if (credentials.secretAccessKey && !s3Ids.has(localNote.id)) return true;
 			if (nostrPrivateKey && !nostrIds.has(localNote.id)) return true;
+			if (gdriveStore?.connected && !gdriveIds.has(localNote.id)) return true;
 
 			// If the remote version is strictly newer, don't push the local version yet.
 			// We'll download the remote version later in this sync cycle.
@@ -353,12 +349,18 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		});
 
 		const uploadPromises = notesToUpload.map(note => uploadNote({
-			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials,
-			s3Ids, gitIds, nostrIds, remoteMetaMap
+			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
+			s3Ids, gitIds, nostrIds, gdriveIds, remoteMetaMap, gdriveMap
 		}));
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
-		const deletePromises = deletedNoteIds.map(noteId => deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials}));
+		const deletePromises = deletedNoteIds.map(noteId => {
+			const remoteMeta = remoteMetaMap.get(noteId);
+			const gdriveMeta = gdriveMap?.get(noteId);
+			return deleteNoteFromRemotes({
+				noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta: gdriveMeta || remoteMeta
+			});
+		});
 
 		// --- Step 4: Execute uploads and deletes ---
 		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
@@ -388,6 +390,96 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		}
 
+
+		// --- Step 5: Determine which notes to download or delete locally ---
+		const notesToDownload = [];
+		const notesToDeleteLocally = [];
+		const allLocalNotesMap = new Map(localNotes.map(n => [n.id, n]));
+
+		// Find notes updated remotely
+		for (const remoteMeta of remoteNoteMetadata) {
+			const localNote = allLocalNotesMap.get(remoteMeta.id);
+			if (!localNote) {
+				// Note exists on remote but not local, and isn't in the local delete list. Download it.
+				if (!deletedNoteIds.includes(remoteMeta.id)) {
+					notesToDownload.push(remoteMeta);
+				}
+			} else {
+				// Note exists on both. Download if remote is newer.
+				const remoteDate = new Date(remoteMeta.updatedAt);
+				const localDate = new Date(localNote.updatedAt);
+				if (remoteDate > localDate) {
+					notesToDownload.push(remoteMeta);
+				}
+			}
+		}
+
+		// Find notes deleted remotely
+		const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
+		const locallyDeletedNoteIds = new Set(deletedNoteIds);
+		const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
+
+		// Create a set of all local note IDs for easier checking
+		const localNoteIds = new Set(allLocalNotesMap.keys());
+
+		// Identify notes that should be deleted locally:
+		// - Exist locally
+		// - Don't exist remotely
+		// - Weren't already marked for local deletion
+		// - Weren't just uploaded (which would mean they now exist remotely)
+		const remotelyDeletedNoteIds = [...localNoteIds].filter(noteId => 
+			!remoteNoteIds.has(noteId) && 
+			!locallyDeletedNoteIds.has(noteId) && 
+			!uploadedNoteIds.has(noteId)
+		);
+
+		notesToDeleteLocally.push(...remotelyDeletedNoteIds);
+
+		const downloadPromises = notesToDownload.map(remoteMeta => {
+			if (remoteMeta.source === 'git') {
+				// We already have the content from listNotesInGit? 
+				// listNotesInGit returns full note objects with content!
+				// So we don't need to download again. We just return it.
+				return Promise.resolve(remoteMeta);
+			} else if (remoteMeta.source === 'nostr') {
+				return Promise.resolve(remoteMeta); // Nostr also returns full event/note
+			} else if (remoteMeta.source === 'gdrive') {
+				return window.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
+			} else {
+				return downloadNoteFromS3(remoteMeta.id, credentials);
+			}
+		});
+		const downloadResults = await Promise.allSettled(downloadPromises);
+
+		const updatedNotes = [];
+		downloadResults.forEach((result, idx) => {
+			if (result.status === 'fulfilled' && result.value) {
+				updatedNotes.push(result.value);
+			} else if (result.status === 'rejected') {
+				console.log('Sync download error:', notesToDownload[idx].id, result.reason.message);
+				// If a note was listed in metadata but fails to download with NoSuchKey,
+				// it means it was deleted between the list and get operations.
+				// We should treat it as a remote deletion.
+				if (result.reason && result.reason.code === 'NoSuchKey') {
+					notesToDeleteLocally.push(notesToDownload[idx].id);
+				}
+			}
+		});
+
+		return {
+			success: true,
+			uploadedCount: successfulUploadedCount,
+			deletedCount: successfulDeletedCount,
+			successfulDeletedIds, // downloaded notes
+			updatedNotes, // downloaded notes
+			notesToDeleteLocally,
+			finalRemoteIds: Array.from(remoteNoteIds)
+		};
+	} catch (error) {
+		console.error('synchronize error:', error);
+		return { success: false, error: error.message };
+	}
+}
 
 		// --- Step 5: Determine which notes to download or delete locally ---
 		const notesToDownload = [];
@@ -568,15 +660,17 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 	}
 }
 
-async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, s3Ids, gitIds, nostrIds, remoteMetaMap}) {
+async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore, s3Ids, gitIds, nostrIds, gdriveIds, remoteMetaMap, gdriveMap}) {
 	const localDate = new Date(note.updatedAt);
 	const remoteMeta = remoteMetaMap?.get(note.id);
+	const gdriveMeta = gdriveMap?.get(note.id);
 	const isNewerLocally = remoteMeta && localDate > new Date(remoteMeta.updatedAt);
 
 	await Promise.allSettled([
 		(credentials.secretAccessKey && (isNewerLocally || !s3Ids?.has(note.id))) ? uploadNoteToS3(note, credentials) : null,
 		(nostrPrivateKey && (isNewerLocally || !nostrIds?.has(note.id))) ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
 		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (isNewerLocally || !gitIds?.has(note.id))) ? window.uploadNoteToGit(note, gitCredentials) : null,
+		(gdriveStore?.connected && typeof window.uploadNoteToGoogleDrive === 'function' && (isNewerLocally || !gdriveIds?.has(note.id))) ? window.uploadNoteToGoogleDrive(note, gdriveMeta) : null,
 	].filter(x => x));
 }
 
@@ -596,7 +690,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 	await Promise.allSettled(promises);
 }
 
-async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials}) {
+async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore}) {
 	const s3NotesPromise = listNotesInS3(credentials, lastSync);
 
 	let nostrNotesPromise;
@@ -614,15 +708,24 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		gitNotesPromise = Promise.resolve([]);
 	}
 
-	const [s3Res, nostrRes, gitRes] = await Promise.allSettled([
+	let gdriveNotesPromise;
+	if (gdriveStore?.connected && typeof window.listNotesInGDrive === 'function') {
+		gdriveNotesPromise = window.listNotesInGDrive();
+	} else {
+		gdriveNotesPromise = Promise.resolve([]);
+	}
+
+	const [s3Res, nostrRes, gitRes, gdriveRes] = await Promise.allSettled([
 		promiseTimeout(s3NotesPromise),
 		promiseTimeout(nostrNotesPromise),
-		promiseTimeout(gitNotesPromise)
+		promiseTimeout(gitNotesPromise),
+		promiseTimeout(gdriveNotesPromise)
 	]);
 
 	const s3Notes = s3Res.status === 'fulfilled' ? s3Res.value : [];
 	const nostrNotes = nostrRes.status === 'fulfilled' ? nostrRes.value : [];
 	const gitNotes = gitRes.status === 'fulfilled' ? gitRes.value : [];
+	const gdriveNotes = gdriveRes.status === 'fulfilled' ? gdriveRes.value : [];
 
 	const mergedNotes = new Map();
 
@@ -656,11 +759,27 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		}
 	});
 
+	gdriveNotes.forEach(note => {
+		const existingNote = mergedNotes.get(note.id);
+		const gdriveLastModified = new Date(note.updatedAt || note.createdAt);
+
+		if (!existingNote) {
+			mergedNotes.set(note.id, { ...note, updatedAt: gdriveLastModified, source: 'gdrive', fileId: note.fileId });
+		} else {
+			const existingLastModified = new Date(existingNote.updatedAt);
+			if (gdriveLastModified > existingLastModified) {
+				mergedNotes.set(note.id, { ...note, updatedAt: gdriveLastModified, source: 'gdrive', fileId: note.fileId });
+			}
+		}
+	});
+
 	return {
 		mergedNotes: Array.from(mergedNotes.values()),
 		s3Ids: new Set(s3Notes.map(n => n.id)),
 		gitIds: new Set(gitNotes.map(n => n.id)),
-		nostrIds: new Set(nostrNotes.map(n => n.id))
+		nostrIds: new Set(nostrNotes.map(n => n.id)),
+		gdriveIds: new Set(gdriveNotes.map(n => n.id)),
+		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n]))
 	};
 }
 
@@ -706,12 +825,12 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 	return Array.from(mergedImages.values());
 }
 
-async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials}) {
+async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta}) {
 	const promises = [];
 
 	// Remote deletions
-	if (gdriveStore.connected && typeof deleteNoteFromGoogleDrive === 'function') {
-		promises.push(deleteNoteFromGoogleDrive(noteId));
+	if (gdriveStore.connected && typeof window.deleteNoteFromGoogleDrive === 'function') {
+		promises.push(window.deleteNoteFromGoogleDrive(noteId, remoteMeta));
 	}
 
 	if (credentials?.secretAccessKey) {

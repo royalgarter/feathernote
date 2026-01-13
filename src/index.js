@@ -881,73 +881,63 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 
 			if (result.success) {
-				if (result.gdrive) {
-					this.fetchNotes(); // Refresh notes from DB
-					this.updateNotesCache();
-					if (!isSilent) {
-						this.showToast({ title: 'Google Drive Sync', description: 'Sync completed successfully.' });
+				// Handle downloaded notes and remote deletions
+				let downloadedCount = 0;
+				for (const remoteNote of result.updatedNotes || []) {
+					if (await this.mergeRemoteNote(remoteNote)) {
+						downloadedCount++;
 					}
-					// GDrive sync was successful, clear the pending deletions.
-					this.deletedNoteIds = [];
-					localStorage.removeItem('feathernote-deleted-note-ids');
-				} else {
-					// Handle downloaded notes
-					let downloadedCount = 0;
-					let notesToDeleteLocally = [];
+				}
 
-					// If GDrive is not the main provider, perform a two-way sync with S3.
-					// Otherwise, S3 is a secondary provider, and we only push changes, not pull.
-					if (!this.gdriveStore.connected) {
-						for (const remoteNote of result.updatedNotes) {
-							if (await this.mergeRemoteNote(remoteNote)) {
-								downloadedCount++;
+				const notesToDeleteLocally = result.notesToDeleteLocally || [];
+				for (const noteIdToDelete of notesToDeleteLocally) {
+					await deleteNoteDB(noteIdToDelete);
+				}
+
+				// Always clear pending deletions on successful sync
+				this.deletedNoteIds = [];
+				localStorage.removeItem('feathernote-deleted-note-ids');
+
+				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
+				this.updateNotesCache();
+
+				this.lastSync = new Date().toISOString();
+				localStorage.setItem('feathernote-lastSync', this.lastSync);
+
+				// After notes are synced, sync images
+				if (encryptedSettings) {
+					const imageSyncResult = await synchronizeImages({encryptedSettings, userId, nostrPrivateKey: this.nostrPrivateKey, nostrRelays: this.nostrRelays});
+					if (imageSyncResult.success) {
+						const { uploadedImageCount, downloadedImageCount, deletedOrphanCount } = imageSyncResult;
+						if (!isSilent && (uploadedImageCount > 0 || downloadedImageCount > 0 || deletedOrphanCount > 0)) {
+							let description = `${uploadedImageCount} uploaded, ${downloadedImageCount} downloaded.`;
+							if (deletedOrphanCount > 0) {
+								description += ` ${deletedOrphanCount} orphaned images deleted.`;
 							}
-						}
-
-						// Handle notes that were deleted on the remote (S3)
-						notesToDeleteLocally = result.notesToDeleteLocally || [];
-						for (const noteIdToDelete of notesToDeleteLocally) {
-							await deleteNoteDB(noteIdToDelete);
-						}
-					}
-
-					await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-					this.updateNotesCache();
-
-					this.lastSync = new Date().toISOString();
-					localStorage.setItem('feathernote-lastSync', this.lastSync);
-
-					// After notes are synced, sync images
-					if (encryptedSettings) {
-						const imageSyncResult = await synchronizeImages({encryptedSettings, userId, nostrPrivateKey: this.nostrPrivateKey, nostrRelays: this.nostrRelays});
-						if (imageSyncResult.success) {
-							const { uploadedImageCount, downloadedImageCount, deletedOrphanCount } = imageSyncResult;
-							if (!isSilent && (uploadedImageCount > 0 || downloadedImageCount > 0 || deletedOrphanCount > 0)) {
-								let description = `${uploadedImageCount} uploaded, ${downloadedImageCount} downloaded.`;
-								if (deletedOrphanCount > 0) {
-									description += ` ${deletedOrphanCount} orphaned images deleted.`;
-								}
-								this.showToast({
-									quiet: true,
-									title: 'Image Sync Complete',
-									description,
-								});
-							}
-						} else {
-							if (!isSilent) {
-								this.showToast({
-									title: 'Image Sync Failed',
-									description: imageSyncResult.error,
-									variant: 'error',
-								});
-							}
+							this.showToast({
+								quiet: true,
+								title: 'Image Sync Complete',
+								description,
+							});
 						}
 					} else {
-						console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
+						if (!isSilent) {
+							this.showToast({
+								title: 'Image Sync Failed',
+								description: imageSyncResult.error,
+								variant: 'error',
+							});
+						}
 					}
+				} else {
+					console.log('syncNotes: S3 not configured or userId missing, skipping image sync.');
+				}
 
-					if (!isSilent) {
-						this.showToast({
+				if (!isSilent) {
+					let syncDescription = `Sync completed: ${result.uploadedCount || 0} uploaded, ${downloadedCount} downloaded, ${result.deletedCount || 0} remote deletes.`;
+					this.showToast({ title: 'Sync Successful', description: syncDescription });
+				}
+			} else {
 							title: 'Synced',
 							description: `Up ${result.uploadedCount} Down ${downloadedCount} Del ${result.deletedCount} Remote Del ${notesToDeleteLocally.length}`,
 						});
