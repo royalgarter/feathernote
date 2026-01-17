@@ -12,7 +12,7 @@
 // IMPORTANT: These must be configured in your Google Cloud project.
 // See README.md for details.
 const GDRIVE_API_KEY = ''; // Placeholder - might not be needed for AppData folder access
-const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid';
 const APP_FOLDER_NAME = 'FeatherNote';
 
 let gapiInited = false;
@@ -64,24 +64,36 @@ window.gisLoaded = function() {
 				accessToken = tokenResponse.access_token;
 				localStorage.setItem('gdrive_access_token', accessToken);
 
-				// Update the main app's state
-				const app = Alpine.$data(document.querySelector('#main-app'));
-				app.gdriveStore.connected = true;
-
-				// Fetch user info
+				// Fetch user info to verify token and get user details
 				fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
 					headers: { 'Authorization': `Bearer ${accessToken}` }
 				})
-				.then(response => response.json())
+				.then(async response => {
+					if (!response.ok) {
+						throw new Error(`Failed to fetch user info: ${response.status}`);
+					}
+					return response.json();
+				})
 				.then(userInfo => {
+					// Update the main app's state only after successful user info fetch
+					const app = Alpine.$data(document.querySelector('#main-app'));
+					app.gdriveStore.connected = true;
 					app.gdriveStore.user = userInfo;
 					app.showToast({ title: 'Connected', description: `Connected to Google Drive as ${userInfo.name}.` });
-				});
 
-				// Trigger a sync
-				if (typeof app.syncNotes === 'function') {
-					app.syncNotes();
-				}
+					// Trigger a sync
+					if (typeof app.syncNotes === 'function') {
+						app.syncNotes();
+					}
+				})
+				.catch(error => {
+					console.error("Error fetching user info:", error);
+					const app = Alpine.$data(document.querySelector('#main-app'));
+					app.showToast({ variant: 'error', title: 'Connection Failed', description: 'Could not retrieve user info.' });
+					// Clear invalid token
+					accessToken = null;
+					localStorage.removeItem('gdrive_access_token');
+				});
 
 			} else {
 				console.error("No access token received.");
