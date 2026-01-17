@@ -12,13 +12,15 @@
 // IMPORTANT: These must be configured in your Google Cloud project.
 // See README.md for details.
 const GDRIVE_API_KEY = ''; // Placeholder - might not be needed for AppData folder access
-const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const APP_FOLDER_NAME = 'FeatherNote';
 
 let gapiInited = false;
 let gisInited = false;
 let tokenClient;
 let accessToken = null;
 let REMOTE_GOOGLEDRIVE_FILES = [];
+let appFolderId = null;
 
 // --- Initialization Functions ---
 
@@ -158,16 +160,57 @@ async function callDriveApi(apiCall) {
 }
 
 /**
- * Lists all files in the appDataFolder.
+ * Ensures the 'FeatherNote' folder exists in the user's Drive.
+ * @returns {Promise<string>} The ID of the folder.
+ */
+async function ensureAppFolder() {
+	if (appFolderId) return appFolderId;
+
+	try {
+		// 1. Search for the folder
+		const response = await gapi.client.drive.files.list({
+			q: `mimeType = 'application/vnd.google-apps.folder' and name = '${APP_FOLDER_NAME}' and trashed = false`,
+			fields: 'files(id, name)',
+			spaces: 'drive',
+		});
+
+		if (response.result.files && response.result.files.length > 0) {
+			appFolderId = response.result.files[0].id;
+			return appFolderId;
+		}
+
+		// 2. If not found, create it
+		const fileMetadata = {
+			'name': APP_FOLDER_NAME,
+			'mimeType': 'application/vnd.google-apps.folder'
+		};
+
+		const createResponse = await gapi.client.drive.files.create({
+			resource: fileMetadata,
+			fields: 'id'
+		});
+
+		appFolderId = createResponse.result.id;
+		return appFolderId;
+
+	} catch (err) {
+		console.error("Error finding/creating app folder:", err);
+		throw err;
+	}
+}
+
+/**
+ * Lists all files in the App Folder (FeatherNote).
  * @returns {Promise<Array>} A promise that resolves with a list of file metadata.
  */
 async function listAllFilesFromGoogleDrive() {
 	try {
+		const folderId = await ensureAppFolder();
 		let files = [];
 		let pageToken = null;
 		do {
 			const response = await gapi.client.drive.files.list({
-				spaces: 'appDataFolder',
+				q: `'${folderId}' in parents and trashed = false`,
 				fields: 'nextPageToken, files(id, name, modifiedTime)',
 				pageSize: 100,
 				pageToken: pageToken,
@@ -206,6 +249,7 @@ window.signOutFromGoogleDrive = function() {
 		google.accounts.oauth2.revoke(accessToken, () => {
 			console.log('Access token revoked.');
 			accessToken = null;
+			appFolderId = null;
 
 			const app = Alpine.$data(document.querySelector('#main-app'));
 			if (app.gdriveStore) {
@@ -297,7 +341,14 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 		if (found) {
 			existingFileId = found.id;
 		} else {
-			metadata.parents = ['appDataFolder'];
+			// New file: Ensure parent folder exists and set it
+			try {
+				const folderId = await ensureAppFolder();
+				metadata.parents = [folderId];
+			} catch (e) {
+				console.error("Could not get parent folder:", e);
+				return;
+			}
 		}
 	}
 
