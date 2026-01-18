@@ -4,7 +4,7 @@
  * This file contains the logic for authenticating with Google and syncing notes
  * to the user's Google Drive using the App Data folder.
  *
- * The sync logic implements a "last-write-wins" strategy, similar to the S3 sync.
+ * The sync logic implements a "last-write-wins" strategy.
  */
 
 // --- Constants and State ---
@@ -12,21 +12,25 @@
 // IMPORTANT: These must be configured in your Google Cloud project.
 // See README.md for details.
 const GDRIVE_API_KEY = ''; // Placeholder - might not be needed for AppData folder access
-const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid';
+const APP_FOLDER_NAME = 'FeatherNote';
 
 let gapiInited = false;
 let gisInited = false;
 let tokenClient;
 let accessToken = null;
+let REMOTE_GOOGLEDRIVE_FILES = [];
+let appFolderId = null;
 
 // --- Initialization Functions ---
 
 /**
  * Callback after the GAPI library is loaded.
+ * Exposed globally for index.js script loading callback.
  */
-function gapiLoaded() {
+window.gapiLoaded = function() {
 	gapi.load('client', initializeGapiClient);
-}
+};
 
 /**
  * Initializes the GAPI client.
@@ -42,9 +46,12 @@ async function initializeGapiClient() {
 
 /**
  * Callback after the GIS library is loaded.
+ * Exposed globally for index.js script loading callback.
  */
-function gisLoaded() {
-	const app = Alpine.$data(document.querySelector('#main-app'));
+window.gisLoaded = function() {
+	const appElement = document.querySelector('#main-app');
+	if (!appElement) return;
+	const app = Alpine.$data(appElement);
 	if (!app.GOOGLE_CLIENT_ID) {
 		console.error("GOOGLE_CLIENT_ID is not configured in index.js");
 		return;
@@ -54,36 +61,50 @@ function gisLoaded() {
 		scope: GDRIVE_SCOPES,
 		callback: (tokenResponse) => {
 			if (tokenResponse && tokenResponse.access_token) {
-			accessToken = tokenResponse.access_token;
-			localStorage.setItem('gdrive_access_token', accessToken);
+				accessToken = tokenResponse.access_token;
+				localStorage.setItem('gdrive_access_token', accessToken);
 
-			// Update the main app's state
-			const app = Alpine.$data(document.querySelector('#main-app'));
-			app.gdriveStore.connected = true;
+				// Fetch user info to verify token and get user details
+				fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+					headers: { 'Authorization': `Bearer ${accessToken}` }
+				})
+				.then(async response => {
+					if (!response.ok) {
+						throw new Error(`Failed to fetch user info: ${response.status}`);
+					}
+					return response.json();
+				})
+				.then(userInfo => {
+					// Update the main app's state only after successful user info fetch
+					const app = Alpine.$data(document.querySelector('#main-app'));
+					app.gdriveStore.connected = true;
+					app.gdriveStore.user = userInfo;
+					app.showToast({ title: 'Connected', description: `Connected to Google Drive as ${userInfo.name}.` });
 
-			// Fetch user info
-			fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-				headers: { 'Authorization': `Bearer ${accessToken}` }
-			})
-			.then(response => response.json())
-			.then(userInfo => {
-				app.gdriveStore.user = userInfo;
-				app.showToast({ title: 'Connected', description: `Connected to Google Drive as ${userInfo.name}.` });
-			});
-
-			// Trigger a sync
-			syncNotesWithGoogleDrive();
+					// Trigger a sync
+					if (typeof app.syncNotes === 'function') {
+						app.syncNotes();
+					}
+				})
+				.catch(error => {
+					console.error("Error fetching user info:", error);
+					const app = Alpine.$data(document.querySelector('#main-app'));
+					app.showToast({ variant: 'error', title: 'Connection Failed', description: 'Could not retrieve user info.' });
+					// Clear invalid token
+					accessToken = null;
+					localStorage.removeItem('gdrive_access_token');
+				});
 
 			} else {
-			console.error("No access token received.");
-			const app = Alpine.$data(document.querySelector('#main-app'));
-			app.showToast({ variant: 'error', title: 'Connection Failed', description: 'Could not get access token from Google.' });
+				console.error("No access token received.");
+				const app = Alpine.$data(document.querySelector('#main-app'));
+				app.showToast({ variant: 'error', title: 'Connection Failed', description: 'Could not get access token from Google.' });
 			}
 		},
 	});
 	gisInited = true;
 	if (gapiInited) checkGdriveSession();
-}
+};
 
 
 // --- Session Management ---
@@ -96,7 +117,9 @@ function checkGdriveSession() {
 	const savedToken = localStorage.getItem('gdrive_access_token');
 	if (savedToken) {
 		accessToken = savedToken;
-		const app = Alpine.$data(document.querySelector('#main-app'));
+		const appElement = document.querySelector('#main-app');
+		if (!appElement) return;
+		const app = Alpine.$data(appElement);
 
 		// Verify the token by fetching user info
 		fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -105,10 +128,8 @@ function checkGdriveSession() {
 		.then(response => {
 			if (!response.ok) {
 				if (response.status == 401) {
-					signOutFromGoogleDrive();
+					window.signOutFromGoogleDrive();
 				}
-
-				// If response is not OK (e.g., 401 Unauthorized), the token is invalid.
 				throw new Error('Invalid or expired token.');
 			}
 			return response.json();
@@ -118,7 +139,10 @@ function checkGdriveSession() {
 			app.gdriveStore.connected = true;
 			app.gdriveStore.user = userInfo;
 			app.showToast({ title: 'Reconnected', description: `Connected to Google Drive as ${userInfo.name}.` });
-			syncNotesWithGoogleDrive(true); // Trigger a silent sync
+			// Trigger a silent sync
+			if (typeof app.syncNotes === 'function') {
+				app.syncNotes(true);
+			}
 		})
 		.catch(error => {
 			console.error("Failed to restore Google Drive session:", error.message);
@@ -126,28 +150,118 @@ function checkGdriveSession() {
 	}
 }
 
-// --- Authentication Functions ---
+// --- Google Drive API Helper Functions ---
 
-/**
- *  Sign in the user with Google Drive scope.
- */
-function signInToGoogleDrive() {
-	if (tokenClient) {
-	// Prompt the user to select a Google Account and ask for consent to share their data
-	// when establishing a new session.
-	tokenClient.requestAccessToken({prompt: 'consent'});
+async function callDriveApi(apiCall) {
+	try {
+		return await apiCall();
+	} catch (err) {
+		if (err.result && err.result.error && err.result.error.code === 401) {
+			console.error("Google Drive API returned 401. The access token has likely expired.");
+			const app = Alpine.$data(document.querySelector('#main-app'));
+			if (app) {
+				app.gdriveStore.connected = false;
+				app.showToast({ quiet: true, title: 'Session Expired', description: 'Please connect to Google Drive again.' });
+			}
+			accessToken = null; // Clear the expired token
+			throw new Error('Google Drive session expired. Please re-authenticate.');
+		} else {
+			throw err; // Re-throw other errors
+		}
 	}
 }
 
 /**
+ * Ensures the 'FeatherNote' folder exists in the user's Drive.
+ * @returns {Promise<string>} The ID of the folder.
+ */
+async function ensureAppFolder() {
+	if (appFolderId) return appFolderId;
+
+	try {
+		// 1. Search for the folder
+		const response = await gapi.client.drive.files.list({
+			q: `mimeType = 'application/vnd.google-apps.folder' and name = '${APP_FOLDER_NAME}' and trashed = false`,
+			fields: 'files(id, name)',
+			spaces: 'drive',
+		});
+
+		if (response.result.files && response.result.files.length > 0) {
+			appFolderId = response.result.files[0].id;
+			return appFolderId;
+		}
+
+		// 2. If not found, create it
+		const fileMetadata = {
+			'name': APP_FOLDER_NAME,
+			'mimeType': 'application/vnd.google-apps.folder'
+		};
+
+		const createResponse = await gapi.client.drive.files.create({
+			resource: fileMetadata,
+			fields: 'id'
+		});
+
+		appFolderId = createResponse.result.id;
+		return appFolderId;
+
+	} catch (err) {
+		console.error("Error finding/creating app folder:", err);
+		throw err;
+	}
+}
+
+/**
+ * Lists all files in the App Folder (FeatherNote).
+ * @returns {Promise<Array>} A promise that resolves with a list of file metadata.
+ */
+async function listAllFilesFromGoogleDrive() {
+	try {
+		const folderId = await ensureAppFolder();
+		let files = [];
+		let pageToken = null;
+		do {
+			const response = await gapi.client.drive.files.list({
+				q: `'${folderId}' in parents and trashed = false`,
+				fields: 'nextPageToken, files(id, name, modifiedTime)',
+				pageSize: 100,
+				pageToken: pageToken,
+			});
+			files = files.concat(response.result.files);
+			pageToken = response.result.nextPageToken;
+		} while (pageToken);
+
+		REMOTE_GOOGLEDRIVE_FILES = files;
+
+		return files;
+	} catch (err) {
+		console.error("Error listing files:", err);
+		return [];
+	}
+}
+
+
+// --- Exported Functions (Window Attachment) ---
+
+/**
+ *  Sign in the user with Google Drive scope.
+ */
+window.signInToGoogleDrive = function() {
+	if (tokenClient) {
+		tokenClient.requestAccessToken({prompt: 'consent'});
+	}
+};
+
+/**
  *  Sign out the user.
  */
-function signOutFromGoogleDrive() {
+window.signOutFromGoogleDrive = function() {
 	localStorage.removeItem('gdrive_access_token');
 	if (accessToken) {
 		google.accounts.oauth2.revoke(accessToken, () => {
 			console.log('Access token revoked.');
 			accessToken = null;
+			appFolderId = null;
 
 			const app = Alpine.$data(document.querySelector('#main-app'));
 			if (app.gdriveStore) {
@@ -156,27 +270,13 @@ function signOutFromGoogleDrive() {
 			}
 		});
 	}
-}
-
-
-// --- Sync Logic ---
-let REMOTE_GOOGLEDRIVE_FILES = [];
-
-/**
- * DEPRECATED: Use the granular functions below via synchronize() in helpers.js.
- * Main function to synchronize notes with Google Drive.
- * Implements a "last-write-wins" strategy.
- */
-async function syncNotesWithGoogleDrive(isSilent = false, deletedNoteIds = []) {
-	console.warn('syncNotesWithGoogleDrive is deprecated. Please use the unified synchronize() function.');
-	return;
-}
+};
 
 /**
  * Lists all notes in Google Drive.
  * @returns {Promise<Array>} List of note metadata { id, updatedAt, source: 'gdrive', fileId }
  */
-async function listNotesInGDrive() {
+window.listNotesInGDrive = async function() {
 	if (!accessToken) return [];
 	try {
 		const files = await listAllFilesFromGoogleDrive();
@@ -191,7 +291,7 @@ async function listNotesInGDrive() {
 		console.error('Error listing GDrive notes:', error);
 		return [];
 	}
-}
+};
 
 /**
  * Downloads a note from Google Drive.
@@ -199,7 +299,7 @@ async function listNotesInGDrive() {
  * @param {string} noteId The expected note ID.
  * @returns {Promise<Object|null>} A promise that resolves with the note object or null.
  */
-async function downloadNoteFromGDrive(fileId, noteId) {
+window.downloadNoteFromGDrive = async function(fileId, noteId) {
 	try {
 		const response = await gapi.client.drive.files.get({
 			fileId: fileId,
@@ -226,14 +326,14 @@ async function downloadNoteFromGDrive(fileId, noteId) {
 		console.error(`Error downloading file ${fileId} for note ${noteId}:`, err);
 		return null;
 	}
-}
+};
 
 /**
  * Uploads a note to Google Drive. Handles both creation and updates.
  * @param {Object} note The note object to upload.
  * @param {Object} remoteMeta Metadata of the remote note (optional).
  */
-async function uploadNoteToGoogleDrive(note, remoteMeta = null) {
+window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 	if (!accessToken) return;
 
 	const noteId = note.id;
@@ -248,11 +348,20 @@ async function uploadNoteToGoogleDrive(note, remoteMeta = null) {
 
 	let existingFileId = remoteMeta?.fileId;
 	if (!existingFileId) {
-		// Try to find it if not provided in meta (fallback)
-		// This might be slow if we do it for every upload without meta, but usually meta is provided.
-		// For now, assume if not in meta, it's new. 
-		// Use listAllFilesFromGoogleDrive check if absolutely necessary, but listNotesInGDrive should have covered it.
-		metadata.parents = ['appDataFolder'];
+		// Fallback: try to find it in the cache of remote files
+		const found = REMOTE_GOOGLEDRIVE_FILES.find(f => f.name === `${noteId}.json`);
+		if (found) {
+			existingFileId = found.id;
+		} else {
+			// New file: Ensure parent folder exists and set it
+			try {
+				const folderId = await ensureAppFolder();
+				metadata.parents = [folderId];
+			} catch (e) {
+				console.error("Could not get parent folder:", e);
+				return;
+			}
+		}
 	}
 
 	const multipartRequestBody =
@@ -282,26 +391,27 @@ async function uploadNoteToGoogleDrive(note, remoteMeta = null) {
 	} catch (err) {
 		console.error(`Error uploading note ${noteId} to GDrive:`, err);
 	}
-}
+};
 
 /**
  * Deletes a note from Google Drive.
  * @param {string} noteId The ID of the note to delete.
  * @param {Object} remoteMeta Metadata of the remote note (optional).
  */
-async function deleteNoteFromGoogleDrive(noteId, remoteMeta = null) {
+window.deleteNoteFromGoogleDrive = async function(noteId, remoteMeta = null) {
 	if (!accessToken) return;
 
 	let fileId = remoteMeta?.fileId;
 
 	if (!fileId) {
-		// Fallback: try to find the file
-		// Note: This relies on REMOTE_GOOGLEDRIVE_FILES being populated or re-fetching.
-		// Ideally we should pass the fileId from the listNotes phase.
-		// If we don't have it, we might skip or do a costly search.
-		// For safety, let's just skip if we don't have the ID, as listNotes should have provided it.
-		console.warn(`Skipping GDrive delete for ${noteId}: fileId not found in metadata.`);
-		return;
+		// Fallback: try to find the file in the cache
+		const found = REMOTE_GOOGLEDRIVE_FILES.find(f => f.name === `${noteId}.json`);
+		if (found) {
+			fileId = found.id;
+		} else {
+			console.warn(`Skipping GDrive delete for ${noteId}: fileId not found in metadata or cache.`);
+			return;
+		}
 	}
 
 	try {
@@ -312,57 +422,5 @@ async function deleteNoteFromGoogleDrive(noteId, remoteMeta = null) {
 	} catch (err) {
 		console.error(`Error deleting note ${noteId} from Drive:`, err);
 	}
-}
+};
 
-// Keep the old function for now but pointing to nowhere or removed? 
-// The prompt asked to "Make it consistent logic like Git", effectively replacing it.
-// I've deprecated the main function above.
-
-// --- Google Drive API Helper Functions ---
-
-async function callDriveApi(apiCall) {
-	try {
-		return await apiCall();
-	} catch (err) {
-		if (err.result && err.result.error && err.result.error.code === 401) {
-			console.error("Google Drive API returned 401. The access token has likely expired.");
-			const app = Alpine.$data(document.querySelector('#main-app'));
-			if (app) {
-				app.gdriveStore.connected = false;
-				app.showToast({ quiet: true, title: 'Session Expired', description: 'Please connect to Google Drive again.' });
-			}
-			accessToken = null; // Clear the expired token
-			throw new Error('Google Drive session expired. Please re-authenticate.');
-		} else {
-			throw err; // Re-throw other errors
-		}
-	}
-}
-
-/**
- * Lists all files in the appDataFolder.
- * @returns {Promise<Array>} A promise that resolves with a list of file metadata.
- */
-async function listAllFilesFromGoogleDrive() {
-	try {
-		let files = [];
-		let pageToken = null;
-		do {
-			const response = await gapi.client.drive.files.list({
-				spaces: 'appDataFolder',
-				fields: 'nextPageToken, files(id, name, modifiedTime)',
-				pageSize: 100,
-				pageToken: pageToken,
-			});
-			files = files.concat(response.result.files);
-			pageToken = response.result.nextPageToken;
-		} while (pageToken);
-
-		REMOTE_GOOGLEDRIVE_FILES = files;
-
-		return files;
-	} catch (err) {
-		console.error("Error listing files:", err);
-		return [];
-	}
-}
