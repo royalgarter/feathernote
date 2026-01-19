@@ -427,6 +427,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		if (delay <= 0) return;
 
+		if (this.firebaseScheduleUrl && this.firebaseConfig) {
+			this.scheduleFirebaseNotification(note, delay);
+		}
+
 		this.scheduledNotifications[note.id] = setTimeout(() => {
 			navigator.serviceWorker.ready.then(registration => {
 				registration.showNotification(note.title, {
@@ -536,6 +540,76 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		});
 
 		tokenClient.requestAccessToken({prompt: ''});
+	},
+
+	async initFirebase() {
+		if (window.firebase && window.firebase.messaging) return true;
+
+		try {
+			await Promise.all([
+				loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', 'firebase-app-js'),
+				loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js', 'firebase-messaging-js')
+			]);
+
+			if (!this.firebaseConfig) {
+				console.warn('Firebase config is missing.');
+				return false;
+			}
+
+			const config = JSON.parse(this.firebaseConfig);
+			if (!firebase.apps.length) {
+				firebase.initializeApp(config);
+			}
+			return true;
+		} catch (e) {
+			console.error('Failed to init Firebase:', e);
+			this.showToast({ variant: 'error', title: 'Firebase Error', description: 'Could not load Firebase SDK.' });
+			return false;
+		}
+	},
+
+	async scheduleFirebaseNotification(note, delay) {
+		if (!this.firebaseScheduleUrl) return false;
+
+		const ready = await this.initFirebase();
+		if (!ready) return false;
+
+		try {
+			const messaging = firebase.messaging();
+			const token = await messaging.getToken({ vapidKey: this.firebaseVapidKey });
+
+			if (!token) {
+				throw new Error('No FCM registration token available.');
+			}
+
+			const payload = {
+				token: token,
+				noteId: note.id,
+				title: note.title,
+				body: note.content ? note.content.substring(0, 100) : '',
+				scheduledTime: new Date(new Date().getTime() + delay).toISOString(),
+				url: window.location.origin + `/#note/${note.id}`
+			};
+
+			const response = await fetch(this.firebaseScheduleUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				throw new Error('Schedule request failed: ' + response.statusText);
+			}
+
+			console.log(`Firebase notification scheduled for note "${note.title}"`);
+			this.showToast({ quiet: true, title: 'Cloud Reminder Set', description: 'Notification scheduled via Firebase.' });
+			return true;
+
+		} catch (e) {
+			console.error('Firebase schedule error:', e);
+			this.showToast({ variant: 'error', title: 'Schedule Failed', description: 'Could not schedule cloud notification: ' + e.message });
+			return false;
+		}
 	},
 
 	cancelNotification(note) {
@@ -1961,6 +2035,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	aiApiRoute: '',
 	aiModel: '',
 
+	firebaseConfig: '',
+	firebaseVapidKey: '',
+	firebaseScheduleUrl: '',
+
 	get userId() {
 		return this.user ? this.user.id : null;
 	},
@@ -1987,6 +2065,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
+
+		this.firebaseConfig = decrypted.firebaseConfig || '';
+		this.firebaseVapidKey = decrypted.firebaseVapidKey || '';
+		this.firebaseScheduleUrl = decrypted.firebaseScheduleUrl || '';
 
 		this.gitRepoUrl = decrypted.gitRepoUrl || '';
 		this.gitBranch = decrypted.gitBranch || '';
@@ -2020,6 +2102,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
 			aiModel: this.aiModel,
+			firebaseConfig: this.firebaseConfig,
+			firebaseVapidKey: this.firebaseVapidKey,
+			firebaseScheduleUrl: this.firebaseScheduleUrl,
 			gitRepoUrl: this.gitRepoUrl,
 			gitBranch: this.gitBranch,
 			gitUsername: this.gitUsername,

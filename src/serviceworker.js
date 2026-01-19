@@ -204,7 +204,7 @@ self.addEventListener('fetch', (event) => {
 									content: newItem,
 									createdAt: new Date().toISOString(),
 									updatedAt: new Date().toISOString(),
-									tags: ['shared', 'inbox'],
+								tags: ['shared', 'inbox'],
 								};
 								await addNoteDB(newNote);
 								noteIdToRedirect = newNote.id;
@@ -323,6 +323,32 @@ self.addEventListener('notificationclick', (event) => {
 				return client.focus().then(c => c.navigate(urlToOpen));
 			}
 			return clients.openWindow(urlToOpen);
+		})
+	);
+});
+
+self.addEventListener('push', (event) => {
+	let data = {};
+	if (event.data) {
+		try {
+			data = event.data.json();
+		} catch (e) {
+			data = { title: 'New Notification', body: event.data.text() };
+		}
+	}
+
+	const title = data.title || data.notification?.title || 'FeatherNote Reminder';
+	const body = data.body || data.notification?.body || 'You have a new reminder.';
+	const icon = data.icon || '/favicon.png';
+	const badge = data.badge || '/favicon.png';
+	const url = data.data?.url || data.url || '/';
+
+	event.waitUntil(
+		self.registration.showNotification(title, {
+			body: body,
+			icon: icon,
+			badge: badge,
+			data: { url: url }
 		})
 	);
 });
