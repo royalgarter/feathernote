@@ -2037,7 +2037,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	firebaseConfig: '',
 	firebaseVapidKey: '',
-	firebaseScheduleUrl: '',
+	firebaseScheduleUrl: `https://${location.host}/api/schedule-notification`,
 
 	get userId() {
 		return this.user ? this.user.id : null;

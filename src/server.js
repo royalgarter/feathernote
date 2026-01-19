@@ -99,6 +99,116 @@ try {
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
+// --- Firebase Admin SDK Init ---
+const admin = require('firebase-admin');
+let isFirebaseInitialized = false;
+
+try {
+	if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+		const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+		admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+		isFirebaseInitialized = true;
+		console.log('Firebase Admin initialized via env var.');
+	} else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+		admin.initializeApp();
+		isFirebaseInitialized = true;
+		console.log('Firebase Admin initialized via GOOGLE_APPLICATION_CREDENTIALS.');
+	}
+} catch (e) {
+	console.warn('Firebase Admin init failed:', e.message);
+}
+
+// --- Scheduled Tasks Management (CFKV Persistence) ---
+let scheduledTasks = {};
+
+const loadScheduledTasks = async () => {
+	try {
+		if (!process.env.CLOUDFLARE_ACCOUNT_ID) return;
+		
+		const data = await CFKV.get('scheduled_tasks');
+		if (data) {
+			try {
+				const tasks = JSON.parse(data);
+				Object.values(tasks).forEach(task => scheduleTaskExecution(task));
+				console.log(`Loaded ${Object.keys(tasks).length} scheduled tasks from CFKV.`);
+			} catch (e) {
+				console.warn('No valid scheduled tasks found in CFKV or parse error.');
+			}
+		}
+	} catch (e) {
+		console.error('Failed to load scheduled tasks from CFKV:', e);
+	}
+};
+
+const saveScheduledTasks = async () => {
+	try {
+		if (!process.env.CLOUDFLARE_ACCOUNT_ID) return;
+
+		const serializable = {};
+		for (const [id, task] of Object.entries(scheduledTasks)) {
+			const { timeoutId, ...rest } = task;
+			serializable[id] = rest;
+		}
+		await CFKV.put('scheduled_tasks', JSON.stringify(serializable));
+	} catch (e) {
+		console.error('Failed to save scheduled tasks to CFKV:', e);
+	}
+};
+
+const executeTask = async (task) => {
+	const { id, token, title, body, url } = task;
+	
+	if (scheduledTasks[id]) {
+		clearTimeout(scheduledTasks[id].timeoutId);
+		delete scheduledTasks[id];
+		await saveScheduledTasks();
+	}
+
+	if (!isFirebaseInitialized) {
+		console.warn(`Cannot send task ${id}: Firebase not initialized.`);
+		return;
+	}
+
+	try {
+		await admin.messaging().send({
+			token: token,
+			notification: { title, body },
+			data: { url: url || '/' },
+			webpush: {
+				fcm_options: { link: url || '/' },
+				headers: { Urgency: 'high' }
+			}
+		});
+		console.log(`Notification sent for task ${id}: "${title}"`);
+	} catch (e) {
+		console.error(`Failed to send notification for task ${id}:`, e);
+	}
+};
+
+const scheduleTaskExecution = (task) => {
+	const now = Date.now();
+	const scheduledTime = new Date(task.scheduledTime).getTime();
+	const delay = Math.max(0, scheduledTime - now);
+	const id = task.id || crypto.randomBytes(8).toString('hex');
+	
+	const timeoutId = setTimeout(() => executeTask({ ...task, id }), delay);
+
+	scheduledTasks[id] = { ...task, id, timeoutId };
+};
+
+app.post('/api/schedule-notification', async (req, res) => {
+	const { token, noteId, title, body, scheduledTime, url } = req.body;
+	if (!token || !scheduledTime) {
+		return res.status(400).json({ error: 'Missing token or scheduledTime' });
+	}
+
+	const task = { id: noteId, token, title, body, scheduledTime, url };
+	scheduleTaskExecution(task);
+	await saveScheduledTasks();
+
+	res.json({ success: true });
+});
+
 app.get('/api/proxy', async (req, res) => {
 	const urlToFetch = req.query.url;
 	if (!urlToFetch) {
@@ -256,6 +366,7 @@ let appVersion;
 let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'});
 (async () => {
 	appVersion = await getAppVersion();
+	await loadScheduledTasks();
 
 	if (process.argv[2] === '--version') {
 		console.log(appVersion);
