@@ -64,6 +64,13 @@ function base64ToBuffer(base64) {
 	return bytes.buffer;
 }
 
+async function calculateHash(text) {
+	const enc = new TEXT_ENCODER();
+	const data = enc.encode(text);
+	const hashBuffer = await CRYPTO.subtle.digest('SHA-256', data);
+	return bufferToBase64(hashBuffer);
+}
+
 // Derives a key from a user ID using PBKDF2.
 async function getKey(userId='anonymous', salt) {
 	const enc = new TEXT_ENCODER();
@@ -320,6 +327,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
+		const isPartialSync = Array.isArray(notes);
 		const localNotes = notes || await getNotesDB();
 		const notesToUpload = localNotes.filter(localNote => {
 			// Don't upload notes that are slated for deletion.
@@ -398,6 +406,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 		// Find notes updated remotely
 		for (const remoteMeta of remoteNoteMetadata) {
+			if (isPartialSync && !allLocalNotesMap.has(remoteMeta.id)) continue;
+
 			const localNote = allLocalNotesMap.get(remoteMeta.id);
 			if (!localNote) {
 				// Note exists on remote but not local, and isn't in the local delete list. Download it.
@@ -416,24 +426,27 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 		// Find notes deleted remotely
 		const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
-		const locallyDeletedNoteIds = new Set(deletedNoteIds);
-		const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
+		
+		if (!isPartialSync) {
+			const locallyDeletedNoteIds = new Set(deletedNoteIds);
+			const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
 
-		// Create a set of all local note IDs for easier checking
-		const localNoteIds = new Set(allLocalNotesMap.keys());
+			// Create a set of all local note IDs for easier checking
+			const localNoteIds = new Set(allLocalNotesMap.keys());
 
-		// Identify notes that should be deleted locally:
-		// - Exist locally
-		// - Don't exist remotely
-		// - Weren't already marked for local deletion
-		// - Weren't just uploaded (which would mean they now exist remotely)
-		const remotelyDeletedNoteIds = [...localNoteIds].filter(noteId => 
-			!remoteNoteIds.has(noteId) && 
-			!locallyDeletedNoteIds.has(noteId) && 
-			!uploadedNoteIds.has(noteId)
-		);
+			// Identify notes that should be deleted locally:
+			// - Exist locally
+			// - Don't exist remotely
+			// - Weren't already marked for local deletion
+			// - Weren't just uploaded (which would mean they now exist remotely)
+			const remotelyDeletedNoteIds = [...localNoteIds].filter(noteId => 
+				!remoteNoteIds.has(noteId) && 
+				!locallyDeletedNoteIds.has(noteId) && 
+				!uploadedNoteIds.has(noteId)
+			);
 
-		notesToDeleteLocally.push(...remotelyDeletedNoteIds);
+			notesToDeleteLocally.push(...remotelyDeletedNoteIds);
+		}
 
 		const downloadPromises = notesToDownload.map(remoteMeta => {
 			if (remoteMeta.source === 'git') {

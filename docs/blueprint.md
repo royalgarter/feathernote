@@ -79,6 +79,14 @@
     4.  **Cross-Device/Remote Access:**
         - When a note is opened, if an image's local URL points to an image not found in the local IndexedDB (e.g., on a different device), the application will attempt to fetch it from S3.
 
+### Sync Optimization
+
+- **Goal:** Improve synchronization efficiency and reduce unnecessary network/processing overhead.
+- **Implementation:**
+    1.  **Partial Sync during Editing:** When a user is actively editing a note, `syncNotes()` (including background autosaves) is restricted exclusively to that note. Global deletion processing is suppressed during this state to avoid data noise and ensure focus on the active content.
+    2.  **Hash-based Auto-Sync Skipping:** The application maintains a `lastSyncHash` of the local notes state (including IDs, content, timestamps, and pending deletions). Before performing an automatic background sync, it recalculates this hash; if it matches the last successful sync, the operation is skipped.
+    3.  **Forced Sync:** Manual sync triggers (e.g., `Ctrl+S` outside the editor) bypass the hash check to ensure users can always force a full reconciliation with remote providers.
+
 ### Nostr Implementation - Potential Issues
 
 #### 1. Insecure Private Key Storage

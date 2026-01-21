@@ -40,6 +40,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	deletedNoteIds: [],
 	deletedNotesStack: [], // For session-only undo
 	lastSync: null,
+	lastSyncHash: null,
 	currentPage: 1,
 	notesPerPage: 100,
 
@@ -196,7 +197,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		this.loadNotesFromCacheAndFetch();
 		this.loadSettingsFromStorage().then(_ => {
-			this.syncNotes();
+			this.syncNotes(false, 0, null, true);
 		})
 
 		this.syncIntervalId = setInterval(() => {
@@ -221,7 +222,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				if (this.editingNoteId) {
 					this.saveNote(true);
 				} else {
-					this.syncNotes(false);
+					this.syncNotes(false, 0, null, true);
 				}
 			} else if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
 				if (!this.editingNoteId) {
@@ -997,11 +998,59 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return false;
 	},
 
-	async syncNotes(isSilent = false, iterator = 0, notes = null) {
+	async syncNotes(isSilent = false, iterator = 0, notes = null, force = false) {
 		if (this.isSyncing) {
 			return;
 		}
 		
+		let effectiveNotes = notes;
+		let effectiveDeletedIds = this.deletedNoteIds;
+
+		// Optimization 1: When editing, only sync the edited note
+		if (this.editingNoteId) {
+			// If full sync requested, restrict to editing note
+			if (!effectiveNotes) {
+				const editingNote = this.notes.find(n => n.id === this.editingNoteId);
+				if (editingNote) {
+					effectiveNotes = [editingNote];
+				} else {
+					// Editing a new note that isn't saved yet or not found.
+					// Skip sync to avoid noise.
+					if (isSilent) return;
+				}
+			}
+			// ALWAYS suppress global deletions while editing to ensure "only this note is sync"
+			effectiveDeletedIds = [];
+		}
+
+		// Optimization 2: Auto-sync skip if hash matches
+		let startHash = null;
+		const calculateStateHash = async () => {
+			try {
+				const notesState = this.notes.map(n => ({
+					id: n.id,
+					updatedAt: n.updatedAt,
+					title: n.title,
+					content: n.content,
+					tags: n.tags,
+					reminder: n.reminder
+				}));
+				const stateString = JSON.stringify({ notes: notesState, deleted: this.deletedNoteIds });
+				return await calculateHash(stateString);
+			} catch (e) {
+				console.warn('Hash calculation failed', e);
+				return null;
+			}
+		};
+
+		if (!effectiveNotes && !force) {
+			startHash = await calculateStateHash();
+			if (this.lastSyncHash && startHash && startHash === this.lastSyncHash) {
+				console.log('Skipping sync: No changes detected.');
+				return;
+			}
+		}
+
 		this.isSyncing = 'Syncing notes...';
 		this.syncStatusMessage = 'Syncing notes...';
 		const userId = this.user ? this.user.id : null;
@@ -1027,8 +1076,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			};
 
 			const result = await synchronize({
-				notes,
-				deletedNoteIds: this.deletedNoteIds,
+				notes: effectiveNotes,
+				deletedNoteIds: effectiveDeletedIds,
 				isSilent,
 				credentials,
 				nostrPrivateKey: this.nostrPrivateKey,
@@ -1061,6 +1110,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 				this.lastSync = new Date().toISOString();
 				localStorage.setItem('feathernote-lastSync', this.lastSync);
+
+				// Update hash if it was a full sync
+				if (!effectiveNotes) {
+					this.lastSyncHash = await calculateStateHash();
+				}
 
 				// After notes are synced, sync images
 				if (encryptedSettings) {
