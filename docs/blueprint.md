@@ -6,12 +6,51 @@
 - Offline Storage: Store notes locally using the browser's IndexedDB for offline access.
 - Share Target Integration: Receive shared content (text, links) from other apps via the Share Target API.
 - Google One Tap Sign-On: Enable seamless login using Google One Tap.
-- Reminder Notifications: Set reminders for notes that trigger push notifications via a service worker.
+- Reminder Notifications: Set reminders for notes that trigger push notifications via a service worker (local) or optionally via Firebase for cloud-side scheduling.
+- Firebase Cloud Messaging (FCM) Notifications: Reliable, cloud-based reminders that work across sessions and devices.
+    - **Summary**: This feature enhances the local reminder system by integrating with Firebase Cloud Messaging (FCM). When a reminder is set, the app can optionally send the notification metadata and the user's device token to a user-configured "Schedule Function URL". This cloud-side scheduler then triggers an FCM push to the device at the appropriate time, ensuring delivery even if the browser has suspended the application's local timers.
+    - **How to Use**:
+        1. Open **Settings** in FeatherNote.
+        2. Input your **Firebase Config (JSON)** obtained from the Firebase Console (Web App settings).
+        3. Provide the **VAPID Key** (Public Key) found in the Firebase Cloud Messaging tab.
+        4. Enter a **Schedule Function URL** (a custom backend or cloud function endpoint that receives the notification payload and handles the scheduling logic).
+        5. Save your settings. Reminders set on notes will now be automatically synchronized with your cloud scheduler.
 - Minimalist UI: Clean, distraction-free writing environment focused on content.
 - S3 Sync: Allow the user to input S3 credentials to sync to an S3 bucket.
 - S3 Pre-signed URL Sharing: Allow the user to generate a pre-signed URL for a note, which can be shared with others. The URL will be valid for 7 days and will allow anyone with the link to download the note content.
 
 ## Future Features
+
+### Firebase Notifications Implementation
+  **Summary of changes:**
+
+   1. Settings UI (`src/index.html`): Added a new "Firebase / Cloud Messaging" section in the settings dialog.
+      You can now configure:
+       * Firebase Config: Your Firebase project configuration (JSON format).
+       * VAPID Key: Your public VAPID key for Web Push.
+       * Schedule Function URL: The endpoint URL of your cloud function that handles the actual scheduling
+         logic (e.g., a Firebase Cloud Function that accepts { token, noteId, scheduledTime, ... }).
+
+   2. Logic (`src/index.js`):
+       * Added scheduleFirebaseNotification method which lazily loads the Firebase JS SDK, retrieves the FCM
+         device token, and sends a request to your configured Schedule Function URL.
+       * Updated scheduleNotification to automatically call the Firebase scheduling method if your Firebase
+         settings are configured.
+       * Persisted these new settings in the encrypted local storage alongside your existing keys.
+
+   3. Service Worker (`src/serviceworker.js`):
+       * Added a push event listener. This ensures that when your cloud function triggers the push notification
+         (via FCM) at the scheduled time, the Service Worker will intercept it and display the notification,
+         even if the application is closed.
+
+  **How to use:**
+   1. Open Settings in the app.
+   2. Paste your Firebase Config JSON (from your Firebase Console).
+   3. (Optional) Enter your VAPID Key if required.
+   4. Enter the URL of your backend function that will hold the schedule and trigger the push.
+   5. Save settings.
+   6. Set a reminder on a note. The app will now attempt to schedule it via your cloud function in addition to
+      the local browser timer.
 
 ### Paste Image from Clipboard
 

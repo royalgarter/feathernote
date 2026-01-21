@@ -406,8 +406,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	scheduleNotification(note) {
-		if (!note || !note.reminder || this.notificationPermissionStatus !== 'granted') {
+	scheduleNotification(note, askToSyncToCalendar = false) {
+		if (!note || !note.reminder) {
 			return;
 		}
 
@@ -425,32 +425,190 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		console.log('scheduleNotification', new Date(reminderTime), new Date(), delay, 'ms');
 
-		if (delay > 0) {
-			this.scheduledNotifications[note.id] = setTimeout(() => {
-				navigator.serviceWorker.ready.then(registration => {
-					registration.showNotification(note.title, {
-						body: note.content.substring(0, 100),
-						icon: '/favicon.png',
-						badge: '/favicon.png',
-						data: { url: `/#note/${note.id}` }
-					});
-				});
-			}, delay);
-			console.log(`Reminder scheduled for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+		if (delay <= 0) return;
 
+		if (this.firebaseScheduleUrl && this.firebaseConfig) {
+			this.scheduleFirebaseNotification(note, delay);
+		}
+
+		this.scheduledNotifications[note.id] = setTimeout(() => {
 			navigator.serviceWorker.ready.then(registration => {
-				if (registration.active) {
-					registration.active.postMessage({
-						action: 'SCHEDULE_NOTIFICATION',
-						id: note.id,
-						title: note.title,
-						content: note.content ? note.content.substring(0, 100) : '',
-						delay: delay,
-						url: `/#note/${note.id}`
-					});
-					console.log(`Reminder scheduled (SW) for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
-				}
+				registration.showNotification(note.title, {
+					body: note.content.substring(0, 100),
+					icon: '/favicon.png',
+					badge: '/favicon.png',
+					data: { url: `/#note/${note.id}` }
+				});
 			});
+		}, delay);
+		console.log(`Reminder scheduled for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+
+		navigator.serviceWorker.ready.then(registration => {
+			if (registration.active) {
+				registration.active.postMessage({
+					action: 'SCHEDULE_NOTIFICATION',
+					id: note.id,
+					title: note.title,
+					content: note.content ? note.content.substring(0, 100) : '',
+					delay: delay,
+					url: `/#note/${note.id}`
+				});
+				console.log(`Reminder scheduled (SW) for note "${note.title}" in ${Math.floor(delay / 60e3)} minutes`);
+			}
+		});
+
+		if (askToSyncToCalendar) {
+			if (confirm('Do you want to add this reminder to your Google Calendar?')) {
+				this.addEventToGoogleCalendar(note);
+			}
+		}
+	},
+
+	async addEventToGoogleCalendar(note) {
+		if (!this.GOOGLE_CLIENT_ID || !this.isGsiLoaded || !window.google) {
+			this.showToast({ variant: 'error', title: 'Error', description: 'Google services not available.' });
+			return;
+		}
+
+		const createEvent = async (accessToken) => {
+			const reminderDate = new Date(`${note.reminder}:00`);
+			const event = {
+				'summary': note.title,
+				'description': note.content,
+				'start': {
+					'dateTime': reminderDate.toISOString(),
+					'timeZone': Intl.DateTimeFormat().resolvedOptions().timeZone
+				},
+				'end': {
+					'dateTime': new Date(reminderDate.getTime() + 60 * 60 * 1000).toISOString(),
+					'timeZone': Intl.DateTimeFormat().resolvedOptions().timeZone
+				},
+				'reminders': {
+					'useDefault': false,
+					'overrides': [
+						{'method': 'popup', 'minutes': 10}
+					]
+				}
+			};
+
+			const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${accessToken}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(event)
+			});
+
+			if (response.ok) {
+				this.showToast({ title: 'Success', description: 'Event added to Google Calendar.' });
+				return true;
+			} else {
+				if (response.status === 401) return false; // Token expired
+				const err = await response.json();
+				this.showToast({ variant: 'error', title: 'Calendar Error', description: err.error.message });
+				return true; // Error handled, don't retry
+			}
+		};
+
+		let tokenInfo = null;
+		try {
+			tokenInfo = JSON.parse(localStorage.getItem('feathernote-calendar-token-info'));
+		} catch (e) {
+			// ignore
+		}
+
+		if (tokenInfo && tokenInfo.access_token && new Date().getTime() < tokenInfo.expiry) {
+			const success = await createEvent(tokenInfo.access_token);
+			if (success) return;
+		}
+
+		const tokenClient = google.accounts.oauth2.initTokenClient({
+			client_id: this.GOOGLE_CLIENT_ID,
+			scope: 'https://www.googleapis.com/auth/calendar.events',
+			callback: async (tokenResponse) => {
+				if (tokenResponse && tokenResponse.access_token) {
+					const expiry = new Date().getTime() + (tokenResponse.expires_in * 1000) - 60000;
+					localStorage.setItem('feathernote-calendar-token-info', JSON.stringify({
+						access_token: tokenResponse.access_token,
+						expiry: expiry
+					}));
+
+					await createEvent(tokenResponse.access_token);
+				}
+			},
+		});
+
+		tokenClient.requestAccessToken({prompt: ''});
+	},
+
+	async initFirebase() {
+		if (window.firebase && window.firebase.messaging) return true;
+
+		try {
+			await Promise.all([
+				loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', 'firebase-app-js'),
+				loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js', 'firebase-messaging-js')
+			]);
+
+			if (!this.firebaseConfig) {
+				console.warn('Firebase config is missing.');
+				return false;
+			}
+
+			const config = JSON.parse(this.firebaseConfig);
+			if (!firebase.apps.length) {
+				firebase.initializeApp(config);
+			}
+			return true;
+		} catch (e) {
+			console.error('Failed to init Firebase:', e);
+			this.showToast({ variant: 'error', title: 'Firebase Error', description: 'Could not load Firebase SDK.' });
+			return false;
+		}
+	},
+
+	async scheduleFirebaseNotification(note, delay) {
+		if (!this.firebaseScheduleUrl) return false;
+
+		const ready = await this.initFirebase();
+		if (!ready) return false;
+
+		try {
+			const messaging = firebase.messaging();
+			const token = await messaging.getToken({ vapidKey: this.firebaseVapidKey });
+
+			if (!token) {
+				throw new Error('No FCM registration token available.');
+			}
+
+			const payload = {
+				token: token,
+				noteId: note.id,
+				title: note.title,
+				body: note.content ? note.content.substring(0, 100) : '',
+				scheduledTime: new Date(new Date().getTime() + delay).toISOString(),
+				url: window.location.origin + `/#note/${note.id}`
+			};
+
+			const response = await fetch(this.firebaseScheduleUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				throw new Error('Schedule request failed: ' + response.statusText);
+			}
+
+			console.log(`Firebase notification scheduled for note "${note.title}"`);
+			this.showToast({ quiet: true, title: 'Cloud Reminder Set', description: 'Notification scheduled via Firebase.' });
+			return true;
+
+		} catch (e) {
+			console.error('Firebase schedule error:', e);
+			this.showToast({ variant: 'error', title: 'Schedule Failed', description: 'Could not schedule cloud notification: ' + e.message });
+			return false;
 		}
 	},
 
@@ -574,7 +732,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			};
 			await addNoteDB(newNote);
 			this.notes.unshift(newNote);
-			this.scheduleNotification(newNote);
+			this.scheduleNotification(newNote, !!reminder);
 			this.updateAppBadge();
 			this.miniSearch?.add(newNote);
 			this.updateNotesCache();
@@ -606,7 +764,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const updatedNote = { ...noteToUpdate, ...updates };
 			await updateNoteDB(updatedNote);
 			this.notes = this.notes.map(note => note.id === id ? updatedNote : note);
-			this.scheduleNotification(updatedNote);
+			this.scheduleNotification(updatedNote, !!updates.reminder);
 			this.updateAppBadge();
 			// this.miniSearch?.removeAll();
 
@@ -1877,6 +2035,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	aiApiRoute: '',
 	aiModel: '',
 
+	firebaseConfig: '',
+	firebaseVapidKey: '',
+	firebaseScheduleUrl: `https://${location.host}/api/schedule-notification`,
+
 	get userId() {
 		return this.user ? this.user.id : null;
 	},
@@ -1903,6 +2065,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
+
+		this.firebaseConfig = decrypted.firebaseConfig || '';
+		this.firebaseVapidKey = decrypted.firebaseVapidKey || '';
+		this.firebaseScheduleUrl = decrypted.firebaseScheduleUrl || '';
 
 		this.gitRepoUrl = decrypted.gitRepoUrl || '';
 		this.gitBranch = decrypted.gitBranch || '';
@@ -1936,6 +2102,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
 			aiModel: this.aiModel,
+			firebaseConfig: this.firebaseConfig,
+			firebaseVapidKey: this.firebaseVapidKey,
+			firebaseScheduleUrl: this.firebaseScheduleUrl,
 			gitRepoUrl: this.gitRepoUrl,
 			gitBranch: this.gitBranch,
 			gitUsername: this.gitUsername,
