@@ -33,7 +33,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	loading: true,
 	miniSearch: null,
 	isSyncing: false,
-	syncStatusMessage: '',
+	syncStatusMessage: 'In a world of data breaches and ever-growing cloud subscriptions, havent you ever wished for a note-taking app that puts you back in control?',
 	isSaving: false,
 	syncIntervalId: null,
 	editingNoteId: null, // New state to track which note is being edited
@@ -271,13 +271,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	showToast({ title, description, variant = 'default', duration = 3e3, quiet }) {
 		const id = `toast-${this.toastIdCounter++}`;
 		const newToast = { id, title, description, variant, show: true };
-		if (!quiet) this.toasts.push(newToast);
+		
+		if (false && !quiet) this.toasts.push(newToast);
 
-		this.syncStatusMessage = description;
+		let text = description || title;
+		console.log('showToast', text);
+
+		this.syncStatusMessage = text;
 
 		setTimeout(() => {
 			this.dismissToast(id);
-			if (this.syncStatusMessage === description) {
+			if (this.syncStatusMessage === text) {
 				this.syncStatusMessage = '';
 			}
 		}, duration);
@@ -1052,7 +1056,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		this.isSyncing = 'Syncing notes...';
-		this.syncStatusMessage = 'Syncing notes...';
+		// this.syncStatusMessage = 'Syncing notes...';
 		const userId = this.user ? this.user.id : null;
 
 		try {
@@ -1183,7 +1187,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 		} finally {
 			this.isSyncing = false;
-			this.syncStatusMessage = '';
+			// this.syncStatusMessage = '';
 		}
 	},
 
