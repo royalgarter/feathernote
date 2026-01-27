@@ -33,7 +33,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	loading: true,
 	miniSearch: null,
 	isSyncing: false,
-	syncStatusMessage: 'In a world of data breaches and ever-growing cloud subscriptions, havent you ever wished for a note-taking app that puts you back in control?',
+	syncStatusMessage: '',
 	isSaving: false,
 	syncIntervalId: null,
 	editingNoteId: null, // New state to track which note is being edited
@@ -271,7 +271,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	showToast({ title, description, variant = 'default', duration = 3e3, quiet }) {
 		const id = `toast-${this.toastIdCounter++}`;
 		const newToast = { id, title, description, variant, show: true };
-		
+
 		if (false && !quiet) this.toasts.push(newToast);
 
 		let text = description || title;
