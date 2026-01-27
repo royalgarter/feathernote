@@ -142,6 +142,7 @@
 
 .EasyMDEContainer .editor-preview {
 	/*padding-left: 40px;*/
+	font-family: monospace;
 }
 
 .EasyMDEContainer .editor-preview ul {
@@ -201,7 +202,6 @@
 
 .EasyMDEContainer .editor-preview code {
 	background-color: slategray;
-	font-family: monospace;
 }
 
 .EasyMDEContainer .CodeMirror-line span[data-img-src^="http"] {
