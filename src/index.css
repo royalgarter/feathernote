@@ -196,10 +196,12 @@
 .EasyMDEContainer .CodeMirror {
 	padding: 0px;
 	color: dimgray;
+	font-family: monospace;
 }
 
 .EasyMDEContainer .editor-preview code {
 	background-color: slategray;
+	font-family: monospace;
 }
 
 .EasyMDEContainer .CodeMirror-line span[data-img-src^="http"] {
