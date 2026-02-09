@@ -164,11 +164,12 @@ async function decryptSettings(encryptedString, userId) {
 
 // --- IndexedDB Functions ---
 const DB_NAME = 'FeatherNoteDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const NOTE_STORE = 'notes';
 const SHARED_CONTENT_STORE = 'shared-content';
 const IMAGE_STORE = 'images';
 const S3_CREDENTIALS_STORE = 's3-credentials';
+const META_STORE = 'meta';
 
 let dbPromise;
 
@@ -234,6 +235,13 @@ const initDB = () => {
 					console.log(`Object store '${S3_CREDENTIALS_STORE}' created.`);
 				}
 			}
+
+			if (event.oldVersion < 5) {
+				if (!db.objectStoreNames.contains(META_STORE)) {
+					db.createObjectStore(META_STORE, { keyPath: 'id' });
+					console.log(`Object store '${META_STORE}' created.`);
+				}
+			}
 		};
 	});
 	return dbPromise;
@@ -289,6 +297,9 @@ const getEncryptedSettingsDB = async () => {
 	return null;
 };
 
+const getMetaDB = (id) => performDBOperation(META_STORE, 'readonly', 'get', id).then(res => res ? res.value : null);
+const setMetaDB = (id, value) => performDBOperation(META_STORE, 'readwrite', 'put', { id, value });
+
 const addImageDB = (image) => performDBOperation(IMAGE_STORE, 'readwrite', 'add', image);
 const getImageDB = (id) => performDBOperation(IMAGE_STORE, 'readonly', 'get', id);
 const updateImageDB = (image) => performDBOperation(IMAGE_STORE, 'readwrite', 'put', image);
@@ -300,6 +311,27 @@ const getUnsyncedImagesDB = async () => {
 
 const getNotesDB = () => performDBOperation(NOTE_STORE, 'readonly', 'getAll');
 const getNoteDB = (id) => performDBOperation(NOTE_STORE, 'readonly', 'get', id);
+const getNoteByTitleDB = async (title) => {
+	const db = await initDB();
+	return new Promise((resolve, reject) => {
+		const transaction = db.transaction([NOTE_STORE], 'readonly');
+		const store = transaction.objectStore(NOTE_STORE);
+		const request = store.openCursor();
+		request.onsuccess = (event) => {
+			const cursor = event.target.result;
+			if (cursor) {
+				if (cursor.value.title === title) {
+					resolve(cursor.value);
+				} else {
+					cursor.continue();
+				}
+			} else {
+				resolve(null);
+			}
+		};
+		request.onerror = (event) => reject(event.target.error);
+	});
+};
 const addNoteDB = (note) => performDBOperation(NOTE_STORE, 'readwrite', 'add', note);
 const updateNoteDB = (note) => performDBOperation(NOTE_STORE, 'readwrite', 'put', note);
 const deleteNoteDB = (id) => performDBOperation(NOTE_STORE, 'readwrite', 'delete', id);
