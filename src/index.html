@@ -33,7 +33,7 @@
 	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
-<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
+<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden custom-scrollbar" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
 	<header class="sticky top-0 z-10 w-full min-w-full border-b bg-white">
 		<div class="container flex h-16 items-center justify-between py-2 md:py-4 w-full min-w-full max-w-max mx-auto px-4 lg:px-12">
@@ -268,7 +268,7 @@
 		 :class="isSavingSettings ? 'cursor-wait' : 'cursor-pointer'"
 		 style="display: none;background-color: #0e0e0ee6;"
 	>
-		<div class="fixed inset-0 size-auto h-full md:h-auto max-h-full max-w-none md:m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent"
+		<div class="fixed inset-0 size-auto h-full md:h-auto max-h-full max-w-none md:m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent custom-scrollbar"
 			 @click.away="settingsDialogIsOpen = false"
 		>
 			<div class="flex justify-between items-center">
