@@ -1,0 +1,65 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://6000-firebase-studio-1756656893471.cluster-44kx2eiocbhe2tyk3zoyo3ryuo.cloudworkstations.dev",
+      "https://studio--feathernote-s9ei5.us-central1.hosted.app/",
+      "https://feathernote.phamthanh.me",
+      "https://feathernote.newsrss.org",
+      "https://feathernote.deno.dev"
+    ],
+    "AllowedMethods": [
+      "HEAD",
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ]
+  },
+  {
+    "AllowedOrigins": [
+      "http://studio--feathernote-s9ei5.us-central1.hosted.app/",
+      "http://feathernote.phamthanh.me",
+      "http://feathernote.newsrss.org",
+      "http://feathernote.deno.dev"
+    ],
+    "AllowedMethods": [
+      "HEAD",
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ]
+  },
+  {
+    "AllowedOrigins": [
+      "http://localhost:7347"
+    ],
+    "AllowedMethods": [
+      "HEAD",
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ]
+  },
+  {
+    "AllowedOrigins": [
+      "*"
+    ],
+    "AllowedMethods": [
+      "GET"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ]
+  }
+]

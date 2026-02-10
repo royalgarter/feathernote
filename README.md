@@ -2,7 +2,7 @@
 
 # FeatherNote: featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
 
-**Try FeatherNote now: [feathernote.deno.dev](https://feathernote.deno.dev)**
+**Try FeatherNote now: [feathernote.newsrss.org](https://feathernote.newsrss.org)**
 
 **In a world of data breaches and ever-growing cloud subscriptions, haven't you ever wished for a note-taking app that puts you back in control?**
 

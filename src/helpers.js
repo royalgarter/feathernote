@@ -601,6 +601,7 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 			.filter(meta => !referencedImageIds.has(meta.id))
 			.map(meta => meta.id);
 
+		remoteOrphanIds = []; // Temporary disable clean orphan images
 		for (const imageId of remoteOrphanIds) {
 			try {
 				await deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, nostrRelays});
