@@ -532,15 +532,15 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, nostrRelays}) {
 	try {
-		const credentials = await decryptSettings(encryptedSettings, userId);
+		let credentials = await decryptSettings(encryptedSettings, userId);
 		if (!credentials) {
 			throw new Error('Failed to decrypt credentials.');
 		}
 
 		// 1. Upload unsynced local images
 		let uploadedImageCount = 0;
-		const unsyncedImages = await getUnsyncedImagesDB();
-		for (const image of unsyncedImages) {
+		let unsyncedImages = await getUnsyncedImagesDB();
+		for (let image of unsyncedImages) {
 			try {
 				await uploadImage({image, credentials, nostrPrivateKey, nostrRelays});
 				await updateImageDB({ ...image, synced: true });
@@ -551,10 +551,10 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 		}
 
 		// 2. Determine all referenced image IDs from all notes
-		const allNotes = await getNotesDB();
-		const imageIdRegex = /\/images\/([\w-]+)/g;
-		const referencedImageIds = new Set();
-		for (const note of allNotes) {
+		let allNotes = await getNotesDB();
+		let imageIdRegex = /\/images\/([\w-]+)/g;
+		let referencedImageIds = new Set();
+		for (let note of allNotes) {
 			let match;
 			while ((match = imageIdRegex.exec(note.content)) !== null) {
 				referencedImageIds.add(match[1]);
@@ -563,15 +563,15 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 
 		// 3. Download missing referenced images
 		let downloadedImageCount = 0;
-		const remoteImageMetas = await listImages({credentials, nostrPrivateKey, nostrRelays});
-		const remoteImageIds = new Set(remoteImageMetas.map(x => x.id));
+		let remoteImageMetas = await listImages({credentials, nostrPrivateKey, nostrRelays});
+		let remoteImageIds = new Set(remoteImageMetas.map(x => x.id));
 
-		for (const imageId of referencedImageIds) {
-			const localImage = await getImageDB(imageId);
+		for (let imageId of referencedImageIds) {
+			let localImage = await getImageDB(imageId);
 			if (!localImage && remoteImageIds.has(imageId)) {
 				console.log(`Image ${imageId} not found locally, downloading...`);
 				try {
-					const imageBlob = await downloadImageFromS3(imageId, credentials);
+					let imageBlob = await downloadImageFromS3(imageId, credentials);
 					if (imageBlob) {
 						await addImageDB({ id: imageId, blob: imageBlob, synced: true });
 						downloadedImageCount++;
@@ -586,23 +586,23 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 		let deletedOrphanCount = 0;
 
 		// GC Local (IndexedDB)
-		const allLocalImages = await performDBOperation(IMAGE_STORE, 'readonly', 'getAll');
-		const localOrphanIds = allLocalImages
+		let allLocalImages = await performDBOperation(IMAGE_STORE, 'readonly', 'getAll');
+		let localOrphanIds = allLocalImages
 			.filter(img => !referencedImageIds.has(img.id))
 			.map(img => img.id);
 
-		for (const orphanId of localOrphanIds) {
+		for (let orphanId of localOrphanIds) {
 			await deleteImageDB(orphanId);
 			deletedOrphanCount++;
 		}
 
 		// GC Remote (S3/Nostr)
-		const remoteOrphanIds = remoteImageMetas
+		let remoteOrphanIds = remoteImageMetas
 			.filter(meta => !referencedImageIds.has(meta.id))
 			.map(meta => meta.id);
 
 		remoteOrphanIds = []; // Temporary disable clean orphan images
-		for (const imageId of remoteOrphanIds) {
+		for (let imageId of remoteOrphanIds) {
 			try {
 				await deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, nostrRelays});
 				// We count this even if only one of the remotes succeeds.
