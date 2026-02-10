@@ -705,7 +705,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const notesFromDB = await getNotesDB();
 			this.notes = notesFromDB.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
 			this.updateAppBadge();
-			this.miniSearch?.removeAll();
 
 			const uniqueNotes = Array.from(new Map(this.notes.map(note => [note.id, note])).values());
 			if (uniqueNotes.length < this.notes.length) {
@@ -715,7 +714,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Defer indexing to avoid blocking the main thread
 			setTimeout(() => {
-				this.miniSearch?.addAll(this.notes);
+				this.miniSearch?.removeAll();
+				this.miniSearch?.addAll(this.notes.filter(x => !this.miniSearch?.has?.(x.id)));
 			}, 100);
 
 			this.updateNotesCache();
