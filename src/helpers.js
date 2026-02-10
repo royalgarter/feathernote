@@ -495,7 +495,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			} else if (remoteMeta.source === 'gdrive') {
 				return window.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
 			} else {
-				return downloadNoteFromS3(remoteMeta.id, credentials);
+				return downloadNoteFromS3(remoteMeta, credentials);
 			}
 		});
 		const downloadResults = await Promise.allSettled(downloadPromises);
@@ -797,7 +797,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	}
 
 	if (credentials?.secretAccessKey) {
-		promises.push(deleteNoteFromS3(noteId, credentials));
+		promises.push(deleteNoteFromS3(remoteMeta || noteId, credentials));
 	}
 
 	if ( nostrPrivateKey && nostrRelays ) {
@@ -806,7 +806,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	}
 
 	if (gitCredentials?.repoUrl && typeof window.deleteNoteFromGit === 'function') {
-		promises.push(window.deleteNoteFromGit(noteId, gitCredentials));
+		promises.push(window.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
 	}
 
 	await Promise.allSettled(promises);

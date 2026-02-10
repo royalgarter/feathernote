@@ -1773,11 +1773,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (encryptedSettings && userId) {
 				const credentials = await decryptSettings(encryptedSettings, userId);
 				if (credentials) {
-					const remoteMeta = await getNoteMetadataFromS3(id, credentials);
 					const localNote = await getNoteDB(id);
+					const remoteMeta = await getNoteMetadataFromS3(localNote || id, credentials);
 
 					if (remoteMeta && localNote && new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt)) {
-						const remoteNote = await downloadNoteFromS3(id, credentials);
+						const remoteNote = await downloadNoteFromS3(localNote || id, credentials);
 
 						if (remoteNote.content) {
 							const updatedNote = await this.mergeRemoteNote(remoteNote);
