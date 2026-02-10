@@ -33,7 +33,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	loading: true,
 	miniSearch: null,
 	isSyncing: false,
-	syncStatusMessage: 'In a world of data breaches and ever-growing cloud subscriptions, havent you ever wished for a note-taking app that puts you back in control?',
+	syncStatusMessage: '',
 	isSaving: false,
 	syncIntervalId: null,
 	editingNoteId: null, // New state to track which note is being edited
@@ -105,6 +105,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- Main App Init ---
 	init() {
+		// Check hash early to prioritize editor loading
+		if (window.location.hash === '#new_note') {
+			this.createNewNote();
+		} else if (window.location.hash.startsWith('#edit_note-')) {
+			const noteId = window.location.hash.replace('#edit_note-', '');
+			if (noteId) this.editNote(noteId);
+		} else if (window.location.hash === '#search') {
+			this.$nextTick(() => document.getElementById('searchInput')?.focus());
+		}
+
 		// App Init
 		if (location.href.includes('//localhost')) {
 			document.querySelector('head title').innerHTML = '(local) FeatherNote';
@@ -206,15 +216,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		this.$watch('searchTag', () => this.generateSuggestions());
 
-		if (window.location.hash === '#new_note') {
-			this.createNewNote();
-		} else if (window.location.hash.startsWith('#edit_note-')) {
-			const noteId = window.location.hash.replace('#edit_note-', '');
-			if (noteId) this.editNote(noteId);
-		} else if (window.location.hash === '#search') {
-			this.$nextTick(() => document.getElementById('searchInput')?.focus());
-		}
-
 		// Add the keyboard shortcut listener
 		window.addEventListener('keydown', (event) => {
 			if ((event.ctrlKey || event.metaKey) && event.key === 's') {
@@ -271,7 +272,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	showToast({ title, description, variant = 'default', duration = 3e3, quiet }) {
 		const id = `toast-${this.toastIdCounter++}`;
 		const newToast = { id, title, description, variant, show: true };
-		
+
 		if (false && !quiet) this.toasts.push(newToast);
 
 		let text = description || title;
@@ -685,7 +686,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		// Fetch latest notes from DB regardless of cache
-		await this.fetchNotes();
+		this.fetchNotes();
 	},
 
 	async updateNotesCache() {
@@ -711,7 +712,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
 				this.notes = uniqueNotes;
 			}
-			this.miniSearch?.addAll(this.notes);
+
+			// Defer indexing to avoid blocking the main thread
+			setTimeout(() => {
+				this.miniSearch?.addAll(this.notes);
+			}, 100);
+
 			this.updateNotesCache();
 		} catch (error) {
 			console.error('Error in fetchNotes:', error);
@@ -1721,8 +1727,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			clearInterval(this.editorAutosaveIntervalId);
 		}
 		this.editingNoteId = id;
-		let noteToLoad = id;
 
+		// Load local version immediately for better perceived performance
+		await this.loadNoteIntoEditor(id);
+
+		window.location.hash = '#edit_note-' + id;
+
+		this.editorAutosaveIntervalId = setInterval(() => {
+			this.autosaveCurrentNote();
+		}, 60 * 1000);
+
+		// Perform remote sync check in the background
 		try {
 			const userId = this.user ? this.user.id : null;
 			const storedData = await getEncryptedSettingsDB();
@@ -1739,33 +1754,23 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 						if (remoteNote.content) {
 							const updatedNote = await this.mergeRemoteNote(remoteNote);
-							if (updatedNote) {
-								noteToLoad = updatedNote;
-								this.showToast({
-									quiet: true,
-									title: 'Note Updated',
-									description: 'A newer version of this note was found on the server and has been loaded.',
-									duration: 5000
-								});
-							}
+							// Note: mergeRemoteNote already updates the editor if editingNoteId matches
 						}
 					}
 				}
 			}
 		} catch (error) {
 			console.error('Pre-edit sync check failed:', error);
+			// We don't necessarily need to show an error here if the local note is already loaded, 
+			// but it helps the user know they might not have the latest version.
+			/*
 			this.showToast({
 				variant: 'error',
 				title: 'Sync Check Failed',
 				description: 'Could not verify the latest version of the note. Please sync manually.'
 			});
+			*/
 		}
-
-		await this.loadNoteIntoEditor(noteToLoad);
-		this.editorAutosaveIntervalId = setInterval(() => {
-			this.autosaveCurrentNote();
-		}, 60 * 1000);
-		window.location.hash = '#edit_note-' + id;
 	},
 
 	// --- Note Editor Methods (moved from noteEditor component) ---

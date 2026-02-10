@@ -23,6 +23,20 @@
 	text-decoration: underline;
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+	width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+	background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+	background: #e2e8f0;
+	border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #cbd5e1;
+}
+
 .line-clamp-3 {
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
@@ -142,6 +156,7 @@
 
 .EasyMDEContainer .editor-preview {
 	/*padding-left: 40px;*/
+	font-family: monospace;
 }
 
 .EasyMDEContainer .editor-preview ul {
@@ -196,6 +211,7 @@
 .EasyMDEContainer .CodeMirror {
 	padding: 0px;
 	color: dimgray;
+	font-family: monospace;
 }
 
 .EasyMDEContainer .editor-preview code {

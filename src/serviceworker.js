@@ -184,8 +184,13 @@ self.addEventListener('fetch', (event) => {
 						}
 
 						if (newItem.trim() !== '*') {
-							const allNotes = await getNotesDB();
-							let inboxNote = allNotes.find(note => note.title === TITLE_SHARED);
+							const TITLE_SHARED = 'Shared Inbox';
+							let inboxNoteId = await getMetaDB('shared_inbox_id');
+							let inboxNote = inboxNoteId ? await getNoteDB(inboxNoteId) : null;
+
+							if (!inboxNote) {
+								inboxNote = await getNoteByTitleDB(TITLE_SHARED);
+							}
 
 							if (inboxNote) {
 								if (inboxNote.content) {
@@ -196,6 +201,9 @@ self.addEventListener('fetch', (event) => {
 								inboxNote.updatedAt = new Date().toISOString();
 								await updateNoteDB(inboxNote);
 								noteIdToRedirect = inboxNote.id;
+								if (inboxNote.id !== inboxNoteId) {
+									await setMetaDB('shared_inbox_id', inboxNote.id);
+								}
 							} else {
 								// Create a new inbox note
 								const newNote = {
@@ -204,10 +212,11 @@ self.addEventListener('fetch', (event) => {
 									content: newItem,
 									createdAt: new Date().toISOString(),
 									updatedAt: new Date().toISOString(),
-								tags: ['shared', 'inbox'],
+									tags: ['shared', 'inbox'],
 								};
 								await addNoteDB(newNote);
 								noteIdToRedirect = newNote.id;
+								await setMetaDB('shared_inbox_id', newNote.id);
 							}
 						}
 					} catch (criticalError) {
