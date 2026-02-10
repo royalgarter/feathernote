@@ -276,7 +276,9 @@ const getEncryptedSettingsDB = async () => {
 		const result = await performDBOperation(S3_CREDENTIALS_STORE, 'readonly', 'get', 's3-credentials');
 		if (result && result.data) {
 			// If we get data from IndexedDB, make sure localStorage is also up-to-date.
-			localStorage.setItem('s3-credentials', JSON.stringify(result.data));
+			if (typeof localStorage !== 'undefined') {
+				localStorage.setItem('s3-credentials', JSON.stringify(result.data));
+			}
 			return result.data;
 		}
 	} catch (error) {
@@ -284,13 +286,15 @@ const getEncryptedSettingsDB = async () => {
 	}
 
 	// If IndexedDB fails or returns no data, try localStorage.
-	const fromStorage = localStorage.getItem('s3-credentials');
-	if (fromStorage) {
-		try {
-			return JSON.parse(fromStorage);
-		} catch (error) {
-			console.error('Could not parse settings from localStorage.', error);
-			return null;
+	if (typeof localStorage !== 'undefined') {
+		const fromStorage = localStorage.getItem('s3-credentials');
+		if (fromStorage) {
+			try {
+				return JSON.parse(fromStorage);
+			} catch (error) {
+				console.error('Could not parse settings from localStorage.', error);
+				return null;
+			}
 		}
 	}
 
@@ -548,7 +552,7 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 
 		// 2. Determine all referenced image IDs from all notes
 		const allNotes = await getNotesDB();
-		const imageIdRegex = /\/images\/([a-f0-9-]+)/g;
+		const imageIdRegex = /\/images\/([\w-]+)/g;
 		const referencedImageIds = new Set();
 		for (const note of allNotes) {
 			let match;
@@ -602,11 +606,11 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 				await deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, nostrRelays});
 				// We count this even if only one of the remotes succeeds.
 				// To avoid double counting with local, we only increment if it wasn't a local orphan.
-				if (!localOrphanIds.includes(orphanId)) {
+				if (!localOrphanIds.includes(imageId)) {
 					deletedOrphanCount++;
 				}
 			} catch (err) {
-				console.error(`Failed to delete remote orphan image ${orphanId}:`, err);
+				console.error(`Failed to delete remote orphan image ${imageId}:`, err);
 			}
 		}
 
@@ -883,5 +887,5 @@ function generateUniqueId(title) {
 		'-',
 		Date.now().toString(36).substr(4),
 		Math.random().toString(36).substring(2, 6),
-	].join('').trim();
+	].join('').trim().replace(/$-/, '');
 }

@@ -1337,6 +1337,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
+				uploadImage: false,
 				toolbar: [
 					{
 						name: "Save",
@@ -1434,6 +1435,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 									const markdown = `\n![Drawing](/images/${imageId})\n`;
 									const cm = editor.codemirror;
 									cm.replaceSelection(markdown);
+									this.saveNote(true);
 
 								} catch (err) {
 									console.error("Failed to save drawing to IndexedDB", err);
@@ -1528,15 +1530,32 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					const blob = imageItem.getAsFile();
 					if (!blob) return;
 
-					const imageId = generateUniqueId();
-					const imageRecord = { id: imageId, blob: blob, synced: false };
-
-					addImageDB(imageRecord).then(() => {
-						const markdown = `\n![Image](/images/${imageId})\n`;
+					const reader = new FileReader();
+					reader.onload = (e) => {
+						const dataUrl = e.target.result;
+						const imageId = generateUniqueId('img');
+						
+						// 1. Insert placeholder with dataURL for immediate feedback
+						const markdown = `\n![Image](${dataUrl})\n`;
 						cm.replaceSelection(markdown);
-					}).catch(err => {
-						console.error("Failed to save image to IndexedDB", err);
-					});
+
+						// 2. Background: Save to DB and then swap dataURL for local path
+						const imageRecord = { id: imageId, blob: blob, synced: false };
+						addImageDB(imageRecord).then(() => {
+							const cursor = cm.getCursor();
+							const content = cm.getValue();
+							if (content.includes(dataUrl)) {
+								const newContent = content.replace(dataUrl, `/images/${imageId}`);
+								cm.setValue(newContent);
+								cm.setCursor(cursor);
+							}
+							this.saveNote(true);
+						}).catch(err => {
+							console.error("Failed to save image to IndexedDB", err);
+							this.showToast({ variant: 'error', title: 'Image Save Failed', description: 'Could not save the pasted image locally.' });
+						});
+					};
+					reader.readAsDataURL(blob);
 					return;
 				}
 

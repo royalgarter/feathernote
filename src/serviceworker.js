@@ -2,6 +2,7 @@ importScripts('./libs/aws-sdk-2.1692.0.min.js');
 importScripts('./s3.js');
 importScripts('./helpers.js');
 
+const DB_VERSION = 5;
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
 
 const urlsToCache = [

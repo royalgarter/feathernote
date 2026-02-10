@@ -46,7 +46,11 @@
 					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
 				</svg>
 
-				<span class="font-bold text-lg font-sans text-gray-900 hidden md:inline-block" style="color:#A2D2FF;">FeatherNote</span>
+				<span class="font-bold text-lg font-sans text-gray-900 hidden md:inline-block" 
+					style="color:#A2D2FF;"
+					x-show="!syncStatusMessage && !isSyncing">
+					FeatherNote
+				</span>
 			</a>
 			<div class="flex items-center gap-4">
 				<!-- SyncStatus -->
