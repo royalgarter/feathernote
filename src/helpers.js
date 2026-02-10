@@ -573,6 +573,7 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 				try {
 					let imageBlob = await downloadImageFromS3(imageId, credentials);
 					if (imageBlob) {
+						console.log(`Image ${imageId} downloaded`);
 						await addImageDB({ id: imageId, blob: imageBlob, synced: true });
 						downloadedImageCount++;
 					}

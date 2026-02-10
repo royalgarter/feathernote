@@ -252,7 +252,15 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- App Methods ---
 	formatDate(isoString) {
-		return new Date(isoString).toLocaleString();
+		// return new Date(isoString).toLocaleString();
+		return new Date(isoString).toLocaleString({}, {
+			hour12: false,
+			year: 'numeric',
+			month: 'short',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+		})
 	},
 	getNotePreview(content) {
 		return content ? `${content.trim().replace(/(\r?\n)+/g, '\n').substring(0, 300)}...` : '<!-- EMPTY -->';
@@ -1534,7 +1542,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					reader.onload = (e) => {
 						const dataUrl = e.target.result;
 						const imageId = generateUniqueId('img');
-						
+
 						// 1. Insert placeholder with dataURL for immediate feedback
 						const markdown = `\n![Image](${dataUrl})\n`;
 						cm.replaceSelection(markdown);
@@ -1780,7 +1788,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 		} catch (error) {
 			console.error('Pre-edit sync check failed:', error);
-			// We don't necessarily need to show an error here if the local note is already loaded, 
+			// We don't necessarily need to show an error here if the local note is already loaded,
 			// but it helps the user know they might not have the latest version.
 			/*
 			this.showToast({

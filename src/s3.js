@@ -105,7 +105,7 @@ const downloadNoteFromS3 = async (noteId, creds) => {
 	};
 
 	const data = await s3.getObject(params).promise();
-	if (data.Body) {
+	if (data?.Body) {
 		const str = (new TextDecoder()).decode(data.Body);
 		return JSON.parse(str);
 	} else {
@@ -197,7 +197,7 @@ const downloadImageFromS3 = async (imageId, creds) => {
 			};
 			const data = await s3.getObject(getParams).promise();
 
-			if (data.Body) {
+			if (data?.Body) {
 				const contentType = data.ContentType || 'application/octet-stream';
 				return new Blob([data.Body], { type: contentType });
 			} else {
