@@ -1542,12 +1542,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						// 2. Background: Save to DB and then swap dataURL for local path
 						const imageRecord = { id: imageId, blob: blob, synced: false };
 						addImageDB(imageRecord).then(() => {
+							const cursor = cm.getCursor();
 							const content = cm.getValue();
-							const index = content.indexOf(dataUrl);
-							if (index !== -1) {
-								const from = cm.posFromIndex(index);
-								const to = cm.posFromIndex(index + dataUrl.length);
-								cm.replaceRange(`/images/${imageId}`, from, to);
+							if (content.includes(dataUrl)) {
+								const newContent = content.replace(dataUrl, `/images/${imageId}`);
+								cm.setValue(newContent);
+								cm.setCursor(cursor);
 							}
 							this.saveNote(true);
 						}).catch(err => {
