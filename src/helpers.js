@@ -268,7 +268,7 @@ async function performDBOperation(storeName, mode, operation, ...args) {
 }
 
 const saveEncryptedSettingsDB = (encryptedSettings, userId) => {
-	localStorage.setItem('s3-credentials', JSON.stringify({ encryptedSettings, userId }));
+	if (typeof localStorage !== 'undefined') localStorage.setItem('s3-credentials', JSON.stringify({ encryptedSettings, userId }));
 	performDBOperation(S3_CREDENTIALS_STORE, 'readwrite', 'put', { id: 's3-credentials', data: { encryptedSettings, userId } });
 };
 const getEncryptedSettingsDB = async () => {
