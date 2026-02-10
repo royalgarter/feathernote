@@ -648,7 +648,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 		promises.push(window.publishImageToRelays(relays, nostrPrivateKey, image));
 	}
 
-	await Promise.allSettled(promises);
+	await Promise.all(promises);
 }
 
 async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore}) {
