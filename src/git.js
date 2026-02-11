@@ -274,6 +274,7 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
         }
         console.log('GIT: Git remove failed (file already gone):', e);
     }
+
     try {
         await pfs.unlink(`${GIT_DIR}/${filename}`);
     } catch (e) {
