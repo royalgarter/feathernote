@@ -174,31 +174,26 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 }
 
 async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
-	try {
-		const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
-		const sk_bytes = getSkBytes(privateKey);
-		const pk = getPublicKey(sk_bytes);
-		const pool = new SimplePool();
+	const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+	const sk_bytes = getSkBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
+	const pool = new SimplePool();
 
-		const eventTemplate = {
-			kind: 5,
-			created_at: Math.floor(Date.now() / 1000),
-			tags: [
-				['e', noteId]
-			],
-			content: 'Note deleted',
-		};
+	const eventTemplate = {
+		kind: 5,
+		created_at: Math.floor(Date.now() / 1000),
+		tags: [
+			['e', noteId]
+		],
+		content: 'Note deleted',
+	};
 
-		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
+	const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
 
-		await Promise.all(pool.publish(relays, signedEvent));
-		pool.close(relays);
+	await Promise.all(pool.publish(relays, signedEvent));
+	pool.close(relays);
 
-		return signedEvent;
-	} catch (error) {
-		console.error("Error publishing note deletion to Nostr relays:", error);
-		return null;
-	}
+	return signedEvent;
 }
 
 async function publishImageToRelays(relays, privateKey, imageRecord) {
@@ -232,31 +227,26 @@ async function publishImageToRelays(relays, privateKey, imageRecord) {
 }
 
 async function publishImageDeletionToRelays(relays, privateKey, imageId) {
-	try {
-		const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
-		const sk_bytes = getSkBytes(privateKey);
-		const pk = getPublicKey(sk_bytes);
-		const pool = new SimplePool();
+	const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+	const sk_bytes = getSkBytes(privateKey);
+	const pk = getPublicKey(sk_bytes);
+	const pool = new SimplePool();
 
-		const eventTemplate = {
-			kind: 5,
-			created_at: Math.floor(Date.now() / 1000),
-			tags: [
-				['e', imageId]
-			],
-			content: 'Image deleted',
-		};
+	const eventTemplate = {
+		kind: 5,
+		created_at: Math.floor(Date.now() / 1000),
+		tags: [
+			['e', imageId]
+		],
+		content: 'Image deleted',
+	};
 
-		const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
+	const signedEvent = finalizeEvent(eventTemplate, sk_bytes);
 
-		await Promise.all(pool.publish(relays, signedEvent));
-		pool.close(relays);
+	await Promise.all(pool.publish(relays, signedEvent));
+	pool.close(relays);
 
-		return signedEvent;
-	} catch (error) {
-		console.error("Error publishing image deletion to Nostr relays:", error);
-		return null;
-	}
+	return signedEvent;
 }
 
 window.generateNewPrivateKey = generateNewPrivateKey;

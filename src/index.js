@@ -1111,9 +1111,31 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					await deleteNoteDB(noteIdToDelete);
 				}
 
-				// Always clear pending deletions on successful sync
-				this.deletedNoteIds = [];
-				localStorage.removeItem('feathernote-deleted-note-ids');
+				// Handle deletedNoteIds queue
+				if (result.finalRemoteIds) {
+					const remoteNoteIds = new Set(result.finalRemoteIds);
+					const successfulDeletedIds = new Set(result.successfulDeletedIds || []);
+					
+					this.deletedNoteIds = this.deletedNoteIds.filter(id => {
+						// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
+						if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
+
+						// If it was successfully deleted in this sync, remove it.
+						if (successfulDeletedIds.has(id)) return false;
+
+						// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
+						if (!remoteNoteIds.has(id)) return false;
+
+						// Otherwise, it was on the remote but deletion failed. Keep it in queue.
+						return true;
+					});
+
+					if (this.deletedNoteIds.length > 0) {
+						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
+					} else {
+						localStorage.removeItem('feathernote-deleted-note-ids');
+					}
+				}
 
 				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
 				this.updateNotesCache();
@@ -1158,14 +1180,6 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				if (!isSilent) {
 					let syncDescription = `Sync completed: ${result.uploadedCount || 0} uploaded, ${downloadedCount} downloaded, ${result.deletedCount || 0} remote deletes.`;
 					this.showToast({ title: 'Sync Successful', description: syncDescription });
-				} else {
-					// S3/Nostr sync was successful, filter the pending deletions
-					// We only remove IDs from the deletion queue if they are NO LONGER present on the remote.
-					// If an ID is still in result.finalRemoteIds, it means the remote still had it when we started this sync.
-					if (result.finalRemoteIds) {
-						 this.deletedNoteIds = this.deletedNoteIds.filter(id => result.finalRemoteIds.includes(id));
-						 localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
-					}
 				}
 			} else {
 				throw new Error(result.error || 'Server responded with an error.');

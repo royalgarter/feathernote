@@ -420,7 +420,11 @@ window.deleteNoteFromGoogleDrive = async function(noteId, remoteMeta = null) {
 		});
 		console.log(`Successfully deleted note ${noteId} from Drive.`);
 	} catch (err) {
-		console.error(`Error deleting note ${noteId} from Drive:`, err);
+		if (err.status === 404) {
+			console.log(`Note ${noteId} already deleted from Drive (404).`);
+		} else {
+			throw err;
+		}
 	}
 };
 
