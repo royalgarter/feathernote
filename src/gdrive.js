@@ -172,6 +172,42 @@ async function callDriveApi(apiCall) {
 }
 
 /**
+ * Ensures a folder structure exists and returns the ID of the leaf folder.
+ * @param {string} path Hierarchical path (e.g., "2024/05/12").
+ * @param {string} parentId The ID of the parent folder.
+ * @returns {Promise<string>} The ID of the leaf folder.
+ */
+async function ensureFolder(path, parentId) {
+	if (!path) return parentId;
+	const parts = path.split('/').filter(p => !!p);
+	let currentParentId = parentId;
+
+	for (const part of parts) {
+		const response = await gapi.client.drive.files.list({
+			q: `mimeType = 'application/vnd.google-apps.folder' and name = '${part}' and '${currentParentId}' in parents and trashed = false`,
+			fields: 'files(id, name)',
+			spaces: 'drive',
+		});
+
+		if (response.result.files && response.result.files.length > 0) {
+			currentParentId = response.result.files[0].id;
+		} else {
+			const fileMetadata = {
+				'name': part,
+				'mimeType': 'application/vnd.google-apps.folder',
+				'parents': [currentParentId]
+			};
+			const createResponse = await gapi.client.drive.files.create({
+				resource: fileMetadata,
+				fields: 'id'
+			});
+			currentParentId = createResponse.result.id;
+		}
+	}
+	return currentParentId;
+}
+
+/**
  * Ensures the 'FeatherNote' folder exists in the user's Drive.
  * @returns {Promise<string>} The ID of the folder.
  */
@@ -212,30 +248,42 @@ async function ensureAppFolder() {
 }
 
 /**
- * Lists all files in the App Folder (FeatherNote).
+ * Lists all files in the App Folder (FeatherNote) recursively.
  * @returns {Promise<Array>} A promise that resolves with a list of file metadata.
  */
 async function listAllFilesFromGoogleDrive() {
 	try {
-		const folderId = await ensureAppFolder();
-		let files = [];
-		let pageToken = null;
-		do {
-			const response = await gapi.client.drive.files.list({
-				q: `'${folderId}' in parents and trashed = false`,
-				fields: 'nextPageToken, files(id, name, modifiedTime)',
-				pageSize: 100,
-				pageToken: pageToken,
-			});
-			files = files.concat(response.result.files);
-			pageToken = response.result.nextPageToken;
-		} while (pageToken);
+		const rootFolderId = await ensureAppFolder();
+		let allFiles = [];
 
-		REMOTE_GOOGLEDRIVE_FILES = files;
+		async function listFolder(folderId) {
+			let files = [];
+			let pageToken = null;
+			do {
+				const response = await gapi.client.drive.files.list({
+					q: `'${folderId}' in parents and trashed = false`,
+					fields: 'nextPageToken, files(id, name, modifiedTime, mimeType)',
+					pageSize: 100,
+					pageToken: pageToken,
+				});
+				for (const file of response.result.files) {
+					if (file.mimeType === 'application/vnd.google-apps.folder') {
+						const subFiles = await listFolder(file.id);
+						files = files.concat(subFiles);
+					} else {
+						files.push(file);
+					}
+				}
+				pageToken = response.result.nextPageToken;
+			} while (pageToken);
+			return files;
+		}
 
-		return files;
+		allFiles = await listFolder(rootFolderId);
+		REMOTE_GOOGLEDRIVE_FILES = allFiles;
+		return allFiles;
 	} catch (err) {
-		console.error("Error listing files:", err);
+		console.error("Error listing files recursively:", err);
 		return [];
 	}
 }
@@ -341,6 +389,12 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 	const delimiter = "\r\n--" + boundary + "\r\n";
 	const close_delim = "\r\n--" + boundary + "--";
 
+	const date = new Date(note.createdAt || note.updatedAt || Date.now());
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	const relPath = `${y}/${m}/${d}`;
+
 	const metadata = {
 		'name': `${noteId}.json`,
 		'mimeType': 'application/json',
@@ -352,16 +406,17 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 		const found = REMOTE_GOOGLEDRIVE_FILES.find(f => f.name === `${noteId}.json`);
 		if (found) {
 			existingFileId = found.id;
-		} else {
-			// New file: Ensure parent folder exists and set it
-			try {
-				const folderId = await ensureAppFolder();
-				metadata.parents = [folderId];
-			} catch (e) {
-				console.error("Could not get parent folder:", e);
-				return;
-			}
 		}
+	}
+
+	// Always ensure it's in the correct hierarchical folder
+	try {
+		const rootFolderId = await ensureAppFolder();
+		const folderId = await ensureFolder(relPath, rootFolderId);
+		metadata.parents = [folderId];
+	} catch (e) {
+		console.error("Could not get parent folder hierarchy:", e);
+		return;
 	}
 
 	const multipartRequestBody =
@@ -378,7 +433,7 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 	const request = () => gapi.client.request({
 		'path': path,
 		'method': existingFileId ? 'PATCH' : 'POST',
-		'params': { 'uploadType': 'multipart' },
+		'params': { 'uploadType': 'multipart', 'addParents': metadata.parents[0] }, // addParents helps moving it if it was elsewhere
 		'headers': {
 			'Content-Type': 'multipart/related; boundary="' + boundary + '"'
 		},
@@ -387,7 +442,7 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 
 	try {
 		await callDriveApi(request);
-		// console.log(`Successfully uploaded note ${noteId} to GDrive`);
+		// console.log(`Successfully uploaded note ${noteId} to GDrive in ${relPath}`);
 	} catch (err) {
 		console.error(`Error uploading note ${noteId} to GDrive:`, err);
 	}

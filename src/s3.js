@@ -45,14 +45,33 @@ const uploadNoteToS3 = async (note, creds) => {
 	const s3 = await getS3Client(creds);
 	const body = note.html || JSON.stringify(note, null, 2);
 
+	const date = new Date(note.createdAt || note.updatedAt || Date.now());
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	const relPath = `${y}/${m}/${d}/${note.id}`;
+
+	const key = getS3ObjectKey(relPath + (note.html ? '.html' : ''), creds);
+
 	const params = {
 		Bucket: creds.bucket,
-		Key: getS3ObjectKey(note.id + (note.html ? '.html' : ''), creds),
+		Key: key,
 		Body: body,
 		ContentType: note.html ? 'text/html' : 'application/json',
 	};
 
 	await s3.upload(params).promise();
+
+	// Migration: Remove old flat file if it exists
+	const oldKey = getS3ObjectKey(note.id + (note.html ? '.html' : ''), creds);
+	if (key !== oldKey) {
+		try {
+			await s3.deleteObject({ Bucket: creds.bucket, Key: oldKey }).promise();
+			console.log(`S3: Migrated ${oldKey} to ${key}`);
+		} catch (e) {
+			// ignore if it didn't exist
+		}
+	}
 };
 
 const listNotesInS3 = async (creds) => {
@@ -76,8 +95,10 @@ const listNotesInS3 = async (creds) => {
 			const s3NoteMetadata = data.Contents?.map(item => {
 				if (!item.Key || item.Key.endsWith('/') || item.Key.includes('/images/') || !item.Key.includes('.json')) return null;
 
+				const relativeKey = item.Key.replace(prefix, '').replace('.json', '');
 				return {
-					id: item.Key.replace(prefix, '').replace('.json', ''),
+					id: relativeKey.split('/').pop(),
+					path: relativeKey,
 					updatedAt: item.LastModified,
 					source: 's3'
 				};
@@ -94,63 +115,95 @@ const listNotesInS3 = async (creds) => {
 	return allNoteMetadata;
 };
 
-const downloadNoteFromS3 = async (noteId, creds) => {
+const downloadNoteFromS3 = async (noteOrId, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const key = getS3ObjectKey(noteId, creds);
+	const id = typeof noteOrId === 'string' ? noteOrId : noteOrId.id;
+	let key = getS3ObjectKey(noteOrId.path || noteOrId, creds);
+	
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,
 	};
 
-	const data = await s3.getObject(params).promise();
-	if (data.Body) {
-		const str = (new TextDecoder()).decode(data.Body);
-		return JSON.parse(str);
-	} else {
-		throw new Error('Downloaded note has no body');
+	try {
+		const data = await s3.getObject(params).promise();
+		if (data?.Body) {
+			const str = (new TextDecoder()).decode(data.Body);
+			return JSON.parse(str);
+		}
+	} catch (err) {
+		// If it failed and we didn't try the flat ID yet, try it
+		const flatKey = getS3ObjectKey(id, creds);
+		if (key !== flatKey) {
+			const flatParams = { Bucket: creds.bucket, Key: flatKey };
+			const data = await s3.getObject(flatParams).promise();
+			if (data?.Body) {
+				const str = (new TextDecoder()).decode(data.Body);
+				return JSON.parse(str);
+			}
+		}
+		throw err;
 	}
+	throw new Error('Downloaded note has no body');
 };
 
-const getNoteMetadataFromS3 = async (noteId, creds) => {
+const getNoteMetadataFromS3 = async (noteOrId, creds) => {
 	try {
 		if (!creds?.secretAccessKey) return;
 
 		const s3 = await getS3Client(creds);
-		const key = getS3ObjectKey(noteId, creds);
+		const id = typeof noteOrId === 'string' ? noteOrId : noteOrId.id;
+		let key = getS3ObjectKey(noteOrId.path || noteOrId, creds);
+
 		const params = {
 			Bucket: creds.bucket,
 			Key: key,
 		};
 
-		const data = await s3.headObject(params).promise();
-		return {
-			lastModified: data.LastModified,
-			source: 's3'
-		};
+		try {
+			const data = await s3.headObject(params).promise();
+			return {
+				lastModified: data.LastModified,
+				source: 's3'
+			};
+		} catch (err) {
+			const flatKey = getS3ObjectKey(id, creds);
+			if (key !== flatKey) {
+				const data = await s3.headObject({ Bucket: creds.bucket, Key: flatKey }).promise();
+				return {
+					lastModified: data.LastModified,
+					source: 's3'
+				};
+			}
+			throw err;
+		}
 	} catch (error) {
-		if (error.code === 'NotFound') {
-			// The object does not exist in S3.
+		if (error.code === 'NotFound' || error.name === 'NotFound') {
 			return null;
 		}
-		// For other errors, log and re-throw to allow for more specific handling upstream.
-		console.error(`S3 HeadObject Error for note ${noteId}:`, error);
+		console.error(`S3 HeadObject Error for note:`, error);
 		throw new Error(`Failed to get note metadata from S3: ${error.code || error.message}`);
 	}
 };
 
-const deleteNoteFromS3 = async (noteId, creds) => {
+const deleteNoteFromS3 = async (noteOrId, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const key = getS3ObjectKey(noteId, creds);
-	const params = {
-		Bucket: creds.bucket,
-		Key: key,
-	};
+	const id = typeof noteOrId === 'string' ? noteOrId : noteOrId.id;
+	const key = getS3ObjectKey(noteOrId.path || noteOrId, creds);
+	
+	await s3.deleteObject({ Bucket: creds.bucket, Key: key }).promise();
 
-	await s3.deleteObject(params).promise();
+	// Also try deleting the flat one just in case (backward compatibility)
+	const flatKey = getS3ObjectKey(id, creds);
+	if (key !== flatKey) {
+		try {
+			await s3.deleteObject({ Bucket: creds.bucket, Key: flatKey }).promise();
+		} catch (e) {}
+	}
 };
 
 // --- S3 Functions for Images ---
@@ -197,7 +250,7 @@ const downloadImageFromS3 = async (imageId, creds) => {
 			};
 			const data = await s3.getObject(getParams).promise();
 
-			if (data.Body) {
+			if (data?.Body) {
 				const contentType = data.ContentType || 'application/octet-stream';
 				return new Blob([data.Body], { type: contentType });
 			} else {
@@ -285,7 +338,13 @@ const getPresignedUrl = async (note, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const key = getS3ObjectKey(note.id + (note.html ? '.html' : ''), creds);
+	const date = new Date(note.createdAt || note.updatedAt || Date.now());
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	const relPath = note.path || `${y}/${m}/${d}/${note.id}`;
+
+	const key = getS3ObjectKey(relPath + (note.html ? '.html' : ''), creds);
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,

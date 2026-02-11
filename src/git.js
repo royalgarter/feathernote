@@ -10,6 +10,22 @@ const pfs = fs.promises;
 
 const GIT_DIR = '/repo';
 
+// Helper to get recursive file list
+const readdirRecursive = async (dir, baseDir = dir) => {
+    let results = [];
+    const list = await pfs.readdir(dir);
+    for (const file of list) {
+        const path = `${dir}/${file}`;
+        const stat = await pfs.stat(path);
+        if (stat.type === 'dir') {
+            results = results.concat(await readdirRecursive(path, baseDir));
+        } else {
+            results.push(path.replace(`${baseDir}/`, ''));
+        }
+    }
+    return results;
+};
+
 // Helper to get git config object
 const getGitConfig = (creds) => {
     const config = {
@@ -151,18 +167,18 @@ window.listNotesInGit = async (creds) => {
             return [];
         }
 
-        const files = await pfs.readdir(GIT_DIR);
+        const files = await readdirRecursive(GIT_DIR);
         const notes = [];
         
         for (const file of files) {
-            if (file.endsWith('.md') && !file.startsWith('.')) {
+            if (file.endsWith('.md') && !file.split('/').pop().startsWith('.')) {
                 try {
                     const content = await pfs.readFile(`${GIT_DIR}/${file}`, 'utf8');
                     const stat = await pfs.stat(`${GIT_DIR}/${file}`);
                     const { metadata, body } = parseFrontmatter(content);
                     
                     // ID strategy: Metadata ID -> Filename ID
-                    const id = metadata.id || file.replace(/\.md$/, '');
+                    const id = metadata.id || file.split('/').pop().replace(/\.md$/, '');
                     
                     // Date strategy: Metadata updatedAt -> File Mtime
                     let updatedAt = metadata.updatedAt;
@@ -187,6 +203,7 @@ window.listNotesInGit = async (creds) => {
 
                     notes.push({
                         id: id,
+                        path: file,
                         title: metadata.title || id,
                         content: body,
                         tags: metadata.tags || [],
@@ -209,20 +226,48 @@ window.listNotesInGit = async (creds) => {
 };
 
 window.uploadNoteToGit = async (note, creds) => {
-    const filename = `${note.id}.md`;
+    const date = new Date(note.createdAt || note.updatedAt || Date.now());
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const relDir = `${y}/${m}/${d}`;
+    const filename = `${relDir}/${note.id}.md`;
     const content = createMarkdownContent(note);
     
-    // Write to FS
+    // 1. Ensure directory exists
+    const parts = relDir.split('/');
+    let currentPath = GIT_DIR;
+    for (const part of parts) {
+        currentPath += '/' + part;
+        try {
+            await pfs.mkdir(currentPath);
+        } catch (e) {}
+    }
+
+    // 2. Write to FS
     await pfs.writeFile(`${GIT_DIR}/${filename}`, content, 'utf8');
     
-    // Git Add
+    // 3. Git Add
     await git.add({ fs, dir: GIT_DIR, filepath: filename });
+
+    // 4. Backward Compatibility: Remove old flat file if it exists
+    const oldFilename = `${note.id}.md`;
+    if (filename !== oldFilename) {
+        try {
+            await git.remove({ fs, dir: GIT_DIR, filepath: oldFilename });
+            await pfs.unlink(`${GIT_DIR}/${oldFilename}`);
+            console.log(`GIT: Migrated ${oldFilename} to ${filename}`);
+        } catch (e) {
+            // Probably didn't exist, ignore
+        }
+    }
 };
 
-window.deleteNoteFromGit = async (noteId, creds) => {
-    const filename = `${noteId}.md`;
+window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
+    const filename = noteIdOrPath.endsWith('.md') ? noteIdOrPath : `${noteIdOrPath}.md`;
     try {
         await git.remove({ fs, dir: GIT_DIR, filepath: filename });
+        console.log(`GIT: Removed ${filename} from git index`);
     } catch (e) {
         if (e.code !== 'NotFoundError') {
             throw e;
