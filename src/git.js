@@ -269,12 +269,19 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
         await git.remove({ fs, dir: GIT_DIR, filepath: filename });
         console.log(`GIT: Removed ${filename} from git index`);
     } catch (e) {
-        // If git remove fails, we still try to unlink the file
+        if (e.code !== 'NotFoundError') {
+            throw e;
+        }
+        console.log('GIT: Git remove failed (file already gone):', e);
     }
+
     try {
         await pfs.unlink(`${GIT_DIR}/${filename}`);
-        console.log(`GIT: Unlinked ${filename} from FS`);
-    } catch (e) {}
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
+    }
 };
 
 window.finishGitSync = async (creds) => {

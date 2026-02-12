@@ -809,7 +809,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(window.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
 	}
 
-	await Promise.allSettled(promises);
+	await Promise.all(promises);
 }
 
 async function deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, nostrRelays}) {
