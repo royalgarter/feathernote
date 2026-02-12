@@ -46,7 +46,7 @@
 					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
 				</svg>
 
-				<span class="font-bold text-lg font-sans text-gray-900 hidden md:inline-block" 
+				<span class="font-bold text-lg font-sans text-gray-900 hidden md:inline-block"
 					style="color:#A2D2FF;"
 					x-show="!syncStatusMessage && !isSyncing">
 					FeatherNote
@@ -286,14 +286,14 @@
 				</button>
 			</div>
 
-			<div class="grid gap-4 py-2">
+			<div class="grid lg:grid-cols-2 gap-x-10 gap-y-6 py-2">
 				<!-- Login Required Alert -->
 				<!-- <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
 					<strong class="font-bold">Login Required:</strong>
 					<span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
 				</div> -->
 
-				<div class="border-t gap-2 pt-4">
+				<div class="border-t col-span-2 gap-2 pt-4">
 					<!-- Dark Mode Toggle -->
 					<div class="flex items-center py-2 justify-between">
 						<p class="text-sm text-gray-600">Dark Mode</p>
