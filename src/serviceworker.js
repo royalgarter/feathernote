@@ -250,7 +250,7 @@ self.addEventListener('fetch', (event) => {
 					console.error('A critical error occurred in the /share handler:', criticalError);
 				}
 
-				return Response.redirect('/' + (noteIdToRedirect ? `#edit_note-${noteIdToRedirect}` : ''), 303);
+				return Response.redirect('/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : ''), 303);
 			})()
 		);
 		return;

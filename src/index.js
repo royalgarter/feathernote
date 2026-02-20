@@ -110,7 +110,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.createNewNote();
 		} else if (window.location.hash.startsWith('#edit_note-')) {
 			const noteId = window.location.hash.replace('#edit_note-', '');
-			if (noteId) this.editNote(noteId);
+
+			let options = Object.fromEntries(new URLSearchParams(location.search));
+
+			if (noteId) this.editNote(noteId, options);
 		} else if (window.location.hash === '#search') {
 			this.$nextTick(() => document.getElementById('searchInput')?.focus());
 		}
@@ -1280,7 +1283,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	async prepareEasyMDE(id) {
+	async prepareEasyMDE(id, options={}) {
 		if (!window.EasyMDE || !window.marked) {
 			this.easyMDEIniting = true;
 			try {
@@ -1641,6 +1644,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 			});
 
+			if (options?.preview) window.easyMDEInstance?.togglePreview?.();
+
 			this.noteEditorVisible = false;
 			this.easyMDEIniting = false;
 		} catch (ex) {
@@ -1763,14 +1768,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		window.location.hash = '#new_note';
 	},
 
-	async editNote(id) {
+	async editNote(id, options={}) {
 		if (this.editorAutosaveIntervalId) {
 			clearInterval(this.editorAutosaveIntervalId);
 		}
 		this.editingNoteId = id;
 
 		// Load local version immediately for better perceived performance
-		await this.loadNoteIntoEditor(id);
+		await this.loadNoteIntoEditor(id, options);
 
 		window.location.hash = '#edit_note-' + id;
 
@@ -1815,7 +1820,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	// --- Note Editor Methods (moved from noteEditor component) ---
-	async loadNoteIntoEditor(noteOrId) {
+	async loadNoteIntoEditor(noteOrId, options={}) {
 		const isId = typeof noteOrId === 'string';
 		const id = isId ? noteOrId : noteOrId.id;
 
@@ -1836,7 +1841,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.editingNoteId = null;
 		}
 
-		this.$nextTick(() => this.prepareEasyMDE(id));
+		this.$nextTick(() => this.prepareEasyMDE(id, options));
 	},
 
 	async saveNote(isAuto) {
