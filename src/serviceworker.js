@@ -19,6 +19,7 @@ const urlsToCache = [
 	'/favicon.png',
 	'/icons/icons.json',
 	'/icons/ios/180.png',
+	'/icons/ios/192.png',
 	'/icons/ios/32.png',
 	'/icons/ios/16.png',
 	'/icons/ios/512.png',
@@ -88,6 +89,7 @@ self.addEventListener('fetch', (event) => {
 				});
 			})
 		);
+		return;
 	}
 
 	// Intercept image requests
@@ -147,9 +149,12 @@ self.addEventListener('fetch', (event) => {
 
 	// Bypass caching for API requests.
 	if (url.pathname.startsWith('/api/')) {
-		try {
-			event.respondWith(fetch(event.request));
-		} catch (e) {}
+		event.respondWith(fetch(event.request).catch(() => {
+			return new Response(JSON.stringify({ error: 'Offline' }), {
+				status: 503,
+				headers: { 'Content-Type': 'application/json' }
+			});
+		}));
 		return;
 	}
 
@@ -250,15 +255,39 @@ self.addEventListener('fetch', (event) => {
 					console.error('A critical error occurred in the /share handler:', criticalError);
 				}
 
-				return Response.redirect('/' + (noteIdToRedirect ? `#edit_note-${noteIdToRedirect}` : ''), 303);
+				return Response.redirect('/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : ''), 303);
 			})()
 		);
 		return;
 	}
+
+	// Default strategy for same-origin requests (e.g., /, index.html, index.js, etc.)
+	// Use Cache-First falling back to Network.
+	event.respondWith(
+		caches.match(event.request).then((cachedResponse) => {
+			if (cachedResponse) {
+				return cachedResponse;
+			}
+			return fetch(event.request).then((networkResponse) => {
+				if (
+					networkResponse &&
+					networkResponse.status === 200 &&
+					event.request.method === 'GET'
+				) {
+					const responseToCache = networkResponse.clone();
+					caches.open(CACHE_NAME).then((cache) => {
+						cache.put(event.request, responseToCache);
+					});
+				}
+				return networkResponse;
+			});
+		})
+	);
 });
 
 
 self.addEventListener('activate', (event) => {
+	self.clients.claim(); // Take control of all open clients immediately
 	event.waitUntil(
 		caches.keys().then((cacheNames) => {
 			return Promise.all(
