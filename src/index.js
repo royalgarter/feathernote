@@ -238,6 +238,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
+					confirm('Save note before closing?') && this.saveNote(true);
 					this.cancelEdit();
 				}
 			}
@@ -882,7 +883,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const noteToDelete = this.notes.find(note => note.id === id);
 			if (noteToDelete) {
 				if (window.easyMDEInstance?.value?.()?.length || noteToDelete.content?.length) {
-					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}"?`)) return;
+					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}" #${noteToDelete.id} ?`)) return;
 				}
 
 				this.deletedNotesStack.push({ ...noteToDelete }); // For session-only undo
@@ -1124,21 +1125,23 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					const remoteNoteIds = new Set(result.finalRemoteIds);
 					const successfulDeletedIds = new Set(result.successfulDeletedIds || []);
 					
-					this.deletedNoteIds = this.deletedNoteIds.filter(id => {
-						// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
-						if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
+					// TODO: temporary skip this filter
+					// this.deletedNoteIds = this.deletedNoteIds.filter(id => {
+					// 	// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
+					// 	if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
 
-						// If it was successfully deleted in this sync, remove it.
-						if (successfulDeletedIds.has(id)) return false;
+					// 	// If it was successfully deleted in this sync, remove it.
+					// 	if (successfulDeletedIds.has(id)) return false;
 
-						// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
-						if (!remoteNoteIds.has(id)) return false;
+					// 	// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
+					// 	if (!remoteNoteIds.has(id)) return false;
 
-						// Otherwise, it was on the remote but deletion failed. Keep it in queue.
-						return true;
-					});
+					// 	// Otherwise, it was on the remote but deletion failed. Keep it in queue.
+					// 	return true;
+					// });
 
 					if (this.deletedNoteIds.length > 0) {
+						if (this.deletedNoteIds.length > 100) this.deletedNoteIds = this.deletedNoteIds.slice(1).slice(-99);
 						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 					} else {
 						localStorage.removeItem('feathernote-deleted-note-ids');
@@ -1186,7 +1189,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				if (!isSilent) {
-					let syncDescription = `Sync completed: ${result.uploadedCount || 0} uploaded, ${downloadedCount} downloaded, ${result.deletedCount || 0} remote deletes.`;
+					let syncDescription = `Synced: ${result.uploadedCount || 0} up, ${downloadedCount} down, ${result.deletedCount || 0} rm.`;
 					this.showToast({ title: 'Sync Successful', description: syncDescription });
 				}
 			} else {
@@ -1353,9 +1356,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					return (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
+					let renderedHTML = (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
 							? marked.parse(plainText)
 							: window.easyMDEInstance.markdown(plainText);
+
+
+					renderedHTML = renderedHTML.replace(/disabled\=\"\"\s+type\=\"checkbox\"\>/g, 'type="checkbox">');
+					// console.log(renderedHTML);
+
+					setTimeout(() => {
+						document.querySelectorAll(easyMDEqueryPreviewCheckbox).forEach(x => {
+							x.addEventListener('change', easyMDEcheckboxChange);
+						})
+					}, 100);
+
+					return renderedHTML;
 				},
 				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker

@@ -891,3 +891,35 @@ function generateUniqueId(title) {
 		Math.random().toString(36).substring(2, 6),
 	].join('').trim().replace(/$-/, '');
 }
+
+const easyMDEqueryPreviewCheckbox = '.EasyMDEContainer .editor-preview input';
+
+function easyMDEreplaceNth(haystack, searchRegex, replace, index){
+	console.log('easyMDEreplaceNth', haystack.length, searchRegex, replace, index)
+	let occurrence = 0;
+	return haystack.replace(searchRegex, (match) => {
+		console.log('replaceNth.match', match);
+		occurrence++;
+		if (occurrence === index) {
+			return replace;
+		}
+		return match;
+	});
+};
+
+function easyMDEcheckboxChange(event) {
+	const elements = [...document.querySelectorAll(easyMDEqueryPreviewCheckbox)];
+	const index = elements.findIndex(n => n === event.currentTarget);
+
+	if (index < 0) return console.log('easyMDEcheckboxChange index not found', index);
+
+	let markdown = window.easyMDEInstance.codemirror.getValue();
+
+	if (event.target.checked) {
+		markdown = easyMDEreplaceNth(markdown, /\- \[[x|\s]\]/gmi, "- [x]", index + 1);
+	} else {
+		markdown = easyMDEreplaceNth(markdown, /\- \[[x|\s]\]/gmi, "- [ ]", index + 1);
+	}
+
+	window.easyMDEInstance.codemirror.setValue(markdown);
+}

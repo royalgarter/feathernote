@@ -129,13 +129,13 @@
 					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 				</button> -->
 
-				<div class="flex justify-between items-center mb-2 md:mb-4">
-					<h3 class="text-lg font-bold p-1 md:p-0" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
-					<button @click="saveNote();cancelEdit();" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
-						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				<div class="flex justify-between items-center mb-1 md:mb-4">
+					<h3 class="text-lg text-gray-500 font-semibold" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
+					<button @click="confirm('Save note before closing?') && saveNote(); cancelEdit();" class="cursor-pointer rounded-full text-gray-400 hover:bg-gray-200" aria-label="Close settings">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
 				</div>
-				<div class="mb-2 md:mb-4">
+				<div class="mb-1 md:mb-4">
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
 				</div>
 				<div class="mb-4">
