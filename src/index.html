@@ -339,7 +339,7 @@
 					</div>
 				</div>
 
-				<fieldset class="grid gap-2 border-t pt-4 text-sm" __disabled="!isSyncConfigured" >
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm" __disabled="!isSyncConfigured" >
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-region" class="text-right">S3 Region</label>
 						<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
@@ -366,9 +366,7 @@
 					</div>
 				</fieldset>
 
-				
-
-				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-repo-url" class="text-right text-sm">Git Repo URL</label>
 						<input id="git-repo-url" x-model="gitRepoUrl" class="col-span-3 border rounded-md p-2" placeholder="https://github.com/user/feathernote.git" autocomplete="url" />
@@ -395,7 +393,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
 						<input id="nostr-private-key" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
@@ -406,7 +404,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-api-key" class="text-right">AI API Key</label>
 						<input id="ai-api-key" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="aiApiKey" class="col-span-3 border rounded-md p-2" placeholder="sk-B14h8lah..." autocomplete="new-password" />
@@ -421,7 +419,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="firebase-config" class="text-right">Firebase Config (JSON)</label>
 						<textarea id="firebase-config" x-model="firebaseConfig" class="col-span-3 border rounded-md p-2 h-24 font-mono text-xs" placeholder='{"apiKey": "...", "projectId": "...", "messagingSenderId": "...", "appId": "..."}' autocomplete="off"></textarea>
