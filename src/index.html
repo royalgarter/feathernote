@@ -131,7 +131,7 @@
 
 				<div class="flex justify-between items-center mb-1 md:mb-4">
 					<h3 class="text-lg text-gray-500 font-semibold" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
-					<button @click="confirm('Save note before closing?') && saveNote(); cancelEdit();" class="cursor-pointer rounded-full text-gray-400 hover:bg-gray-200" aria-label="Close settings">
+					<button @click=" (noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && saveNote(); cancelEdit();" class="cursor-pointer rounded-full text-gray-400 hover:bg-gray-200" aria-label="Close settings">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
 				</div>
@@ -177,7 +177,9 @@
 		<template x-if="editingNoteId === null">
 			<div id="notes-list" class="px-2 md:px-4 py-2 md:py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
-					<div class="flex flex-col justify-between transition-shadow bg-white hover:cursor-pointer hover:bg-gray-50 h-full rounded-lg p-4">
+					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full rounded-lg p-4"
+						:style="{ 'background-color': getNoteColor(note) }"
+						:class="darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
 						<div class="flex-grow" @click="editNote(note.id)">
 							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
 							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
