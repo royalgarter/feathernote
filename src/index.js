@@ -238,6 +238,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					event.preventDefault();
 					this.createNewNote();
 				}
+			} else if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+				if (!this.editingNoteId) {
+					document.querySelector('#searchInput').focus();
+				}
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();

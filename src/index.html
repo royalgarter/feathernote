@@ -33,7 +33,7 @@
 	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
-<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden custom-scrollbar" :class="{'dark': darkMode, 'bg-gray-200': !darkMode}" x-data="mainApp()" x-init="init()">
+<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden custom-scrollbar" :class="{'dark': darkMode, 'bg-gray-50': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
 	<header class="sticky top-0 z-10 w-full min-w-full border-b bg-white">
 		<div class="container flex h-16 items-center justify-between py-2 md:py-4 w-full min-w-full max-w-max mx-auto px-4 lg:px-12">
@@ -103,7 +103,7 @@
 		<template x-if="editingNoteId === null">
 			<div id="search" class="flex justify-between items-center px-2 md:px-4 pt-6 pb-2 gap-4">
 				<div class="relative w-full max-w-xs">
-					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="w-full border border-gray-300 rounded-md py-2 px-4" :placeholder="'🔍 Search ' + (notes.length || '') + ' notes...'"/>
+					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border border-gray-300 rounded-md py-2 px-4" :placeholder="'🔍 Search ' + (notes.length || '') + ' notes...'"/>
 					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-60 overflow-y-auto">
 						<template x-for="suggestion in suggestions" :key="suggestion.id">
 							<div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:bg-gray-100">
@@ -181,7 +181,7 @@
 						:style="{ 'background-color': getNoteColor(note) }"
 						:class="darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
 						<div class="flex-grow" @click="editNote(note.id)">
-							<p class="text-xs text-gray-400 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
+							<p class="text-xs text-gray-600 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
 							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
 							<template x-if="getCoverImage(note)">
 								<img :src="getCoverImage(note)" loading="lazy" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
