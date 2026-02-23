@@ -64,6 +64,22 @@ function base64ToBuffer(base64) {
 	return bytes.buffer;
 }
 
+function hashColor(text) {
+	return ((hashText(text) || 128) % 256) + 0;
+}
+
+function hashText(text) {
+	if (!text?.length) return 0;
+
+	let hash = 5381; // djb2 hash function initial value
+	for (let i = 0; i < text.length; i++) {
+		hash = ((hash << 5) + hash) + text.charCodeAt(i); // hash * 33 + char
+	}
+	hash = Math.abs(hash); // Ensure hash is positive
+
+	return hash;
+}
+
 async function calculateHash(text) {
 	const enc = new TEXT_ENCODER();
 	const data = enc.encode(text);

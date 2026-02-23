@@ -288,53 +288,33 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	getNoteColor(note) {
 		if (!note) return this.darkMode ? 'rgba(31, 41, 55, 1)' : 'rgba(255, 255, 255, 1)';
 
-		const {title, tags} = note;
+		const {id, title, content, tags} = note;
+
+		/* v3: Content modulo 3 rbga */
+		let items = tags.length ? tags : [title, content, id].join(' ').split(/\W/).slice(0, 9);
+		for (let i=0; i<3; i++) items[i] = items.filter((x, j) => j%3 == i).reduce((a, x) => a + x, '');
+		let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
+		return rgba;
+
 		const text = tags?.[0] || title.substr(0, 18);
+		let hash = hashText(text);
 
-		let hash = 5381; // djb2 hash function initial value
-		for (let i = 0; i < text.length; i++) {
-			hash = ((hash << 5) + hash) + text.charCodeAt(i); // hash * 33 + char
-		}
-		hash = Math.abs(hash); // Ensure hash is positive
-
-		/* DEPRECATED: Old HSL generation
+		/* v1: HSL generation */
 		const h = hash % 360; // Hue component (0-359)
 		const s = this.darkMode ? '20%' : '80%'; // Saturation
 		const l = this.darkMode ? '40%' : '85%'; // Lightness
 		return `hsl(${h}, ${s}, ${l})`;
-		*/
 
+		/* v2: Palette Preset */
 		const PALETTE = [
-			'#37BC9B', //MINT
-			'#3BAFDA', //AQUA
-			'#48CFAD', //MINT
-			'#4A89DC', //BLUE JEANS
-			'#4FC1E9', //AQUA
-			'#5D9CEC', //BLUE JEANS
-			'#6A50A7', //PLUM
-			'#7DB1B1', //TEAL
-			'#8067B7', //PLUM
-			'#8CC152', //GRASS
-			'#967ADC', //LAVANDER
-			'#A0CECB', //TEAL
-			'#A0D468', //GRASS
-			'#AC92EC', //LAVANDER
-			'#BF263C', //RUBY
-			'#D770AD', //PINK ROSE
-			'#D8334A', //RUBY
-			'#DA4453', //GRAPEFRUIT
-			'#E0C341', //STRAW
-			'#E8CE4D', //STRAW
-			'#E9573F', //BITTERSWEET
-			'#EC87C0', //PINK ROSE
-			'#ED5565', //GRAPEFRUIT
-			'#F6BB42', //SUNFLOWER
-			'#FC6E51', //BITTERSWEET
-			'#FFCE54', //SUNFLOWER
+			'#37BC9B'/*MINT*/, '#3BAFDA'/*AQUA*/, '#48CFAD'/*MINT*/, '#4A89DC'/*BLUE JEANS*/, '#4FC1E9'/*AQUA*/,
+			'#5D9CEC'/*BLUE JEANS*/, '#6A50A7'/*PLUM*/, '#7DB1B1'/*TEAL*/, '#8067B7'/*PLUM*/, '#8CC152'/*GRASS*/,
+			'#967ADC'/*LAVANDER*/, '#A0CECB'/*TEAL*/, '#A0D468'/*GRASS*/, '#AC92EC'/*LAVANDER*/, '#BF263C'/*RUBY*/,
+			'#D770AD'/*PINK ROSE*/, '#D8334A'/*RUBY*/, '#DA4453'/*GRAPEFRUIT*/, '#E0C341'/*STRAW*/,
+			'#E8CE4D'/*STRAW*/, '#E9573F'/*BITTERSWEET*/, '#EC87C0'/*PINK ROSE*/, '#ED5565'/*GRAPEFRUIT*/,
+			'#F6BB42'/*SUNFLOWER*/, '#FC6E51'/*BITTERSWEET*/, '#FFCE54'/*SUNFLOWER*/,
 		];
-
 		const color = PALETTE[hash % PALETTE.length] + (this.darkMode ? '66' : 'CC');
-
 		return color;
 	},
 
