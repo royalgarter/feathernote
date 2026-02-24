@@ -93,7 +93,7 @@ const listNotesInS3 = async (creds) => {
 		try {
 			const data = await s3.listObjectsV2(params).promise();
 			const s3NoteMetadata = data.Contents?.map(item => {
-				if (!item.Key || item.Key.endsWith('/') || item.Key.includes('/images/') || !item.Key.includes('.json')) return null;
+				if (!item.Key || item.Key.endsWith('/') || item.Key.includes('/images/') || !item.Key.includes('.json') || item.Key.endsWith('deleted-notes.json')) return null;
 
 				const relativeKey = item.Key.replace(prefix, '').replace('.json', '');
 				return {
@@ -156,6 +156,8 @@ const getNoteMetadataFromS3 = async (noteOrId, creds) => {
 		const s3 = await getS3Client(creds);
 		const id = typeof noteOrId === 'string' ? noteOrId : noteOrId.id;
 		let key = getS3ObjectKey(noteOrId.path || noteOrId, creds);
+
+		if (key.endsWith('deleted-notes.json')) return null;
 
 		const params = {
 			Bucket: creds.bucket,
@@ -332,6 +334,55 @@ const deleteImageFromS3 = async (imageId, creds) => {
 		console.error(`S3 Delete Error for image ${imageId}:`, error);
 		throw new Error(`Failed to delete image from S3: ${error.code || error.message}`);
 	}
+};
+
+const uploadDeletedNotesToS3 = async (deletedIds, creds) => {
+	if (!creds?.secretAccessKey) return;
+
+	const s3 = await getS3Client(creds);
+	const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+	const key = `${path}deleted-notes.json`;
+
+	const params = {
+		Bucket: creds.bucket,
+		Key: key,
+		Body: JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2),
+		ContentType: 'application/json',
+	};
+
+	await s3.upload(params).promise();
+};
+
+const downloadDeletedNotesFromS3 = async (creds) => {
+	if (!creds?.secretAccessKey) return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+
+	const s3 = await getS3Client(creds);
+	const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+	const key = `${path}deleted-notes.json`;
+
+	const params = {
+		Bucket: creds.bucket,
+		Key: key,
+	};
+
+	try {
+		const data = await s3.getObject(params).promise();
+		if (data?.Body) {
+			const str = (new TextDecoder()).decode(data.Body);
+			const parsed = JSON.parse(str);
+			// Return the full object including the updatedAt from the file content
+			return {
+				ids: parsed.ids || [],
+				updatedAt: parsed.updatedAt || new Date(data.LastModified).toISOString()
+			};
+		}
+	} catch (err) {
+		if (err.code === 'NoSuchKey' || err.name === 'NoSuchKey') {
+			return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+		}
+		throw err;
+	}
+	return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
 };
 
 const getPresignedUrl = async (note, creds) => {

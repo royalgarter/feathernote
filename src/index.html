@@ -193,7 +193,7 @@
 						</div>
 						<div class="mt-4">
 							<div class="flex flex-wrap gap-1 mb-2">
-								<template x-for="tag in note.tags" :key="tag">
+								<template x-for="tag in note.tags.filter(x=>x)" :key="tag">
 									<span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
 								</template>
 							</div>

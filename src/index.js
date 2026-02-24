@@ -291,7 +291,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const {id, title, content, tags} = note;
 
 		/* v3: Content modulo 3 rbga */
-		let items = tags.length ? tags : [title, content, id].join(' ').split(/\W/).slice(0, 9);
+		let items = tags.length ? [...tags] : [title, content, id].join(' ').split(/\W/).slice(0, 9);
 		for (let i=0; i<3; i++) items[i] = items.filter((x, j) => j%3 == i).reduce((a, x) => a + x, '');
 		let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
 		return rgba;
@@ -1161,27 +1161,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				// Handle deletedNoteIds queue
-				if (result.finalRemoteIds) {
-					const remoteNoteIds = new Set(result.finalRemoteIds);
-					const successfulDeletedIds = new Set(result.successfulDeletedIds || []);
-					
-					// TODO: temporary skip this filter
-					// this.deletedNoteIds = this.deletedNoteIds.filter(id => {
-					// 	// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
-					// 	if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
-
-					// 	// If it was successfully deleted in this sync, remove it.
-					// 	if (successfulDeletedIds.has(id)) return false;
-
-					// 	// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
-					// 	if (!remoteNoteIds.has(id)) return false;
-
-					// 	// Otherwise, it was on the remote but deletion failed. Keep it in queue.
-					// 	return true;
-					// });
+				if (result.effectiveDeletedNoteIds) {
+					this.deletedNoteIds = result.effectiveDeletedNoteIds;
 
 					if (this.deletedNoteIds.length > 0) {
-						if (this.deletedNoteIds.length > 100) this.deletedNoteIds = this.deletedNoteIds.slice(1).slice(-99);
 						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 					} else {
 						localStorage.removeItem('feathernote-deleted-note-ids');

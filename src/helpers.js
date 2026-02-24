@@ -360,6 +360,69 @@ const getSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'reado
 const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'add', item);
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
 
+async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore}) {
+	const remoteLists = [];
+
+	// --- Download Phase ---
+	if (credentials?.secretAccessKey) {
+		remoteLists.push(await downloadDeletedNotesFromS3(credentials));
+	}
+	if (gitCredentials?.repoUrl) {
+		remoteLists.push(await window.downloadDeletedNotesFromGit(gitCredentials));
+	}
+	if (gdriveStore?.connected) {
+		remoteLists.push(await window.downloadDeletedNotesFromGoogleDrive());
+	}
+
+	// --- Merge Phase ---
+	// 1. Find the master list (most recent)
+	let masterList = { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+	if (remoteLists.length > 0) {
+		masterList = remoteLists.reduce((newest, current) => {
+			return new Date(current.updatedAt) > new Date(newest.updatedAt) ? current : newest;
+		});
+	}
+
+	// 2. Merge local and other remote IDs into the master list
+	const initialMasterIds = new Set(masterList.ids);
+	let finalIds = new Set(initialMasterIds);
+	
+	// Add local IDs
+	deletedNoteIds.forEach(id => finalIds.add(id));
+	
+	// Add IDs from other non-master remote lists
+	remoteLists.forEach(list => {
+		if (list !== masterList) {
+			list.ids.forEach(id => finalIds.add(id));
+		}
+	});
+
+	const finalIdArray = Array.from(finalIds).slice(-100);
+
+	// --- Upload Phase ---
+	// 3. Only upload if the list has actually changed
+	const hasChanged = finalIdArray.length !== initialMasterIds.size || !finalIdArray.every(id => initialMasterIds.has(id));
+
+	if (hasChanged) {
+		console.log('Deleted notes list has changed, uploading to all providers.');
+		const uploadPromises = [];
+		if (credentials?.secretAccessKey) {
+			uploadPromises.push(uploadDeletedNotesToS3(finalIdArray, credentials));
+		}
+		if (gitCredentials?.repoUrl) {
+			uploadPromises.push(window.uploadDeletedNotesToGit(finalIdArray, gitCredentials));
+		}
+		if (gdriveStore?.connected) {
+			uploadPromises.push(window.uploadDeletedNotesToGoogleDrive(finalIdArray));
+		}
+		await Promise.allSettled(uploadPromises);
+	} else {
+		console.log('Deleted notes list is already in sync. No upload needed.');
+	}
+
+	return finalIdArray;
+}
+
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials}) {
 	try {
 		// Initialize Git if configured
@@ -374,6 +437,9 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			error: 'No sync provider configured (S3, Git, or GDrive)',
 		};
 
+		// --- Step 0: Sync Deleted IDs ---
+		const effectiveDeletedNoteIds = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
+
 		// --- Step 1: Get remote state FIRST ---
 		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
@@ -383,7 +449,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const localNotes = notes || await getNotesDB();
 		const notesToUpload = localNotes.filter(localNote => {
 			// Don't upload notes that are slated for deletion.
-			if (deletedNoteIds.includes(localNote.id)) return false;
+			if (effectiveDeletedNoteIds.includes(localNote.id)) return false;
 
 			const remoteMeta = remoteMetaMap.get(localNote.id);
 			if (!remoteMeta) {
@@ -414,7 +480,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		}));
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
-		const deletePromises = deletedNoteIds.map(noteId => {
+		const deletePromises = effectiveDeletedNoteIds.map(noteId => {
 			const remoteMeta = remoteMetaMap.get(noteId);
 			const gdriveMeta = gdriveMap?.get(noteId);
 			return deleteNoteFromRemotes({
@@ -435,7 +501,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				} else {
 					// The index of the deletedId corresponds to the index in the deletePromises array
 					const deletedIdIndex = index - uploadPromises.length;
-					successfulDeletedIds.push(deletedNoteIds[deletedIdIndex]);
+					successfulDeletedIds.push(effectiveDeletedNoteIds[deletedIdIndex]);
 				}
 			} else {
 				console.error('Sync error during upload/delete:', result.reason);
@@ -463,7 +529,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			const localNote = allLocalNotesMap.get(remoteMeta.id);
 			if (!localNote) {
 				// Note exists on remote but not local, and isn't in the local delete list. Download it.
-				if (!deletedNoteIds.includes(remoteMeta.id)) {
+				if (!effectiveDeletedNoteIds.includes(remoteMeta.id)) {
 					notesToDownload.push(remoteMeta);
 				}
 			} else {
@@ -480,7 +546,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const remoteNoteIds = new Set(remoteNoteMetadata.map(m => m.id));
 		
 		if (!isPartialSync) {
-			const locallyDeletedNoteIds = new Set(deletedNoteIds);
+			const locallyDeletedNoteIds = new Set(effectiveDeletedNoteIds);
 			const uploadedNoteIds = new Set(notesToUpload.map(n => n.id));
 
 			// Create a set of all local note IDs for easier checking
@@ -538,7 +604,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			successfulDeletedIds, // downloaded notes
 			updatedNotes, // downloaded notes
 			notesToDeleteLocally,
-			finalRemoteIds: Array.from(remoteNoteIds)
+			finalRemoteIds: Array.from(remoteNoteIds),
+			effectiveDeletedNoteIds
 		};
 	} catch (error) {
 		console.error('synchronize error:', error);

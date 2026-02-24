@@ -275,17 +275,39 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
         console.log('GIT: Git remove failed (file already gone):', e);
     }
 
-    try {
-        await pfs.unlink(`${GIT_DIR}/${filename}`);
-    } catch (e) {
-        if (e.code !== 'ENOENT') {
-            throw e;
-        }
-    }
-};
-
-window.finishGitSync = async (creds) => {
-    if (!creds.repoUrl) return;
+    	try {
+    		await pfs.unlink(`${GIT_DIR}/${filename}`);
+    	} catch (e) {
+    		if (e.code !== 'ENOENT') {
+    			throw e;
+    		}
+    	}
+    };
+    
+    window.uploadDeletedNotesToGit = async (deletedIds, creds) => {
+    	const filename = 'deleted-notes.json';
+    	const content = JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2);
+    	
+    	await pfs.writeFile(`${GIT_DIR}/${filename}`, content, 'utf8');
+    	await git.add({ fs, dir: GIT_DIR, filepath: filename });
+    };
+    
+    window.downloadDeletedNotesFromGit = async (creds) => {
+    	const filename = 'deleted-notes.json';
+    	const filepath = `${GIT_DIR}/${filename}`;
+    	try {
+    		const content = await pfs.readFile(filepath, 'utf8');
+    		const parsed = JSON.parse(content);
+    		// Prefer the timestamp from the file content, but fall back to file system stat
+    		const stat = await pfs.stat(filepath);
+    		return {
+    			ids: parsed.ids || [],
+    			updatedAt: parsed.updatedAt || new Date(stat.mtimeMs).toISOString()
+    		};
+    	} catch (e) {
+    		return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+    	}
+    };    window.finishGitSync = async (creds) => {    if (!creds.repoUrl) return;
 
     try {
         const config = getGitConfig(creds);

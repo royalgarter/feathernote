@@ -329,15 +329,122 @@ window.listNotesInGDrive = async function() {
 	try {
 		const files = await listAllFilesFromGoogleDrive();
 		// Convert to unified metadata format
-		return files.map(file => ({
-			id: file.name.replace('.json', ''),
-			updatedAt: new Date(file.modifiedTime).toISOString(),
-			source: 'gdrive',
-			fileId: file.id
-		}));
+		return files
+			.filter(file => file.name !== 'deleted-notes.json')
+			.map(file => ({
+				id: file.name.replace('.json', ''),
+				updatedAt: new Date(file.modifiedTime).toISOString(),
+				source: 'gdrive',
+				fileId: file.id
+			}));
 	} catch (error) {
 		console.error('Error listing GDrive notes:', error);
 		return [];
+	}
+};
+
+/**
+ * Downloads deleted-notes.json from Google Drive.
+ * @returns {Promise<Array>} A promise that resolves with the list of deleted IDs.
+ */
+window.downloadDeletedNotesFromGoogleDrive = async function() {
+	if (!accessToken) return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+	try {
+		// Try to find it in the cache first
+		let file = REMOTE_GOOGLEDRIVE_FILES.find(f => f.name === 'deleted-notes.json');
+		
+		if (!file) {
+			// If not in cache, list root folder specifically
+			const rootFolderId = await ensureAppFolder();
+			const response = await gapi.client.drive.files.list({
+				q: `name = 'deleted-notes.json' and '${rootFolderId}' in parents and trashed = false`,
+				fields: 'files(id, name, modifiedTime)', // Request modifiedTime
+				spaces: 'drive',
+			});
+			if (response.result.files && response.result.files.length > 0) {
+				file = response.result.files[0];
+			}
+		}
+
+		if (!file) return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+
+		const response = await gapi.client.drive.files.get({
+			fileId: file.id,
+			alt: 'media'
+		});
+
+		if (response.body) {
+			const data = JSON.parse(response.body);
+			return {
+				ids: data.ids || [],
+				updatedAt: data.updatedAt || new Date(file.modifiedTime).toISOString()
+			};
+		}
+	} catch (err) {
+		console.error('Error downloading deleted-notes.json from GDrive:', err);
+	}
+	return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+};
+
+/**
+ * Uploads deleted-notes.json to Google Drive.
+ * @param {Array} deletedIds The list of deleted note IDs.
+ */
+window.uploadDeletedNotesToGoogleDrive = async function(deletedIds) {
+	if (!accessToken) return;
+
+	try {
+		const rootFolderId = await ensureAppFolder();
+		const boundary = '-------314159265358979323846';
+		const delimiter = "\r\n--" + boundary + "\r\n";
+		const close_delim = "\r\n--" + boundary + "--";
+
+		const metadata = {
+			'name': 'deleted-notes.json',
+			'mimeType': 'application/json',
+			'parents': [rootFolderId]
+		};
+
+		const content = {
+			ids: deletedIds,
+			updatedAt: new Date().toISOString()
+		};
+
+		// Check if it already exists
+		let existingFileId = REMOTE_GOOGLEDRIVE_FILES.find(f => f.name === 'deleted-notes.json')?.id;
+		if (!existingFileId) {
+			const response = await gapi.client.drive.files.list({
+				q: `name = 'deleted-notes.json' and '${rootFolderId}' in parents and trashed = false`,
+				fields: 'files(id, name)',
+				spaces: 'drive',
+			});
+			if (response.result.files && response.result.files.length > 0) {
+				existingFileId = response.result.files[0].id;
+			}
+		}
+
+		const multipartRequestBody =
+			delimiter +
+			'Content-Type: application/json\r\n\r\n' +
+			JSON.stringify(metadata) +
+			delimiter +
+			'Content-Type: application/json\r\n\r\n' +
+			JSON.stringify(content) +
+			close_delim;
+
+		const path = existingFileId ? `/upload/drive/v3/files/${existingFileId}` : '/upload/drive/v3/files';
+
+		await gapi.client.request({
+			'path': path,
+			'method': existingFileId ? 'PATCH' : 'POST',
+			'params': { 'uploadType': 'multipart' },
+			'headers': {
+				'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+			},
+			'body': multipartRequestBody
+		});
+	} catch (err) {
+		console.error('Error uploading deleted-notes.json to GDrive:', err);
 	}
 };
 
