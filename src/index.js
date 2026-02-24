@@ -238,9 +238,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					event.preventDefault();
 					this.createNewNote();
 				}
+			} else if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+				if (!this.editingNoteId) {
+					document.querySelector('#searchInput').focus();
+				}
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
+					(this.noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && this.saveNote(true);
 					this.cancelEdit();
 				}
 			}
@@ -278,6 +283,39 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			note._cover = new URL(match[1]).href;
 			return match[1];
 		} catch (e) { return null }
+	},
+
+	getNoteColor(note) {
+		if (!note) return this.darkMode ? 'rgba(31, 41, 55, 1)' : 'rgba(255, 255, 255, 1)';
+
+		const {id, title, content, tags} = note;
+
+		/* v3: Content modulo 3 rbga */
+		let items = tags.length ? tags : [title, content, id].join(' ').split(/\W/).slice(0, 9);
+		for (let i=0; i<3; i++) items[i] = items.filter((x, j) => j%3 == i).reduce((a, x) => a + x, '');
+		let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
+		return rgba;
+
+		const text = tags?.[0] || title.substr(0, 18);
+		let hash = hashText(text);
+
+		/* v1: HSL generation */
+		const h = hash % 360; // Hue component (0-359)
+		const s = this.darkMode ? '20%' : '80%'; // Saturation
+		const l = this.darkMode ? '40%' : '85%'; // Lightness
+		return `hsl(${h}, ${s}, ${l})`;
+
+		/* v2: Palette Preset */
+		const PALETTE = [
+			'#37BC9B'/*MINT*/, '#3BAFDA'/*AQUA*/, '#48CFAD'/*MINT*/, '#4A89DC'/*BLUE JEANS*/, '#4FC1E9'/*AQUA*/,
+			'#5D9CEC'/*BLUE JEANS*/, '#6A50A7'/*PLUM*/, '#7DB1B1'/*TEAL*/, '#8067B7'/*PLUM*/, '#8CC152'/*GRASS*/,
+			'#967ADC'/*LAVANDER*/, '#A0CECB'/*TEAL*/, '#A0D468'/*GRASS*/, '#AC92EC'/*LAVANDER*/, '#BF263C'/*RUBY*/,
+			'#D770AD'/*PINK ROSE*/, '#D8334A'/*RUBY*/, '#DA4453'/*GRAPEFRUIT*/, '#E0C341'/*STRAW*/,
+			'#E8CE4D'/*STRAW*/, '#E9573F'/*BITTERSWEET*/, '#EC87C0'/*PINK ROSE*/, '#ED5565'/*GRAPEFRUIT*/,
+			'#F6BB42'/*SUNFLOWER*/, '#FC6E51'/*BITTERSWEET*/, '#FFCE54'/*SUNFLOWER*/,
+		];
+		const color = PALETTE[hash % PALETTE.length] + (this.darkMode ? '66' : 'CC');
+		return color;
 	},
 
 	showToast({ title, description, variant = 'default', duration = 3e3, quiet }) {
@@ -885,7 +923,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const noteToDelete = this.notes.find(note => note.id === id);
 			if (noteToDelete) {
 				if (window.easyMDEInstance?.value?.()?.length || noteToDelete.content?.length) {
-					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}"?`)) return;
+					if (!confirm(`Delete note "${noteToDelete.title || noteToDelete.id}" #${noteToDelete.id} ?`)) return;
 				}
 
 				this.deletedNotesStack.push({ ...noteToDelete }); // For session-only undo
@@ -1127,21 +1165,23 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					const remoteNoteIds = new Set(result.finalRemoteIds);
 					const successfulDeletedIds = new Set(result.successfulDeletedIds || []);
 					
-					this.deletedNoteIds = this.deletedNoteIds.filter(id => {
-						// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
-						if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
+					// TODO: temporary skip this filter
+					// this.deletedNoteIds = this.deletedNoteIds.filter(id => {
+					// 	// If we didn't even try to sync this ID (e.g. during a restricted sync while editing), keep it.
+					// 	if (effectiveDeletedIds && !effectiveDeletedIds.includes(id)) return true;
 
-						// If it was successfully deleted in this sync, remove it.
-						if (successfulDeletedIds.has(id)) return false;
+					// 	// If it was successfully deleted in this sync, remove it.
+					// 	if (successfulDeletedIds.has(id)) return false;
 
-						// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
-						if (!remoteNoteIds.has(id)) return false;
+					// 	// If it wasn't even on the remote when we started, it's effectively deleted. Remove it.
+					// 	if (!remoteNoteIds.has(id)) return false;
 
-						// Otherwise, it was on the remote but deletion failed. Keep it in queue.
-						return true;
-					});
+					// 	// Otherwise, it was on the remote but deletion failed. Keep it in queue.
+					// 	return true;
+					// });
 
 					if (this.deletedNoteIds.length > 0) {
+						if (this.deletedNoteIds.length > 100) this.deletedNoteIds = this.deletedNoteIds.slice(1).slice(-99);
 						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
 					} else {
 						localStorage.removeItem('feathernote-deleted-note-ids');
@@ -1189,7 +1229,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				if (!isSilent) {
-					let syncDescription = `Sync completed: ${result.uploadedCount || 0} uploaded, ${downloadedCount} downloaded, ${result.deletedCount || 0} remote deletes.`;
+					let syncDescription = `Synced: ${result.uploadedCount || 0} up, ${downloadedCount} down, ${result.deletedCount || 0} rm.`;
 					this.showToast({ title: 'Sync Successful', description: syncDescription });
 				}
 			} else {
@@ -1356,9 +1396,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					return (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
+					let renderedHTML = (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
 							? marked.parse(plainText)
 							: window.easyMDEInstance.markdown(plainText);
+
+
+					renderedHTML = renderedHTML.replace(/disabled\=\"\"\s+type\=\"checkbox\"\>/g, 'type="checkbox">');
+					// console.log(renderedHTML);
+
+					setTimeout(() => {
+						document.querySelectorAll(easyMDEqueryPreviewCheckbox).forEach(x => {
+							x.addEventListener('change', easyMDEcheckboxChange);
+						})
+					}, 100);
+
+					return renderedHTML;
 				},
 				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
