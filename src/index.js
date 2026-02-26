@@ -1679,7 +1679,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 			});
 
-			if (options?.preview) window.easyMDEInstance?.togglePreview?.();
+			this.$nextTick(() => !document.querySelector('.EasyMDEContainer .editor-preview-active')
+				&& (new URLSearchParams(location.search).get('preview') == 'true')
+				&& window.easyMDEInstance?.togglePreview?.()
+			);
 
 			this.noteEditorVisible = false;
 			this.easyMDEIniting = false;
