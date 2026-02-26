@@ -382,7 +382,7 @@
 			<div class="flex justify-end gap-2 mt-4 border-t pt-4">
 				<button @click="openImport()" class="cursor-pointer border px-4 py-2">Import</button>
 				<button @click="handleExport()" class="cursor-pointer border px-4 py-2">Export</button>
-				<button @click="handleSync()" class="cursor-pointer border px-4 py-2" :disabled="isSyncButtonDisabled">
+				<button @click="handleSync()" class="cursor-pointer border px-4 py-2" ___disabled="isSyncButtonDisabled">
 					<span x-text="isManualSyncing ? 'Syncing...' : 'Sync'"></span>
 				</button>
 				<button @click="handleSave()" class="cursor-pointer border px-4 py-2 font-bold">
