@@ -293,7 +293,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		/* v3: Content modulo 3 rbga */
 		let items = tags.length ? [...tags] : [title, content, id].join(' ').split(/\W/).slice(0, 9);
 		for (let i=0; i<3; i++) items[i] = items.filter((x, j) => j%3 == i).reduce((a, x) => a + x, '');
-		let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
+		// let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
+		let rgba = `rgb(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])})`;
 		return rgba;
 
 		const text = tags?.[0] || title.substr(0, 18);
@@ -2309,6 +2310,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const encryptedString = storedData ? storedData.encryptedSettings : null;
 		if (encryptedString) {
 			this.exportString = encryptedString;
+
+			await navigator.clipboard.writeText(exportString);
+
+			const copyText = document.querySelector('textarea[x-model="exportString"]');
+			copyText.select();
+			copyText.setSelectionRange(0, 99999);
+			document.execCommand("copy");
+
 		} else {
 			this.showToast({ variant: 'error', title: 'Nothing to Export', description: 'No saved settings found.' });
 		}

@@ -40,13 +40,13 @@
 			<a href="#" class="flex items-center gap-2">
 				<!-- FeatherIcon Placeholder -->
 				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 1115 1115">
-					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M678.345,436.489 L248.424,866.410 "/>
-					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M345.298,769.537 L338.934,514.271 L563.794,289.411 C563.794,289.411 705.043,190.244 813.402,298.603 C921.761,406.962 828.853,553.268 828.853,553.268 L603.391,778.729 L345.298,769.537 Z"/>
-					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M720.771,652.864 L477.460,652.864 "/>
-					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M678.345,436.489 L248.424,866.410 "/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M345.298,769.537 L338.934,514.271 L563.794,289.411 C563.794,289.411 705.043,190.244 813.402,298.603 C921.761,406.962 828.853,553.268 828.853,553.268 L603.391,778.729 L345.298,769.537 Z"/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M720.771,652.864 L477.460,652.864 "/>
+					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
 				</svg>
 
-				<span class="font-bold text-lg font-sans hidden md:inline-block"
+				<span class="font-bold text-lg font-sans hidden md:inline-block" style="color:#A2D2FF;"
 					x-show="!syncStatusMessage && !isSyncing">
 					FeatherNote
 				</span>
@@ -127,7 +127,7 @@
 					</button>
 				</div>
 				<div class="mb-4">
-					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border p-2" placeholder="Note Title" />
+					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border p-2" :readonly="noteEditorTitle == 'Shared Inbox'" placeholder="Note Title" />
 				</div>
 				<div class="mb-4">
 					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full border p-4">
@@ -156,13 +156,16 @@
 		<template x-if="editingNoteId === null">
 			<div id="notes-list" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
-					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer" @click="editNote(note.id)">
+					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer" 
+						:style="{ 'border-color': getNoteColor(note) }"
+						@click="editNote(note.id)"
+					>
 						<div class="flex-grow min-w-0">
 							<div class="flex justify-between items-baseline mb-2">
 								<span class="text-xs italic" x-text="formatDate(note.updatedAt)"></span>
 								<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
 							</div>
-							<h4 class="text-base font-bold truncate mb-2" x-text="note.title"></h4>
+							<h4 class="text-base font-bold truncate mb-2" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
 							<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>
 						
@@ -359,22 +362,22 @@
 						<input id="firebase-schedule-url" x-model="firebaseScheduleUrl" class="col-span-3 border p-1" autocomplete="url" />
 					</div>
 				</fieldset>
-			</div>
 
-			<!-- Import/Export Modals (Simplified) -->
-			<div x-show="showImportModal" class="absolute inset-0 z-20 bg-white p-4 border" style="display: none;">
-				<textarea x-model="importString" class="w-full border p-2 mb-2" rows="5" placeholder="Paste settings string..."></textarea>
-				<div class="flex justify-end gap-2">
-					<button @click="showImportModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
-					<button @click="handleImport()" class="cursor-pointer border px-4 py-2 font-bold">Import</button>
+				<!-- Import/Export Modals (Simplified) -->
+				<div x-show="showImportModal" class="w-full col-span-2 lg:col-span-1 bg-white p-4 border" style="display: none;">
+					<textarea x-model="importString" class="w-full border p-2 mb-2" rows="5" placeholder="Paste settings string..."></textarea>
+					<div class="flex justify-end gap-2">
+						<button @click="showImportModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
+						<button @click="handleImport()" class="cursor-pointer border px-4 py-2 font-bold">Import</button>
+					</div>
 				</div>
-			</div>
 
-			<div x-show="showExportModal" class="absolute inset-0 z-20 bg-white p-4 border" style="display: none;">
-				<p class="text-sm mb-2">Copy this settings string:</p>
-				<textarea readonly x-model="exportString" class="w-full border p-2 mb-2" rows="5"></textarea>
-				<div class="flex justify-end gap-2">
-					<button @click="showExportModal = false" class="cursor-pointer border px-4 py-2">Close</button>
+				<div x-show="showExportModal" class="w-full col-span-2 lg:col-span-1 bg-white p-4 border" style="display: none;">
+					<p class="text-sm mb-2">Copy this settings string:</p>
+					<textarea readonly x-model="exportString" class="w-full border p-2 mb-2" rows="5"></textarea>
+					<div class="flex justify-end gap-2">
+						<button @click="showExportModal = false" class="cursor-pointer border px-4 py-2">Close</button>
+					</div>
 				</div>
 			</div>
 
