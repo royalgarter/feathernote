@@ -93,7 +93,7 @@
 
 	<!-- AppShellContent -->
 	<main class="flex-1 w-full"
-		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto px-6': editingNoteId === null }"
+		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto': editingNoteId === null }"
 	>
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
@@ -226,7 +226,7 @@
 
 	<!-- Settings Dialog -->
 	<div x-show="settingsDialogIsOpen"
-		 class="fixed inset-0 z-10 w-full h-full flex items-center justify-center"
+		 class="fixed inset-0 mt-16 md:mt-0 z-10 w-full h-full flex items-center justify-center"
 		 style="display: none; background-color: rgba(0,0,0,0.5);"
 	>
 		<div class="bg-white p-6 border w-full max-w-4xl max-h-full overflow-y-auto"
