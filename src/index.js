@@ -1531,6 +1531,26 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						},
 						className: "fa fa-text-width",
 						title: "Word Wrap",
+					},
+					{
+						name: "del-cur-line",
+						action: function deleteCurrentLine(editor){
+							const cm = editor.codemirror;
+							let cursor = cm.getCursor();
+							let line = cursor.line;
+							let from = {line: line, ch: 0};
+							let to = {line: line + 1, ch: 0}; // Deletes the current line and the newline character
+
+							// Handle the last line of the document
+							if (line === cm.lastLine()) {
+								from = {line: line - 1, ch: cm.getLine(line - 1).length};
+								to = {line: line, ch: cm.getLine(line).length};
+							}
+
+							cm.replaceRange("", from, to);
+						},
+						className: "fa fa-minus-square-o",
+						title: "Delete Current Line",
 					}, "|",
 					"preview", "side-by-side", "fullscreen", "|",
 					{
@@ -1679,8 +1699,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 			});
 
-			this.$nextTick(() => !document.querySelector('.EasyMDEContainer .editor-preview-active')
-				&& (new URLSearchParams(location.search).get('preview') == 'true')
+			this.$nextTick(() => (new URLSearchParams(location.search).get('preview') == 'true')
+				&& (!window.easyMDEInstance.isPreviewActive() || !document.querySelector('.EasyMDEContainer .editor-preview-active'))
 				&& window.easyMDEInstance?.togglePreview?.()
 			);
 
