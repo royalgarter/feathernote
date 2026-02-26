@@ -2311,8 +2311,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (encryptedString) {
 			this.exportString = encryptedString;
 
-			await navigator.clipboard.writeText(exportString);
-
+			await navigator.clipboard.writeText(encryptedString);
 			const copyText = document.querySelector('textarea[x-model="exportString"]');
 			copyText.select();
 			copyText.setSelectionRange(0, 99999);
