@@ -226,13 +226,13 @@
 
 	<!-- Settings Dialog -->
 	<div x-show="settingsDialogIsOpen"
-		 class="fixed inset-0 mt-16 md:mt-0 z-10 w-full h-full flex items-center justify-center"
+		 class="fixed inset-0 pt-12 md:pt-8 z-10 w-full h-full flex items-center justify-center"
 		 style="display: none; background-color: rgba(0,0,0,0.5);"
 	>
 		<div class="bg-white p-6 border w-full max-w-4xl max-h-full overflow-y-auto"
 			 @click.away="settingsDialogIsOpen = false"
 		>
-			<div class="flex justify-between items-center border-b pb-2 mb-4">
+			<div class="flex justify-between items-center pb-2">
 				<div class="flex items-baseline gap-4">
 					<h3 class="text-lg font-bold">Settings <span class="text-sm" x-text="'v.'+appVersion"></span></h3>
 					<a href="/about" target="_blank" class="text-sm underline">About</a>
