@@ -33,21 +33,20 @@
 	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
-<body id="main-app" class="flex flex-col min-h-screen overflow-x-hidden custom-scrollbar" :class="{'dark': darkMode, 'bg-gray-50': !darkMode}" x-data="mainApp()" x-init="init()">
+<body id="main-app" class="flex flex-col min-h-screen" x-data="mainApp()" x-init="init()">
 	<!-- AppShellHeader -->
-	<header class="sticky top-0 z-10 w-full min-w-full border-b bg-white">
-		<div class="container flex h-16 items-center justify-between py-2 md:py-4 w-full min-w-full max-w-max mx-auto px-4 lg:px-12">
+	<header class="sticky top-0 w-full border-b bg-white z-20">
+		<div class="container flex h-16 items-center justify-between py-2 w-full mx-auto px-4">
 			<a href="#" class="flex items-center gap-2">
 				<!-- FeatherIcon Placeholder -->
 				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 1115 1115">
-					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M678.345,436.489 L248.424,866.410 "/>
-					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M345.298,769.537 L338.934,514.271 L563.794,289.411 C563.794,289.411 705.043,190.244 813.402,298.603 C921.761,406.962 828.853,553.268 828.853,553.268 L603.391,778.729 L345.298,769.537 Z"/>
-					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M720.771,652.864 L477.460,652.864 "/>
-					<path fill-rule="evenodd" stroke="#A2D2FF" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
+					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M678.345,436.489 L248.424,866.410 "/>
+					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M345.298,769.537 L338.934,514.271 L563.794,289.411 C563.794,289.411 705.043,190.244 813.402,298.603 C921.761,406.962 828.853,553.268 828.853,553.268 L603.391,778.729 L345.298,769.537 Z"/>
+					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M720.771,652.864 L477.460,652.864 "/>
+					<path fill-rule="evenodd" stroke="currentColor" stroke-width="48.35px" stroke-linecap="butt" stroke-linejoin="miter" fill="none" d="M351.175,24.175 L763.175,24.175 C943.772,24.175 1090.175,170.578 1090.175,351.175 L1090.175,763.175 C1090.175,943.772 943.772,1090.175 763.175,1090.175 L351.175,1090.175 C170.578,1090.175 24.175,943.772 24.175,763.175 L24.175,351.175 C24.175,170.578 170.578,24.175 351.175,24.175 Z"/>
 				</svg>
 
-				<span class="font-bold text-lg font-sans text-gray-900 hidden md:inline-block"
-					style="color:#A2D2FF;"
+				<span class="font-bold text-lg font-sans hidden md:inline-block"
 					x-show="!syncStatusMessage && !isSyncing">
 					FeatherNote
 				</span>
@@ -56,25 +55,22 @@
 				<!-- SyncStatus -->
 				<div>
 					<template x-if="syncStatusMessage || isSyncing">
-						<span class="text-xs text-gray-400 animate-pulse" x-text="syncStatusMessage || isSyncing"></span>
+						<span class="text-xs" x-text="syncStatusMessage || isSyncing"></span>
 					</template>
-					<!-- <template x-if="!isSyncing">
-						<span class="text-sm text-gray-400">Synced</span>
-					</template> -->
 				</div>
 				<!-- SettingsDialog Trigger -->
-				<button @click="loadSettingsFromStorage();settingsDialogIsOpen = true" class="cursor-pointer rounded-full hover:bg-gray-200" aria-label="Settings">
+				<button @click="loadSettingsFromStorage();settingsDialogIsOpen = true" class="cursor-pointer p-1" aria-label="Settings">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
 						<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
 					</svg>
 				</button>
 				<!-- UserProfile -->
-				<div class="cursor-pointer rounded-full hover:bg-gray-200">
+				<div class="cursor-pointer p-1">
 					<template x-if="user">
 						<div @click="signOut()" class="flex items-center gap-2">
 							<template x-if="user.picture">
-								<img :src="user.picture" alt="User Picture" class="h-6 w-6 rounded-full" />
+								<img :src="user.picture" alt="User Picture" class="h-6 w-6" />
 							</template>
 							<template x-if="!user.picture">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-6 w-6">
@@ -96,151 +92,109 @@
 	</header>
 
 	<!-- AppShellContent -->
-	<main class="flex-1 w-full min-w-full"
-		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto sm:px-6 lg:px-8': editingNoteId === null, 'overflow-y-hidden': settingsDialogIsOpen, 'overflow-y-auto': !settingsDialogIsOpen }"
+	<main class="flex-1 w-full"
+		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto px-6': editingNoteId === null }"
 	>
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
-			<div id="search" class="flex justify-between items-center px-2 md:px-4 pt-6 pb-2 gap-4">
+			<div id="search" class="flex justify-between items-center px-4 pt-6 pb-2 gap-4">
 				<div class="relative w-full max-w-xs">
-					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border border-gray-300 rounded-md py-2 px-4" :placeholder="'🔍 Search ' + (notes.length || '') + ' notes...'"/>
-					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-60 overflow-y-auto">
+					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border py-2 px-4" :placeholder="'Search ' + (notes.length || '') + ' notes...'"/>
+					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border max-h-60 overflow-y-auto">
 						<template x-for="suggestion in suggestions" :key="suggestion.id">
-							<div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:bg-gray-100">
+							<div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:underline">
 								<span x-text="suggestion.suggestion"></span>
 							</div>
 						</template>
 					</div>
 				</div>
-				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 rounded-md bg-green-600 text-white hover:bg-green-700">Compose</button>
+				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 border">Compose</button>
 			</div>
 		</template>
 
 		<!-- Welcome -->
-		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="py-1 px-3 md:p-8 my-1 md:my-8 text-gray-600 bg-white rounded-lg w-full transition-discrete" style="display: block;">
+		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="py-4 px-6 my-4 w-full" style="display: block;">
 			<!--WELCOME_CONTENT-->
 		</div>
 
 		<!-- Note Editor View -->
 		<template x-if="editingNoteId !== null">
-			<div id="note-editor" class="bg-white p-1 md:p-4" style="height: 100vh;max-height: calc(100vh - 4.1rem);">
-				<!-- <h2 class="text-2xl font-bold mb-4" x-text="noteEditorNoteId ? 'Editing' : 'Creating'"></h2>
-				<button @click="cancelEdit()" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-				</button> -->
-
-				<div class="flex justify-between items-center mb-1 md:mb-4">
-					<h3 class="text-lg text-gray-500 font-semibold" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
-					<button @click=" (noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && saveNote(); cancelEdit();" class="cursor-pointer rounded-full text-gray-400 hover:bg-gray-200" aria-label="Close settings">
+			<div id="note-editor" class="p-4" style="height: 100vh;max-height: calc(100vh - 4.1rem);">
+				<div class="flex justify-between items-center mb-4">
+					<h3 class="text-lg font-semibold" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
+					<button @click=" (noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && saveNote(); cancelEdit();" class="cursor-pointer" aria-label="Close">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 					</button>
 				</div>
-				<div class="mb-1 md:mb-4">
-					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border border-gray-300 rounded-md p-2" placeholder="Note Title" />
+				<div class="mb-4">
+					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border p-2" placeholder="Note Title" />
 				</div>
 				<div class="mb-4">
-					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full rounded-md border border-gray-300 p-4">
-						<div class="flex animate-pulse space-x-4">
-							<div class="size-10 rounded-full bg-gray-200"></div>
-							<div class="flex-1 space-y-6 py-1">
-								<div class="h-2 rounded bg-gray-200"></div>
-								<div class="space-y-3">
-									<div class="grid grid-cols-3 gap-4">
-										<div class="col-span-2 h-2 rounded bg-gray-200"></div>
-										<div class="col-span-1 h-2 rounded bg-gray-200"></div>
-									</div>
-									<div class="h-2 rounded bg-gray-200"></div>
-								</div>
-							</div>
-						</div>
+					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full border p-4">
+						<p>Loading editor...</p>
 					</div>
-					<textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="The palest ink is better than the best memory"></textarea>
+					<textarea id="note-content" x-model="noteEditorContent" rows="15" class="mt-1 block w-full border p-2" placeholder="The palest ink is better than the best memory"></textarea>
 				</div>
 				<div class="mb-4">
-					<label for="note-tags" class="block text-sm font-medium text-gray-700">Tags (comma-separated)</label>
-					<input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border border-gray-300 rounded-md p-2" placeholder="e.g. work, personal, ideas" />
+					<label for="note-tags" class="block text-sm font-medium">Tags (comma-separated)</label>
+					<input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border p-2" placeholder="e.g. work, personal, ideas" />
 				</div>
-				<div class="mb-4">
-					<label for="note-reminder" class="block text-sm font-medium text-gray-700">Reminder Date/Time (Optional)</label>
-					<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border border-gray-300 rounded-md p-2" />
+				<div class="mb-4 pb-4">
+					<label for="note-reminder" class="block text-sm font-medium">Reminder Date/Time (Optional)</label>
+					<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border p-2" />
 				</div>
-				<!-- <div class="flex justify-end space-x-3">
-					<button @click="cancelEdit()" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-					<button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
-					<button @click="shareNote()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-500 text-white hover:bg-blue-600">Share</button>
-					<button @click="saveNote()" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Save</button>
+				<!-- <div class="flex justify-end gap-2">
+					<button @click="cancelEdit()" class="cursor-pointer border px-4 py-2">Cancel</button>
+					<button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer border px-4 py-2 font-bold">Delete</button>
+					<button @click="shareNote()" class="cursor-pointer border px-4 py-2">Share</button>
+					<button @click="saveNote()" class="cursor-pointer border px-4 py-2 font-bold">Save</button>
 				</div> -->
 			</div>
 		</template>
 
 		<!-- Notes List View -->
 		<template x-if="editingNoteId === null">
-			<div id="notes-list" class="px-2 md:px-4 py-2 md:py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+			<div id="notes-list" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
-					<div class="flex flex-col justify-between transition-shadow hover:cursor-pointer h-full rounded-lg p-4"
-						:style="{ 'background-color': getNoteColor(note) }"
-						:class="darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'">
-						<div class="flex-grow" @click="editNote(note.id)">
-							<p class="text-xs text-gray-600 italic mb-2"><span x-text="formatDate(note.updatedAt)"></span><span x-show="note.priority" x-text="' - Priority: ' + note.priority"></span></p>
-							<h4 class="cursor-pointer text-lg text-gray-800 font-bold truncate mb-2" x-text="note.title"></h4>
-							<template x-if="getCoverImage(note)">
-								<img :src="getCoverImage(note)" loading="lazy" alt="Note cover image" class="w-full h-32 object-cover rounded-md mb-2">
-							</template>
-							<p class="cursor-pointer text-sm text-gray-600 line-clamp-5 pl-1" x-text="getNotePreview(note.content)"></p>
-							<template x-if="note.reminder">
-								<p class="text-xs text-blue-500 mt-2">Reminder: <span x-text="formatDate(note.reminder)"></span></p>
-							</template>
+					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer" @click="editNote(note.id)">
+						<div class="flex-grow min-w-0">
+							<div class="flex justify-between items-baseline mb-2">
+								<span class="text-xs italic" x-text="formatDate(note.updatedAt)"></span>
+								<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
+							</div>
+							<h4 class="text-base font-bold truncate mb-2" x-text="note.title"></h4>
+							<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>
-						<div class="mt-4">
-							<div class="flex flex-wrap gap-1 mb-2">
+						
+						<div class="mt-4 pt-2 border-t flex flex-col gap-2">
+							<div class="flex flex-wrap gap-1">
 								<template x-for="tag in note.tags.filter(x=>x)" :key="tag">
-									<span @click="searchTag=tag;" class="cursor-pointer bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" x-text="tag"></span>
+									<span @click.stop="searchTag=tag;" class="text-xs hover:underline" x-text="'#'+tag"></span>
 								</template>
 							</div>
-						</div>
-						<div class="flex justify-between items-center">
-							<div class="flex justify-start items-center gap-2 mt-2">
-								<button @click.stop="increasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-500 hover:bg-green-700" aria-label="Increase Priority">
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle" viewBox="0 0 20 20">
-										<path fillRule="evenodd" d="M9.47 6.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 1 1-1.06 1.06L10 8.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06l4.25-4.25Z" clipRule="evenodd" />
-									</svg>
-								</button>
-								<button @click.stop="decreasePriority(note.id)" class="cursor-pointer rounded-full text-gray-50 bg-green-400 hover:bg-green-300" aria-label="Decrease Priority">
-									<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-down-circle" viewBox="0 0 20 20">
-										<path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-									</svg>
-								</button>
-							</div>
-							<div class="flex justify-end items-center gap-4 mt-2">
-								<button class="hidden cursor-pointer rounded-full hover:bg-gray-200" aria-label="Edit note" @click="editNote(note.id)">
-									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
-								</button>
-								<button class="cursor-pointer rounded-full hover:bg-red-100 text-red-500" aria-label="Delete note" @click="deleteNote(note.id); $dispatch('close-delete-modal')">
-									<!-- Trash Icon -->
-									<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg>
-								</button>
+							<div class="flex justify-between items-center">
+								<div class="flex gap-1">
+									<button @click.stop="increasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Increase Priority">▲</button>
+									<button @click.stop="decreasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Decrease Priority">▼</button>
+								</div>
+								<button class="cursor-pointer font-bold text-xs underline" @click.stop="deleteNote(note.id); $dispatch('close-delete-modal')">Del</button>
 							</div>
 						</div>
-
 					</div>
 				</template>
 			</div>
 			<!-- Pagination Controls -->
-			<div class="flex justify-center items-center space-x-2 mt-4">
-				<button @click="prevPage()" :disabled="currentPage === 1" class="cursor-pointer px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
-				<template x-for="page in totalPages" :key="page">
-					<button @click="goToPage(page)" :class="{'bg-purple-600 text-white': currentPage === page, 'bg-white text-gray-700': currentPage !== page}" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 hover:bg-gray-50" x-text="page"></button>
-				</template>
-				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer px-4 py-2 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+			<div class="flex justify-center items-center gap-4 mt-4">
+				<button @click="prevPage()" :disabled="currentPage === 1" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Previous</button>
+				<span x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
+				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Next</button>
 			</div>
 		</template>
 
 		<!-- Loading State -->
 		<template x-if="!notes.length && loading">
-			<div class="w-full px-4 py-6 sm:px-0">
-				<div class="w-full border-4 border-dashed border-gray-200 rounded-lg h-96 flex items-center justify-center">
-					<p class="text-gray-500 text-lg">Loading notes...</p>
-				</div>
+			<div class="w-full p-8 border border-dashed flex items-center justify-center">
+				<p class="text-lg">Loading notes...</p>
 			</div>
 		</template>
 
@@ -249,20 +203,19 @@
 			 @open-delete-modal.window="showModal = true; noteToDelete = $event.detail"
 			 @close-delete-modal.window="showModal = false"
 			 x-show="showModal"
-			 class="fixed inset-0 z-40 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center"
+			 class="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
 			 style="display: none;"
 		>
-			<div class="relative bg-white p-6 w-full mx-auto"
+			<div class="bg-white p-6 border max-w-sm mx-auto"
 				 @click.away="showModal = false"
 			>
-				<h3 class="text-lg font-bold mb-4">Are you sure?</h3>
-				<p class="text-sm text-gray-600 mb-6">
-					This action cannot be undone. This will permanently delete your
-					note titled "<span x-text="noteToDelete ? noteToDelete.title : ''"></span>".
+				<h3 class="text-lg font-bold mb-4">Confirm Delete</h3>
+				<p class="text-sm mb-6">
+					Delete "<span x-text="noteToDelete ? noteToDelete.title : ''"></span>"? This cannot be undone.
 				</p>
-				<div class="flex justify-end gap-2">
-					<button @click="showModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="cursor-pointer px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+				<div class="flex justify-end gap-4">
+					<button @click="showModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
+					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="cursor-pointer border px-4 py-2 font-bold">Delete</button>
 				</div>
 			</div>
 		</div>
@@ -270,259 +223,190 @@
 
 	<!-- Settings Dialog -->
 	<div x-show="settingsDialogIsOpen"
-		 class="fixed inset-0 z-10 w-full h-full flex items-center justify-center overflow-x-hidden"
-		 :class="isSavingSettings ? 'cursor-wait' : 'cursor-pointer'"
-		 style="display: none;background-color: #0e0e0ee6;"
+		 class="fixed inset-0 z-10 w-full h-full flex items-center justify-center"
+		 style="display: none; background-color: rgba(0,0,0,0.5);"
 	>
-		<div class="fixed inset-0 size-auto h-full md:h-auto max-h-full max-w-none md:m-10 p-6 rounded-lg overflow-x-hidden overflow-y-auto bg-white backdrop:bg-transparent custom-scrollbar"
+		<div class="bg-white p-6 border w-full max-w-4xl max-h-full overflow-y-auto"
 			 @click.away="settingsDialogIsOpen = false"
 		>
-			<div class="flex justify-between items-center">
+			<div class="flex justify-between items-center border-b pb-2 mb-4">
 				<div class="flex items-baseline gap-4">
-					<h3 class="text-lg font-bold">Settings <span class="text-sm pl-2 font-light text-gray-400" x-text="'v.'+appVersion"></span></h3>
-					<a href="/about" target="_blank" class="text-sm text-blue-500 hover:underline">About</a>
-					<a href="https://github.com/royalgarter/feathernote" target="_blank" class="text-sm text-blue-500 hover:underline">Repo</a>
+					<h3 class="text-lg font-bold">Settings <span class="text-sm" x-text="'v.'+appVersion"></span></h3>
+					<a href="/about" target="_blank" class="text-sm underline">About</a>
+					<a href="https://github.com/royalgarter/feathernote" target="_blank" class="text-sm underline">Repo</a>
 				</div>
-				<button @click="settingsDialogIsOpen = false" class="cursor-pointer p-1 rounded-full hover:bg-gray-200" aria-label="Close settings">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				<button @click="settingsDialogIsOpen = false" class="cursor-pointer" aria-label="Close">
+					[Close]
 				</button>
 			</div>
 
-			<div class="grid lg:grid-cols-2 gap-x-10 gap-y-6 py-2">
-				<!-- Login Required Alert -->
-				<!-- <div x-show="!isSyncConfigured" class="bg-red-100 border border-red-400 text-sm text-red-700 px-4 py-3 rounded relative" role="alert">
-					<strong class="font-bold">Login Required:</strong>
-					<span class="block sm:inline">Please sign in with your Google account to enable, configure, and use the S3 sync feature.</span>
-				</div> -->
-
-				<div class="border-t col-span-2 gap-2 pt-4">
+			<div class="grid lg:grid-cols-2 gap-4 py-2">
+				<div class="col-span-2 border-t pt-4">
 					<!-- Dark Mode Toggle -->
-					<div class="flex items-center py-2 justify-between">
-						<p class="text-sm text-gray-600">Dark Mode</p>
-						<button @click="toggleDarkMode()"
-								:class="{ 'bg-green-600': darkMode, 'bg-gray-400': !darkMode }"
-								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
-							<span :class="{ 'left-6': darkMode, 'left-1': !darkMode }"
-									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
-						</button>
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Dark Mode</p>
+						<button @click="toggleDarkMode()" class="cursor-pointer border px-2 py-1" x-text="darkMode ? 'Disable' : 'Enable'"></button>
 					</div>
 					<!-- Notification Settings -->
-					<div class="flex items-center py-2 justify-between">
-						<p class="text-sm text-gray-600">Reminder Notifications</p>
-						<button @click="togglePushNotifications()"
-								:class="{ 'bg-green-600': notificationsEnabled, 'bg-gray-400': !notificationsEnabled }"
-								class="cursor-pointer relative inline-flex items-center h-6 rounded-full w-11 transition-colors">
-							<span :class="{ 'left-6': notificationsEnabled, 'left-1': !notificationsEnabled }"
-									class="absolute inline-block w-4 h-4 transform bg-white rounded-full transition-transform"></span>
-						</button>
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Reminder Notifications</p>
+						<button @click="togglePushNotifications()" class="cursor-pointer border px-2 py-1" x-text="notificationsEnabled ? 'Disable' : 'Enable'"></button>
 					</div>
-					<p x-show="notificationPermissionStatus !== 'granted' && notificationPermissionStatus !== 'default'" class="text-xs text-red-500 mt-2">
-						Notification permission is <span x-text="notificationPermissionStatus"></span>. Enable it in your browser settings.
-					</p>
-
 					<!-- Google Drive -->
-					<div class="flex items-center py-2 justify-between">
-						<p class="text-sm text-gray-600">Google Drive</p>
-						<div class="col-span-3">
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Google Drive</p>
+						<div class="flex gap-2 items-center">
 							<template x-if="!gdriveStore.connected">
-								<button @click="signInToGoogleDrive()" class="cursor-pointer px-2 py-1 rounded-sm bg-blue-600 text-sm text-white hover:bg-blue-700">
-									Connect
-								</button>
+								<button @click="signInToGoogleDrive()" class="cursor-pointer border px-2 py-1 text-sm">Connect</button>
 							</template>
 							<template x-if="gdriveStore.connected">
 								<div class="flex items-center gap-2">
-									<span class="ml-1 text-green-600" x-text="`(${gdriveStore.user?.email})`"></span>
-									<button class="cursor-pointer px-2 py-1 rounded-sm border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
-										@click="signOutFromGoogleDrive()"
-									>Disconnect</button>
+									<span class="text-xs" x-text="gdriveStore.user?.email"></span>
+									<button class="cursor-pointer border px-2 py-1 text-sm" @click="signOutFromGoogleDrive()">Disconnect</button>
 								</div>
 							</template>
 						</div>
 					</div>
 				</div>
 
-				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm" __disabled="!isSyncConfigured" >
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm" >
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-region" class="text-right">S3 Region</label>
-						<input id="s3-region" x-model="s3Region" class="col-span-3 border rounded-md p-2" placeholder="us-east-1 (optional with endpoint)" autocomplete="off" />
+						<input id="s3-region" x-model="s3Region" class="col-span-3 border p-1" placeholder="us-east-1" autocomplete="off" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-bucket" class="text-right">S3 Bucket</label>
-						<input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border rounded-md p-2" placeholder="my-feathernote-bucket" autocomplete="off" />
+						<input id="s3-bucket" x-model="s3Bucket" class="col-span-3 border p-1" placeholder="bucket-name" autocomplete="off" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-subfolder" class="text-right">S3 Subfolder</label>
-						<input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border rounded-md p-2" placeholder="Optional: notes/personal" autocomplete="off" />
+						<input id="s3-subfolder" x-model="s3Subfolder" class="col-span-3 border p-1" placeholder="notes/" autocomplete="off" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="s3-endpoint" class="text-right">S3 Endpoint</label>
-						<input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border rounded-md p-2" placeholder="Optional: https://account-id.r2.com. Leave blank to keep existing" autocomplete="url" />
+						<input id="s3-endpoint" x-model="s3Endpoint" class="col-span-3 border p-1" placeholder="https://..." autocomplete="url" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="access-key" class="text-right">S3 Access Key</label>
-						<input id="access-key" x-model="accessKeyId" class="col-span-3 border rounded-md p-2" autocomplete="off" placeholder="Leave blank to keep existing"/>
+						<label for="access-key" class="text-right">Access Key</label>
+						<input id="access-key" x-model="accessKeyId" class="col-span-3 border p-1" autocomplete="off" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="secret-key" class="text-right">S3 Secret Key</label>
-						<input id="secret-key" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="secretAccessKey" class="col-span-3 border rounded-md p-2" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+						<label for="secret-key" class="text-right">Secret Key</label>
+						<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border p-1" autocomplete="new-password" />
 					</div>
 				</fieldset>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-repo-url" class="text-right text-sm">Git Repo URL</label>
-						<input id="git-repo-url" x-model="gitRepoUrl" class="col-span-3 border rounded-md p-2" placeholder="https://github.com/user/feathernote.git" autocomplete="url" />
+						<input id="git-repo-url" x-model="gitRepoUrl" class="col-span-3 border p-1" placeholder="https://..." autocomplete="url" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-branch" class="text-right text-sm">Branch</label>
-						<input id="git-branch" x-model="gitBranch" class="col-span-3 border rounded-md p-2" placeholder="main" />
+						<input id="git-branch" x-model="gitBranch" class="col-span-3 border p-1" placeholder="main" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-username" class="text-right text-sm">Username</label>
-						<input id="git-username" x-model="gitUsername" class="col-span-3 border rounded-md p-2" placeholder="GitHub Username" />
+						<input id="git-username" x-model="gitUsername" class="col-span-3 border p-1" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="git-token" class="text-right text-sm">Token/Pass</label>
-						<input id="git-token" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="gitToken" class="col-span-3 border rounded-md p-2" placeholder="Personal Access Token" autocomplete="new-password" />
+						<label for="git-token" class="text-right text-sm">Token</label>
+						<input id="git-token" type="password" x-model="gitToken" class="col-span-3 border p-1" autocomplete="new-password" />
 					</div>
-					<!-- <div class="grid grid-cols-4 items-center gap-2">
-						<label for="git-email" class="text-right text-sm">Email</label>
-						<input id="git-email" x-model="gitEmail" class="col-span-3 border rounded-md p-2" placeholder="user@example.com (for commits)" />
-					</div> -->
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-cors-proxy" class="text-right text-sm">CORS Proxy</label>
-						<input id="git-cors-proxy" x-model="gitCorsProxy" class="col-span-3 border rounded-md p-2" placeholder="https://cors.isomorphic-git.org (default)" />
+						<input id="git-cors-proxy" x-model="gitCorsProxy" class="col-span-3 border p-1" />
 					</div>
 				</fieldset>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="nostr-private-key" class="text-right">Nostr Private Key</label>
-						<input id="nostr-private-key" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="nostrPrivateKey" class="col-span-3 border rounded-md p-2" placeholder="nsec..." autocomplete="new-password" />
+						<label for="nostr-private-key" class="text-right">Nostr Key</label>
+						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border p-1" placeholder="nsec..." autocomplete="new-password" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="nostr-relays" class="text-right">Nostr Relays</label>
-						<input id="nostr-relays" x-model="nostrRelays" class="col-span-3 border rounded-md p-2" placeholder="wss://relay.damus.io,wss://relay.snort.social,wss://relay.primal.net,wss://fiatjaf.nostr1.com" autocomplete="url" />
+						<input id="nostr-relays" x-model="nostrRelays" class="col-span-3 border p-1" autocomplete="url" />
 					</div>
 				</fieldset>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-api-key" class="text-right">AI API Key</label>
-						<input id="ai-api-key" type="password" onmouseover="this.type='text'" onmouseout="this.type='password'" x-model="aiApiKey" class="col-span-3 border rounded-md p-2" placeholder="sk-B14h8lah..." autocomplete="new-password" />
+						<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border p-1" autocomplete="new-password" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="ai-api-route" class="text-right">AI API Endpoint</label>
-						<input id="ai-api-route" x-model="aiApiRoute" class="col-span-3 border rounded-md p-2" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" autocomplete="url" />
+						<label for="ai-api-route" class="text-right">AI Endpoint</label>
+						<input id="ai-api-route" x-model="aiApiRoute" class="col-span-3 border p-1" autocomplete="url" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-model" class="text-right">AI Model</label>
-						<input id="ai-model" x-model="aiModel" class="col-span-3 border rounded-md p-2" placeholder="gemini-flash-lite-latest" autocomplete="off" />
+						<input id="ai-model" x-model="aiModel" class="col-span-3 border p-1" />
 					</div>
 				</fieldset>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="firebase-config" class="text-right">Firebase Config (JSON)</label>
-						<textarea id="firebase-config" x-model="firebaseConfig" class="col-span-3 border rounded-md p-2 h-24 font-mono text-xs" placeholder='{"apiKey": "...", "projectId": "...", "messagingSenderId": "...", "appId": "..."}' autocomplete="off"></textarea>
+						<label for="firebase-config" class="text-right">Firebase JSON</label>
+						<textarea id="firebase-config" x-model="firebaseConfig" class="col-span-3 border p-1 h-24 font-mono text-xs" autocomplete="off"></textarea>
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="firebase-vapid-key" class="text-right">VAPID Key</label>
-						<input id="firebase-vapid-key" x-model="firebaseVapidKey" class="col-span-3 border rounded-md p-2" placeholder="Public VAPID Key (Optional)" />
+						<input id="firebase-vapid-key" x-model="firebaseVapidKey" class="col-span-3 border p-1" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="firebase-schedule-url" class="text-right">Schedule Function URL</label>
-						<input id="firebase-schedule-url" x-model="firebaseScheduleUrl" class="col-span-3 border rounded-md p-2" placeholder="/api/schedule-notification" autocomplete="url" />
+						<label for="firebase-schedule-url" class="text-right">Schedule URL</label>
+						<input id="firebase-schedule-url" x-model="firebaseScheduleUrl" class="col-span-3 border p-1" autocomplete="url" />
 					</div>
 				</fieldset>
-
-				<!-- Security Note Alert -->
-				<!-- <div class="bg-yellow-100 border border-yellow-400 text-sm text-yellow-700 p-4 rounded relative" role="alert">
-					<span class="block sm:inline">Your credentials (should be IAM with minimal, restricted permissions) are encrypted & saved in this browser, tied to your Google account unique sub ID.</span>
-				</div> -->
 			</div>
 
-			<!-- Import Dialog -->
-			<div x-show="showImportModal"
-				 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
-				 style="display: none;"
-			>
-				<div class="relative bg-white p-2 mx-auto"
-					 @click.away="showImportModal = false"
-				>
-					<textarea x-model="importString" class="w-full border rounded-md p-2" rows="5" placeholder="Paste the encrypted settings string from another device to import your S3 configuration..."></textarea>
-					<div class="flex justify-end gap-2">
-						<button @click="showImportModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-						<button @click="handleImport()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Import and Save</button>
-					</div>
+			<!-- Import/Export Modals (Simplified) -->
+			<div x-show="showImportModal" class="absolute inset-0 z-20 bg-white p-4 border" style="display: none;">
+				<textarea x-model="importString" class="w-full border p-2 mb-2" rows="5" placeholder="Paste settings string..."></textarea>
+				<div class="flex justify-end gap-2">
+					<button @click="showImportModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
+					<button @click="handleImport()" class="cursor-pointer border px-4 py-2 font-bold">Import</button>
 				</div>
 			</div>
 
-			<!-- Export Dialog -->
-			<div x-show="showExportModal"
-				 class="absolute inset-0 z-20 bg-white rounded-lg w-full pr-10"
-				 style="display: none;"
-			>
-				<div class="relative bg-white p-2 mx-auto"
-					 @click.away="showExportModal = false"
-				>
-					<p class="text-sm text-gray-600 my-4">Copy this encrypted string and import it on another device to transfer your S3 configuration.</p>
-					<div class="relative">
-						<textarea readonly x-model="exportString" class="w-full border rounded-md p-2" rows="5"></textarea>
-						<button @click="copyExportStringToClipboard()" class="cursor-pointer absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200" aria-label="Copy">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					</div>
-					<div class="flex justify-end gap-2">
-						<button @click="showExportModal = false" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Close</button>
-					</div>
+			<div x-show="showExportModal" class="absolute inset-0 z-20 bg-white p-4 border" style="display: none;">
+				<p class="text-sm mb-2">Copy this settings string:</p>
+				<textarea readonly x-model="exportString" class="w-full border p-2 mb-2" rows="5"></textarea>
+				<div class="flex justify-end gap-2">
+					<button @click="showExportModal = false" class="cursor-pointer border px-4 py-2">Close</button>
 				</div>
 			</div>
 
 			<!-- Buttons -->
-			<div class="flex justify-end gap-2 mt-2">
-				<button @click="openImport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Import</button>
-				<button @click="handleExport()" __disabled="!isSyncConfigured" class="cursor-pointer px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Export</button>
-				<button @click="handleSync()" __disabled="isSyncButtonDisabled" class="cursor-pointer px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 flex items-center" :class="isManualSyncing ? 'cursor-wait' : 'cursor-pointer'">
-					<svg x-show="isManualSyncing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-					</svg>
-					<span>Sync</span>
+			<div class="flex justify-end gap-2 mt-4 border-t pt-4">
+				<button @click="openImport()" class="cursor-pointer border px-4 py-2">Import</button>
+				<button @click="handleExport()" class="cursor-pointer border px-4 py-2">Export</button>
+				<button @click="handleSync()" class="cursor-pointer border px-4 py-2" :disabled="isSyncButtonDisabled">
+					<span x-text="isManualSyncing ? 'Syncing...' : 'Sync'"></span>
 				</button>
-				<button @click="handleSave()" class="cursor-pointer px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 flex items-center" :class="isSavingSettings ? 'cursor-wait' : 'cursor-pointer'">
-					<svg x-show="isSavingSettings" class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-					</svg>
-					<span>Save</span>
+				<button @click="handleSave()" class="cursor-pointer border px-4 py-2 font-bold">
+					<span x-text="isSavingSettings ? 'Saving...' : 'Save'"></span>
 				</button>
 			</div>
 		</div>
 	</div>
+		</div>
+	</div>
 
 	<!-- Toasts Container -->
-	<div class="fixed top-0 left-0 z-50 flex flex-col space-y-2">
+	<div class="fixed top-4 right-4 z-50 flex flex-col gap-2">
 		<template x-for="toast in toasts" :key="toast.id">
 			<div
 				x-show="toast.show"
-				:class="{
-					'bg-white border border-gray-200 text-gray-900': toast.variant === 'default',
-					'bg-red-600 border border-red-700 text-white': toast.variant === 'error'
-				}"
-				class="relative w-full max-w-md px-2 py-3 rounded-md flex items-center justify-between"
+				class="bg-white border p-4 flex items-center justify-between gap-4 max-w-xs"
+				:class="{ 'border-2 font-bold': toast.variant === 'error' }"
 			>
 				<div>
-					<h4 class="font-bold text-sm" x-text="toast.title"></h4>
-					<p class="text-xs line-clamp-3" x-text="toast.description"></p>
+					<h4 class="text-sm font-bold" x-text="toast.title"></h4>
+					<p class="text-xs" x-text="toast.description"></p>
 				</div>
-				<button @click="dismissToast(toast.id)" class="cursor-pointer absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-300">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-					</svg>
-				</button>
+				<button @click="dismissToast(toast.id)" class="cursor-pointer border px-1 text-xs">X</button>
 			</div>
 		</template>
 	</div>
@@ -589,7 +473,7 @@
 <div id="excalidraw-modal" 
 	class="fixed inset-0 z-50 w-full h-full flex items-center justify-center" 
 	style="display: none; background-color: rgba(0,0,0,0.5);" >
-	<div class="bg-white rounded-lg shadow-lg w-11/12 h-5/6">
+	<div class="bg-white border w-11/12 h-5/6">
 		<div id="excalidraw-container" class="w-full h-full"></div>
 	</div>
 </div>
