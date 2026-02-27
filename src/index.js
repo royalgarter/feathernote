@@ -210,12 +210,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		this.loadNotesFromCacheAndFetch();
 		this.loadSettingsFromStorage().then(_ => {
-			this.syncNotes(false, 0, null, true);
+			// Delay initial sync to prioritize local UI snappiness and "offline-first" feel
+			setTimeout(() => {
+				this.syncNotes(true, 0, null, true); // Silent sync on startup
+			}, 5000);
 		})
 
 		this.syncIntervalId = setInterval(() => {
 			this.syncNotes(true); // Run a silent sync
 		}, 2 * 60 * 1000); // Every 2 minutes
+
+		window.addEventListener('online', () => {
+			this.showToast({ title: 'Online', description: 'Connection restored. Syncing...', quiet: true });
+			this.syncNotes(true);
+		});
 
 		this.$watch('searchTag', () => this.generateSuggestions());
 
@@ -1061,6 +1069,15 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	async syncNotes(isSilent = false, iterator = 0, notes = null, force = false) {
 		if (this.isSyncing) {
 			return;
+		}
+
+		// Force offline-first: skip if navigator reports offline, unless it's a silent background sync.
+		if (!navigator.onLine && !isSilent) {
+			console.log('Sync skipped: Browser is offline.');
+			this.showToast({ title: 'Offline', description: 'You are currently offline. Sync will resume when online.', quiet: true });
+			return;
+		} else if (!navigator.onLine) {
+			return; // Don't even try if offline and silent
 		}
 		
 		let effectiveNotes = notes;

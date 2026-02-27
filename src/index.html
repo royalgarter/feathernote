@@ -31,6 +31,7 @@
 	<meta name="VERSION" content="___VERSION___">
 
 	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+	<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
 <body id="main-app" class="flex flex-col min-h-screen" :class="{'dark': darkMode, '': !darkMode}" x-data="mainApp()" x-init="init()">
@@ -426,7 +427,7 @@
 <script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
 <script async defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
 
-<link rel="preload" href="/index.css?v=___VERSION___" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<link rel="preload" href="/index.css?v=___VERSION___" as="style" fetchpriority="high" onload="this.onload=null;this.rel='stylesheet'" />
 <noscript><link rel="stylesheet" href="/index.css?v=___VERSION___"/></noscript>
 
 <script defer src="/libs/diff_match_patch.js"></script>
@@ -439,7 +440,7 @@
 <script defer src="/nostr.js?v=___VERSION___"></script>
 <script defer src="/gdrive.js?v=___VERSION___"></script>
 <script defer src="/helpers.js?v=___VERSION___"></script>
-<script defer src="/index.js?v=___VERSION___"></script>
+<script defer src="/index.js?v=___VERSION___" fetchpriority="high"></script>
 
 <!-- AlpineJS (should be load after the other required x-data functions are loaded) -->
 <script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
