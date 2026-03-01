@@ -353,9 +353,17 @@ app.use(express.static(path.join(__dirname), { maxAge: '7d' }));
 // Handle shared content from PWA
 app.post('/share', upload.none(), (req, res) => {
 	// The service worker will handle this, but we have a server-side route as a fallback.
-	// In a real app, you might save this to a temporary session or user-specific store.
-	console.log('Shared content received on server:', req.body);
-	res.redirect('/');
+	console.log('Shared content received on server (POST):', req.body);
+	const { title, url, text } = req.body;
+	const redirectUrl = `/?title=${encodeURIComponent(title || '')}&url=${encodeURIComponent(url || '')}&text=${encodeURIComponent(text || '')}`;
+	res.redirect(redirectUrl);
+});
+
+app.get('/share', (req, res) => {
+	console.log('Shared content received on server (GET):', req.query);
+	const { title, url, text } = req.query;
+	const redirectUrl = `/?title=${encodeURIComponent(title || '')}&url=${encodeURIComponent(url || '')}&text=${encodeURIComponent(text || '')}`;
+	res.redirect(redirectUrl);
 });
 
 app.get('/api/version', (req, res) => {

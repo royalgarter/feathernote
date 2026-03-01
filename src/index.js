@@ -102,6 +102,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.currentPage = page;
 	},
 
+	get bookmarkletUrl() {
+		const baseUrl = window.location.origin;
+		const code = `javascript:(function(){var t=document.title,u=window.location.href,s=window.getSelection().toString();if(!s){var m=document.querySelector('meta[name="description"]');if(m)s=m.content}window.open("${baseUrl}/share?title="+encodeURIComponent(t)+"&url="+encodeURIComponent(u)+"&text="+encodeURIComponent(s),'_blank');})();`;
+		return code;
+	},
+
 
 	// --- Main App Init ---
 	init() {
@@ -1247,6 +1253,64 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async processSharedContent() {
+		// 1. Check for URL parameters (fallback if SW not active or for bookmarklet)
+		const params = new URLSearchParams(window.location.search);
+		const sharedTitle = params.get('title');
+		const sharedUrl = params.get('url');
+		const sharedText = params.get('text');
+
+		if (sharedTitle || sharedUrl || sharedText) {
+			const TITLE_SHARED = 'Shared Inbox';
+			let newItem = '- [ ] ';
+			if (sharedTitle && sharedUrl) {
+				newItem += `[${sharedTitle}](${sharedUrl})`;
+			} else if (sharedTitle) {
+				newItem += sharedTitle;
+			} else if (sharedUrl) {
+				newItem += `[${sharedUrl}](${sharedUrl})`;
+			}
+
+			if (sharedText) {
+				let text = sharedText;
+				if (text.trim().includes('\n')) {
+					text = '\n```\n' + text + '\n```\n';
+				}
+				if (sharedTitle || sharedUrl) {
+					newItem += ` > ${text}`;
+				} else {
+					newItem += text;
+				}
+			}
+
+			if (newItem !== '- [ ] ') {
+				let inboxNoteId = await getMetaDB('shared_inbox_id');
+				let inboxNote = inboxNoteId ? await getNoteDB(inboxNoteId) : null;
+				if (!inboxNote) {
+					inboxNote = await getNoteByTitleDB(TITLE_SHARED);
+				}
+
+				if (inboxNote) {
+					inboxNote.content = newItem + '\n' + (inboxNote.content || '');
+					inboxNote.updatedAt = new Date().toISOString();
+					await this.updateNote(inboxNote.id, { content: inboxNote.content }, true);
+					if (inboxNote.id !== inboxNoteId) {
+						await setMetaDB('shared_inbox_id', inboxNote.id);
+					}
+				} else {
+					const newNote = await this.addNote(TITLE_SHARED, newItem, null, ['shared', 'inbox']);
+					if (newNote) await setMetaDB('shared_inbox_id', newNote.id);
+				}
+
+				// Clean up URL without reloading
+				const newUrl = window.location.origin + window.location.pathname + window.location.hash;
+				window.history.replaceState({}, document.title, newUrl);
+				
+				this.showToast({ title: 'Shared Content Imported', description: 'Item added to Shared Inbox.' });
+				await this.fetchNotes();
+			}
+		}
+
+		// 2. Check for items in the shared-content object store (PWA share target API)
 		await navigator.locks.request('shared-content-lock', async lock => {
 			try {
 				const sharedItems = await getSharedContentDB();

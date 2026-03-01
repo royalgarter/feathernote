@@ -156,7 +156,7 @@
 		<template x-if="editingNoteId === null">
 			<div id="notes-list" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
-					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer" 
+					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer"
 						:style="{ 'border-color': getNoteColor(note) }"
 						@click="editNote(note.id)"
 					>
@@ -168,7 +168,7 @@
 							<h4 class="text-base font-bold truncate mb-2" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
 							<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>
-						
+
 						<div class="mt-4 pt-2 border-t flex flex-col gap-2">
 							<div class="flex flex-wrap gap-1">
 								<template x-for="tag in note.tags.filter(x=>x)" :key="tag">
@@ -254,6 +254,11 @@
 					<div class="flex items-center py-1 justify-between">
 						<p class="text-sm">Reminder Notifications</p>
 						<button @click="togglePushNotifications()" class="cursor-pointer border px-2 py-1" x-text="notificationsEnabled ? 'Disable' : 'Enable'"></button>
+					</div>
+					<!-- Bookmarklet -->
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Browser Bookmarklet</p>
+						<a :href="bookmarkletUrl" class="cursor-pointer border px-2 py-1" @click.prevent="alert('Drag this link to your bookmarks bar!')">🪶</a>
 					</div>
 					<!-- Google Drive -->
 					<div class="flex items-center py-1 justify-between">
