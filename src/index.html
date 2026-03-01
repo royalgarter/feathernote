@@ -245,6 +245,11 @@
 
 			<div class="grid lg:grid-cols-2 gap-4 py-2">
 				<div class="col-span-2 border-t pt-4">
+					<!-- Bookmarklet -->
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Browser Bookmarklet</p>
+						<a :href="bookmarkletUrl" class="cursor-pointer border px-2 py-1" @click.prevent="alert('Drag this link to your bookmarks bar!')">🪶</a>
+					</div>
 					<!-- Dark Mode Toggle -->
 					<div class="flex items-center py-1 justify-between">
 						<p class="text-sm">Dark Mode</p>
@@ -254,11 +259,6 @@
 					<div class="flex items-center py-1 justify-between">
 						<p class="text-sm">Reminder Notifications</p>
 						<button @click="togglePushNotifications()" class="cursor-pointer border px-2 py-1" x-text="notificationsEnabled ? 'Disable' : 'Enable'"></button>
-					</div>
-					<!-- Bookmarklet -->
-					<div class="flex items-center py-1 justify-between">
-						<p class="text-sm">Browser Bookmarklet</p>
-						<a :href="bookmarkletUrl" class="cursor-pointer border px-2 py-1" @click.prevent="alert('Drag this link to your bookmarks bar!')">🪶</a>
 					</div>
 					<!-- Google Drive -->
 					<div class="flex items-center py-1 justify-between">
