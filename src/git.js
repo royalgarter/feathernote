@@ -307,31 +307,39 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
     	} catch (e) {
     		return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
     	}
-    };    window.finishGitSync = async (creds) => {    if (!creds.repoUrl) return;
-
-    try {
-        const config = getGitConfig(creds);
-        const remoteRef = creds.branch || 'main';
-
-        // 1. Commit
-        try {
-            const sha = await git.commit({
-                ...config,
-                message: `Sync from FeatherNote: ${new Date().toISOString()}`,
-            });
-            console.log('GIT: Committed:', sha);
-        } catch (e) {
-             if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
-                console.log('GIT: Nothing to commit.');
-                return; // Nothing to push either
-            }
-            throw e; // Rethrow other errors
-        }
-        
-        // 2. Push with Fallbacks
-        const pushOptions = { ...config, url: creds.repoUrl, ref: remoteRef };
+    };    window.finishGitSync = async (creds) => {
+        if (!creds.repoUrl) return;
 
         try {
+            const config = getGitConfig(creds);
+            const remoteRef = creds.branch || 'main';
+
+                        // 0. Check for staged changes to avoid empty commits
+                        const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+                        const hasStagedChanges = matrix.some(row => row[1] !== row[3]);
+            
+                        // 1. Commit if changes exist
+                        if (hasStagedChanges) {
+                            try {
+                                const sha = await git.commit({
+                                    ...config,
+                                    message: `Sync from FeatherNote: ${new Date().toISOString()}`,
+                                });
+                                console.log('GIT: Committed:', sha);
+                            } catch (e) {
+                                if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
+                                    console.log('GIT: Nothing to commit.');
+                                } else {
+                                    throw e;
+                                }
+                            }
+                        } else {
+                            console.log('GIT: Nothing to commit (staged index matches HEAD).');
+                        }
+                        
+                        // 2. Push with Fallbacks (always try, to push any existing local commits or merges)
+                        const pushOptions = { ...config, url: creds.repoUrl, ref: remoteRef };
+                    try {
             // Attempt 1: Standard Push
             console.log('GIT: Pushing...');
             await git.push(pushOptions);

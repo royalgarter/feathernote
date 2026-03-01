@@ -1,4 +1,4 @@
-<p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p>
+<a href="/"><p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p></a>
 
 # FeatherNote: featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
 

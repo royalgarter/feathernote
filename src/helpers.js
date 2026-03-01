@@ -420,7 +420,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		console.log('Deleted notes list is already in sync. No upload needed.');
 	}
 
-	return finalIdArray;
+	return { finalIdArray, hasChanged };
 }
 
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials}) {
@@ -438,7 +438,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		};
 
 		// --- Step 0: Sync Deleted IDs ---
-		const effectiveDeletedNoteIds = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
+		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
 		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
@@ -509,9 +509,10 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		});
 		const successfulDeletedCount = successfulDeletedIds.length;
 		
-		// Commit and Push Git if we made changes (Uploads or Deletes)
-		if (gitCredentials?.repoUrl && (successfulUploadedCount > 0 || successfulDeletedCount > 0)) {
+		// Finish Git Sync (Commit and Push) if configured
+		if (gitCredentials?.repoUrl) {
 			if (typeof window.finishGitSync === 'function') {
+				// This will check for staged changes, commit if necessary, and push
 				await window.finishGitSync(gitCredentials);
 			}
 		}
