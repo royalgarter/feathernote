@@ -2157,24 +2157,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			return;
 		}
 
-		let systemPrompt = '';
+		let systemPrompt = 'Strictly direct concise straight answer, no foreword or quote. ';
 		let userPrompt = '';
 
 		if (promptType === 'improve') {
-			systemPrompt = 'You are a helpful assistant that improves text. You will correct grammar, spelling, and make the text more fluent and clear.';
+			systemPrompt += 'You are a helpful assistant that improves text. You will correct grammar, spelling, and make the text more fluent and clear.';
 			userPrompt = `Improve the following text:\n\n---\n${content}`;
 		} else if (promptType === 'summarize') {
-			systemPrompt = 'You are a helpful assistant that summarizes text.';
+			systemPrompt += 'You are a helpful assistant that summarizes text.';
 			userPrompt = `Summarize the following text:\n\n---\n${content}`;
 		} else if (promptType === 'extractTags') {
-			systemPrompt = 'You are a helpful assistant that extracts tags from text. Return a comma-separated list of tags. Consider the existing tags and the content, and return a new list of tags that is relevant to the content.';
-			userPrompt = `Extract tags (maximum 7 tags, each tag is mostly single concise meaningful word) from the following text, considering the existing tags. **Only response in plain string comma-separated text**.\n\nExisting tags: ${this.noteEditorTags}\n\nContent:\n---\n${content}`;
+			systemPrompt += 'You are a helpful assistant that extracts tags from text. Return a comma-separated list of tags. Consider the existing tags and the content, and return a new list of tags that is relevant to the content.';
+			userPrompt = `Extract tags (maximum 7 tags, each tag is mostly single concise meaningful word) from the following text, considering the existing tags. **Only response in plain string lowercase comma-separated text**.\n\nExisting tags: [${this.noteEditorTags}]\n\nContent:\n---\n${content}`;
 		} else {
 			this.showToast({ variant: 'error', title: 'Invalid AI Action', description: 'The requested AI action is not supported.' });
 			return;
 		}
 
-		userPrompt = prompt(systemPrompt, userPrompt);
+		// userPrompt = prompt(systemPrompt, userPrompt);
 
 		document.body.style.cursor = 'wait';
 		try {
@@ -2185,18 +2185,22 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					'Authorization': `Bearer ${this.aiApiKey}`
 				},
 				body: JSON.stringify({
-					model: this.aiModel || 'gemini-2.5-flash',
+					model: this.aiModel || 'gemini-flash-lite-latest',
 					messages: [
 						{ role: 'system', content: systemPrompt },
 						{ role: 'user', content: userPrompt }
 					],
 					// reasoning_effort: 'low',
 					stream: false,
+
 					extra_body: {
 						google: {
+							generation_config: {
+								temperature: 0.2,
+							},
 							thinking_config: {
 								thinking_budget: 0,
-							}
+							},
 						}
 					}
 				})
@@ -2204,7 +2208,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			if (!response.ok) {
 				const errorData = await response.json();
-				throw new Error(errorData.error.message || 'AI API request failed');
+				throw new Error(errorData?.error?.message || errorData?.error || 'AI API request failed');
 			}
 
 			const data = await response.json();
