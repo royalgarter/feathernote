@@ -257,10 +257,14 @@ self.addEventListener('fetch', (event) => {
 							text = text.replaceAll('\n', ' | ');
 						}
 
-						if (title || sharedUrl) {
-							newItem += ` > ${text}`;
-						} else {
-							newItem += text;
+						text = text.trim();
+
+						if (!title.includes(text) && !sharedUrl.includes(text)) {
+							if (title || sharedUrl) {
+								newItem += ` > ${text}`;
+							} else {
+								newItem += text;
+							}
 						}
 					}
 
