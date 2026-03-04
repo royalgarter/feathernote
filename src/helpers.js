@@ -441,7 +441,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -554,17 +554,19 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			const localNoteIds = new Set(allLocalNotesMap.keys());
 
 			// Identify notes that should be deleted locally:
-			// - Exist locally
-			// - Don't exist remotely
-			// - Weren't already marked for local deletion
-			// - Weren't just uploaded (which would mean they now exist remotely)
-			const remotelyDeletedNoteIds = [...localNoteIds].filter(noteId => 
-				!remoteNoteIds.has(noteId) && 
-				!locallyDeletedNoteIds.has(noteId) && 
-				!uploadedNoteIds.has(noteId)
-			);
+			const idsToDeleteLocally = [...localNoteIds].filter(noteId => {
+				// 1. If it's in our known deleted list (synced via deleted-notes.json), it must go.
+				if (locallyDeletedNoteIds.has(noteId)) return true;
 
-			notesToDeleteLocally.push(...remotelyDeletedNoteIds);
+				// 2. If it's gone from ALL remotes AND we successfully listed all remotes AND it's not a new local note.
+				if (listingSucceeded && !remoteNoteIds.has(noteId) && !uploadedNoteIds.has(noteId)) {
+					return true;
+				}
+
+				return false;
+			});
+
+			notesToDeleteLocally.push(...idsToDeleteLocally);
 		}
 
 		const downloadPromises = notesToDownload.map(remoteMeta => {
@@ -820,13 +822,16 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		}
 	});
 
+	const listingSucceeded = [s3Res, nostrRes, gitRes, gdriveRes].every(r => r.status === 'fulfilled');
+
 	return {
 		mergedNotes: Array.from(mergedNotes.values()),
 		s3Ids: new Set(s3Notes.map(n => n.id)),
 		gitIds: new Set(gitNotes.map(n => n.id)),
 		nostrIds: new Set(nostrNotes.map(n => n.id)),
 		gdriveIds: new Set(gdriveNotes.map(n => n.id)),
-		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n]))
+		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n])),
+		listingSucceeded
 	};
 }
 
