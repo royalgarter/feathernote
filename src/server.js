@@ -210,7 +210,7 @@ app.post('/api/schedule-notification', async (req, res) => {
 });
 
 app.get('/api/proxy', async (req, res) => {
-	const urlToFetch = req.query.url;
+	const urlToFetch = decodeURIComponent(req.query.url);
 	if (!urlToFetch) {
 		return res.status(400).json({ error: 'URL parameter is required.' });
 	}
@@ -218,7 +218,7 @@ app.get('/api/proxy', async (req, res) => {
 	try {
 		// Use the built-in fetch in modern Node.js
 		const response = await fetch(urlToFetch, {
-			headers: { 'User-Agent': 'FeatherNote/1.0' } // Set a user-agent
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' } // Set a user-agent
 		});
 
 		if (!response.ok) {
@@ -227,6 +227,7 @@ app.get('/api/proxy', async (req, res) => {
 		}
 
 		const html = await response.text();
+		res.setHeader('X-Final-Url', response.url);
 		res.send(html);
 	} catch (error) {
 		console.error(`Proxy error for ${urlToFetch}:`, error);
