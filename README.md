@@ -1,4 +1,4 @@
-<p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p>
+<a href="/"><p align="center"><img src="https://feathernote.deno.dev/icons/ios/128.png" alt="FeatherNote Logo" width="128"></p></a>
 
 # FeatherNote: featherweight, offline-first PWA Note with Markdown, S3 Sync, and Share Target API.
 
@@ -25,6 +25,7 @@ This is where the magic happens. FeatherNote doesn't force you into a proprietar
 -   🔒 **Privacy is Paramount:** Your S3 credentials are encrypted in your browser and are never sent to any server but your own. We can't see your notes, and neither can anyone else.
 -   🔔 **Stay on Track:** Set reminders for your notes and get push notifications so you never miss a beat.
 -   🌐 **Web Clipper:** Found something interesting online? Paste a URL into a new note and watch FeatherNote automatically fetch and save the content. It's like a "read it later" feature, but for your own private notebook.
+-   🔖 **Browser Bookmarklet:** Quickly share any webpage (URL, title, and selected text) to your FeatherNote Shared Inbox with a single click from your browser's bookmarks bar.
 -   📲 **Installable & Shareable:** As a PWA, you can install FeatherNote on your desktop or mobile device for a native-app feel. You can even share content directly to it from other apps!
 -   🚀 **Feather-light & Fast:** Built with Alpine.js and Tailwind CSS, the interface is snappy, responsive, and a joy to use.
 -   🎨 **Excalidraw Integration (Non-Offline-able-Yet because of React Dependencies):** Sketch your ideas, create diagrams, and embed them directly into your notes.
@@ -243,7 +244,18 @@ If the Share Target feature is critical for your use case, you have a few option
 2.  **Serverless Function:** Implement the logic of the `/share` route as a serverless function (e.g., AWS Lambda, Google Cloud Functions, Azure Functions) and configure your static site to proxy requests to this function.
 3.  **Client-Side Only Share Target (Advanced):** For very specific scenarios, you might be able to handle some share target functionality purely client-side using the `navigator.share` API, but this is generally more limited and complex than a server-side approach.
 
-For most users who primarily use FeatherNote for personal note-taking and S3 sync, deploying as a static site is sufficient, and the absence of the `/share` route will not impact core functionality.s sufficient, and the absence of the `/share` route will not impact core functionality.
+For most users who primarily use FeatherNote for personal note-taking and S3 sync, deploying as a static site is sufficient, and the absence of the `/share` route will not impact core functionality.
+
+### Browser Bookmarklet (Secondary Share Method)
+
+As an alternative to the PWA Share Target API, FeatherNote provides a **Browser Bookmarklet**. This is a small piece of JavaScript that you can save as a bookmark in your browser's bookmarks bar.
+
+When you are browsing another website and want to save it to FeatherNote:
+1.  (Optional) Select any text on the page you want to save.
+2.  Click your "Share to FeatherNote" bookmarklet.
+3.  A new tab will open in FeatherNote, and the page title, URL, and your selection (or the page's meta description) will be automatically added to your **Shared Inbox** note.
+
+To set this up, go to **Settings** in FeatherNote and drag the "Share to FeatherNote" link to your bookmarks bar.
 
 ## Share Note
 

@@ -194,6 +194,54 @@ self.addEventListener('fetch', (event) => {
 						}
 					}
 
+					if (sharedUrl) {
+						try {
+							const proxyUrl = `/api/proxy?url=${encodeURIComponent(sharedUrl)}`;
+							const proxyResponse = await fetch(proxyUrl);
+							if (proxyResponse.ok) {
+								const finalUrl = proxyResponse.headers.get('X-Final-Url') || sharedUrl;
+								sharedUrl = typeof removeTrackingParams === 'function' ? removeTrackingParams(finalUrl) : finalUrl;
+
+								const html = await proxyResponse.text();
+
+								// Extract title (prefer og:title then <title>)
+								const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
+													html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:title["'][^>]*>/i);
+								const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+
+								let remoteTitle = '';
+								if (ogTitleMatch && ogTitleMatch[1]) {
+									remoteTitle = ogTitleMatch[1].trim();
+								} else if (titleMatch && titleMatch[1]) {
+									remoteTitle = titleMatch[1].trim();
+								}
+
+								if (remoteTitle) {
+									title = remoteTitle.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+								}
+
+								// Extract description (prefer og:description then description)
+								const descMatch = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
+												html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:description["'][^>]*>/i) ||
+												html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
+												html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["'][^>]*>/i);
+
+								if (descMatch && descMatch[1]) {
+									const description = descMatch[1].trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+									if (description) {
+										if (text) {
+											text = description + '\n\n' + text;
+										} else {
+											text = description;
+										}
+									}
+								}
+							}
+						} catch (e) {
+							console.error('Failed to unshorten or fetch metadata:', e);
+						}
+					}
+
 					let newItem = '- [ ] ';
 					if (title && sharedUrl) {
 						newItem += `[${title}](${sharedUrl})`;
@@ -205,13 +253,18 @@ self.addEventListener('fetch', (event) => {
 
 					if (text) {
 						if (text.trim().includes('\n')) {
-							text = '\n```\n' + text + '\n```\n';
+							// text = '\n```\n' + text + '\n```\n';
+							text = text.replaceAll('\n', ' | ');
 						}
 
-						if (title || sharedUrl) {
-							newItem += ` > ${text}`;
-						} else {
-							newItem += text;
+						text = text.trim();
+
+						if (!title.includes(text) && !sharedUrl.includes(text)) {
+							if (title || sharedUrl) {
+								newItem += ` > ${text}`;
+							} else {
+								newItem += text;
+							}
 						}
 					}
 

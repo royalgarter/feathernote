@@ -102,6 +102,12 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.currentPage = page;
 	},
 
+	get bookmarkletUrl() {
+		const baseUrl = window.location.origin;
+		const code = `javascript:(function(){var t=document.title,u=window.location.href,s=window.getSelection().toString();if(!s){var m=document.querySelector('meta[name="description"]');if(m)s=m.content}window.open("${baseUrl}/share?title="+encodeURIComponent(t)+"&url="+encodeURIComponent(u)+"&text="+encodeURIComponent(s),'_blank');})();`;
+		return code;
+	},
+
 
 	// --- Main App Init ---
 	init() {
@@ -1264,6 +1270,64 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async processSharedContent() {
+		// 1. Check for URL parameters (fallback if SW not active or for bookmarklet)
+		const params = new URLSearchParams(window.location.search);
+		const sharedTitle = params.get('title');
+		const sharedUrl = params.get('url');
+		const sharedText = params.get('text');
+
+		if (sharedTitle || sharedUrl || sharedText) {
+			const TITLE_SHARED = 'Shared Inbox';
+			let newItem = '- [ ] ';
+			if (sharedTitle && sharedUrl) {
+				newItem += `[${sharedTitle}](${sharedUrl})`;
+			} else if (sharedTitle) {
+				newItem += sharedTitle;
+			} else if (sharedUrl) {
+				newItem += `[${sharedUrl}](${sharedUrl})`;
+			}
+
+			if (sharedText) {
+				let text = sharedText;
+				if (text.trim().includes('\n')) {
+					text = '\n```\n' + text + '\n```\n';
+				}
+				if (sharedTitle || sharedUrl) {
+					newItem += ` > ${text}`;
+				} else {
+					newItem += text;
+				}
+			}
+
+			if (newItem !== '- [ ] ') {
+				let inboxNoteId = await getMetaDB('shared_inbox_id');
+				let inboxNote = inboxNoteId ? await getNoteDB(inboxNoteId) : null;
+				if (!inboxNote) {
+					inboxNote = await getNoteByTitleDB(TITLE_SHARED);
+				}
+
+				if (inboxNote) {
+					inboxNote.content = newItem + '\n' + (inboxNote.content || '');
+					inboxNote.updatedAt = new Date().toISOString();
+					await this.updateNote(inboxNote.id, { content: inboxNote.content }, true);
+					if (inboxNote.id !== inboxNoteId) {
+						await setMetaDB('shared_inbox_id', inboxNote.id);
+					}
+				} else {
+					const newNote = await this.addNote(TITLE_SHARED, newItem, null, ['shared', 'inbox']);
+					if (newNote) await setMetaDB('shared_inbox_id', newNote.id);
+				}
+
+				// Clean up URL without reloading
+				const newUrl = window.location.origin + window.location.pathname + window.location.hash;
+				window.history.replaceState({}, document.title, newUrl);
+				
+				this.showToast({ title: 'Shared Content Imported', description: 'Item added to Shared Inbox.' });
+				await this.fetchNotes();
+			}
+		}
+
+		// 2. Check for items in the shared-content object store (PWA share target API)
 		await navigator.locks.request('shared-content-lock', async lock => {
 			try {
 				const sharedItems = await getSharedContentDB();
@@ -2110,24 +2174,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			return;
 		}
 
-		let systemPrompt = '';
+		let systemPrompt = 'Strictly direct concise straight answer, no foreword or quote. ';
 		let userPrompt = '';
 
 		if (promptType === 'improve') {
-			systemPrompt = 'You are a helpful assistant that improves text. You will correct grammar, spelling, and make the text more fluent and clear.';
+			systemPrompt += 'You are a helpful assistant that improves text. You will correct grammar, spelling, and make the text more fluent and clear.';
 			userPrompt = `Improve the following text:\n\n---\n${content}`;
 		} else if (promptType === 'summarize') {
-			systemPrompt = 'You are a helpful assistant that summarizes text.';
+			systemPrompt += 'You are a helpful assistant that summarizes text.';
 			userPrompt = `Summarize the following text:\n\n---\n${content}`;
 		} else if (promptType === 'extractTags') {
-			systemPrompt = 'You are a helpful assistant that extracts tags from text. Return a comma-separated list of tags. Consider the existing tags and the content, and return a new list of tags that is relevant to the content.';
-			userPrompt = `Extract tags (maximum 7 tags, each tag is mostly single concise meaningful word) from the following text, considering the existing tags. **Only response in plain string comma-separated text**.\n\nExisting tags: ${this.noteEditorTags}\n\nContent:\n---\n${content}`;
+			systemPrompt += 'You are a helpful assistant that extracts tags from text. Return a comma-separated list of tags. Consider the existing tags and the content, and return a new list of tags that is relevant to the content.';
+			userPrompt = `Extract tags (maximum 7 tags, each tag is mostly single concise meaningful word) from the following text, considering the existing tags. **Only response in plain string lowercase comma-separated text**.\n\nExisting tags: [${this.noteEditorTags}]\n\nContent:\n---\n${content}`;
 		} else {
 			this.showToast({ variant: 'error', title: 'Invalid AI Action', description: 'The requested AI action is not supported.' });
 			return;
 		}
 
-		userPrompt = prompt(systemPrompt, userPrompt);
+		// userPrompt = prompt(systemPrompt, userPrompt);
 
 		document.body.style.cursor = 'wait';
 		try {
@@ -2138,18 +2202,22 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					'Authorization': `Bearer ${this.aiApiKey}`
 				},
 				body: JSON.stringify({
-					model: this.aiModel || 'gemini-2.5-flash',
+					model: this.aiModel || 'gemini-flash-lite-latest',
 					messages: [
 						{ role: 'system', content: systemPrompt },
 						{ role: 'user', content: userPrompt }
 					],
 					// reasoning_effort: 'low',
 					stream: false,
+
 					extra_body: {
 						google: {
+							generation_config: {
+								temperature: 0.2,
+							},
 							thinking_config: {
 								thinking_budget: 0,
-							}
+							},
 						}
 					}
 				})
@@ -2157,7 +2225,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			if (!response.ok) {
 				const errorData = await response.json();
-				throw new Error(errorData.error.message || 'AI API request failed');
+				throw new Error(errorData?.error?.message || errorData?.error || 'AI API request failed');
 			}
 
 			const data = await response.json();
