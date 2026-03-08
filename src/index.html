@@ -340,6 +340,25 @@
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="pinata-jwt" class="text-right">Pinata JWT</label>
+						<input id="pinata-jwt" type="password" x-model="pinataJwt" class="col-span-3 border p-1" placeholder="JWT Token..." autocomplete="new-password" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="pinata-api-key" class="text-right">Pinata API Key</label>
+						<input id="pinata-api-key" x-model="pinataApiKey" class="col-span-3 border p-1" placeholder="API Key..." />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="pinata-secret-key" class="text-right">Pinata Secret</label>
+						<input id="pinata-secret-key" type="password" x-model="pinataSecretApiKey" class="col-span-3 border p-1" placeholder="Secret API Key..." autocomplete="new-password" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="ipfs-gateway" class="text-right">IPFS Gateway</label>
+						<input id="ipfs-gateway" x-model="ipfsGateway" class="col-span-3 border p-1" placeholder="https://gateway.pinata.cloud/ipfs/" />
+					</div>
+				</fieldset>
+
+				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
+					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-api-key" class="text-right">AI API Key</label>
 						<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border p-1" autocomplete="new-password" />
 					</div>
@@ -443,6 +462,7 @@
 <script defer src="/s3.js?v=___VERSION___"></script>
 <script defer src="/nostr.js?v=___VERSION___"></script>
 <script defer src="/gdrive.js?v=___VERSION___"></script>
+<script defer src="/ipfs.js?v=___VERSION___"></script>
 <script defer src="/helpers.js?v=___VERSION___"></script>
 <script defer src="/index.js?v=___VERSION___"></script>
 

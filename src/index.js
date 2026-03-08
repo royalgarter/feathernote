@@ -2267,6 +2267,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	nostrPrivateKey: '',
 	nostrRelays: '',
 
+	pinataJwt: '',
+	pinataApiKey: '',
+	pinataSecretApiKey: '',
+	ipfsGateway: '',
+
 	aiApiKey: '',
 	aiApiRoute: '',
 	aiModel: '',
@@ -2298,6 +2303,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.accessKeyId = decrypted.accessKeyId || '';
 		this.secretAccessKey = decrypted.secretAccessKey || '';
 		this.nostrPrivateKey = decrypted.nostrPrivateKey || '';
+		this.pinataJwt = decrypted.pinataJwt || '';
+		this.pinataApiKey = decrypted.pinataApiKey || '';
+		this.pinataSecretApiKey = decrypted.pinataSecretApiKey || '';
+		this.ipfsGateway = decrypted.ipfsGateway || '';
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
@@ -2335,6 +2344,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			accessKeyId: this.accessKeyId,
 			secretAccessKey: existingSettings.secretAccessKey || '',
 			nostrPrivateKey: this.nostrPrivateKey,
+			pinataJwt: this.pinataJwt,
+			pinataApiKey: this.pinataApiKey,
+			pinataSecretApiKey: this.pinataSecretApiKey,
+			ipfsGateway: this.ipfsGateway,
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
 			aiModel: this.aiModel,

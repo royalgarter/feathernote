@@ -373,6 +373,9 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	if (gdriveStore?.connected) {
 		remoteLists.push(await window.downloadDeletedNotesFromGoogleDrive());
 	}
+	if (credentials?.pinataJwt || credentials?.pinataApiKey) {
+		remoteLists.push(await window.downloadDeletedNotesFromIPFS(credentials));
+	}
 
 	// --- Merge Phase ---
 	// 1. Find the master list (most recent)
@@ -415,6 +418,9 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		if (gdriveStore?.connected) {
 			uploadPromises.push(window.uploadDeletedNotesToGoogleDrive(finalIdArray));
 		}
+		if (credentials?.pinataJwt || credentials?.pinataApiKey) {
+			uploadPromises.push(window.uploadDeletedNotesToIPFS(finalIdArray, credentials));
+		}
 		await Promise.allSettled(uploadPromises);
 	} else {
 		console.log('Deleted notes list is already in sync. No upload needed.');
@@ -432,16 +438,16 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		}
 
-		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected) return {
+		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected && !credentials.pinataJwt && !credentials.pinataApiKey) return {
 			success: false,
-			error: 'No sync provider configured (S3, Git, or GDrive)',
+			error: 'No sync provider configured (S3, Git, IPFS, or GDrive)',
 		};
 
 		// --- Step 0: Sync Deleted IDs ---
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, gdriveMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, gdriveMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -465,6 +471,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			if (credentials.secretAccessKey && !s3Ids.has(localNote.id)) return true;
 			if (nostrPrivateKey && !nostrIds.has(localNote.id)) return true;
 			if (gdriveStore?.connected && !gdriveIds.has(localNote.id)) return true;
+			if ((credentials.pinataJwt || credentials.pinataApiKey) && !ipfsIds.has(localNote.id)) return true;
 
 			// If the remote version is strictly newer, don't push the local version yet.
 			// We'll download the remote version later in this sync cycle.
@@ -476,8 +483,9 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 		const uploadPromises = notesToUpload.map(note => uploadNote({
 			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
-			s3Ids, gitIds, nostrIds, gdriveIds, remoteMetaMap, gdriveMap
+			s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, remoteMetaMap, gdriveMap
 		}));
+
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
 		const deletePromises = effectiveDeletedNoteIds.map(noteId => {
@@ -579,6 +587,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				return Promise.resolve(remoteMeta); // Nostr also returns full event/note
 			} else if (remoteMeta.source === 'gdrive') {
 				return window.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
+			} else if (remoteMeta.source === 'ipfs') {
+				return window.downloadNoteFromIPFS(remoteMeta, credentials);
 			} else {
 				return downloadNoteFromS3(remoteMeta, credentials);
 			}
@@ -709,7 +719,7 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 	}
 }
 
-async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore, s3Ids, gitIds, nostrIds, gdriveIds, remoteMetaMap, gdriveMap}) {
+async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, remoteMetaMap, gdriveMap}) {
 	const localDate = new Date(note.updatedAt);
 	const remoteMeta = remoteMetaMap?.get(note.id);
 	const gdriveMeta = gdriveMap?.get(note.id);
@@ -720,6 +730,7 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 		(nostrPrivateKey && (isNewerLocally || !nostrIds?.has(note.id))) ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
 		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (isNewerLocally || !gitIds?.has(note.id))) ? window.uploadNoteToGit(note, gitCredentials) : null,
 		(gdriveStore?.connected && typeof window.uploadNoteToGoogleDrive === 'function' && (isNewerLocally || !gdriveIds?.has(note.id))) ? window.uploadNoteToGoogleDrive(note, gdriveMeta) : null,
+		((credentials.pinataJwt || credentials.pinataApiKey) && typeof window.uploadNoteToIPFS === 'function' && (isNewerLocally || !ipfsIds?.has(note.id))) ? window.uploadNoteToIPFS(note, credentials) : null,
 	].filter(x => x));
 }
 
@@ -764,21 +775,44 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		gdriveNotesPromise = Promise.resolve([]);
 	}
 
-	const [s3Res, nostrRes, gitRes, gdriveRes] = await Promise.allSettled([
+	let ipfsNotesPromise;
+	if ((credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.listNotesInIPFS === 'function') {
+		ipfsNotesPromise = window.listNotesInIPFS(credentials);
+	} else {
+		ipfsNotesPromise = Promise.resolve([]);
+	}
+
+	const [s3Res, nostrRes, gitRes, gdriveRes, ipfsRes] = await Promise.allSettled([
 		promiseTimeout(s3NotesPromise),
 		promiseTimeout(nostrNotesPromise),
 		promiseTimeout(gitNotesPromise),
-		promiseTimeout(gdriveNotesPromise)
+		promiseTimeout(gdriveNotesPromise),
+		promiseTimeout(ipfsNotesPromise)
 	]);
 
 	const s3Notes = s3Res.status === 'fulfilled' ? s3Res.value : [];
 	const nostrNotes = nostrRes.status === 'fulfilled' ? nostrRes.value : [];
 	const gitNotes = gitRes.status === 'fulfilled' ? gitRes.value : [];
 	const gdriveNotes = gdriveRes.status === 'fulfilled' ? gdriveRes.value : [];
+	const ipfsNotes = ipfsRes.status === 'fulfilled' ? ipfsRes.value : [];
 
 	const mergedNotes = new Map();
 
 	s3Notes.forEach(note => mergedNotes.set(note.id, note));
+
+	ipfsNotes.forEach(note => {
+		const existingNote = mergedNotes.get(note.id);
+		const ipfsLastModified = new Date(note.updatedAt);
+
+		if (!existingNote) {
+			mergedNotes.set(note.id, note);
+		} else {
+			const existingLastModified = new Date(existingNote.updatedAt);
+			if (ipfsLastModified > existingLastModified) {
+				mergedNotes.set(note.id, note);
+			}
+		}
+	});
 
 	nostrNotes.forEach(note => {
 		const existingNote = mergedNotes.get(note.id);
@@ -822,7 +856,8 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		}
 	});
 
-	const listingSucceeded = [s3Res, nostrRes, gitRes, gdriveRes].every(r => r.status === 'fulfilled');
+	const listingSucceeded = [s3Res, nostrRes, gitRes, gdriveRes, ipfsRes].every(r => r.status === 'fulfilled');
+
 
 	return {
 		mergedNotes: Array.from(mergedNotes.values()),
@@ -830,6 +865,7 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		gitIds: new Set(gitNotes.map(n => n.id)),
 		nostrIds: new Set(nostrNotes.map(n => n.id)),
 		gdriveIds: new Set(gdriveNotes.map(n => n.id)),
+		ipfsIds: new Set(ipfsNotes.map(n => n.id)),
 		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n])),
 		listingSucceeded
 	};
@@ -896,6 +932,10 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 
 	if (gitCredentials?.repoUrl && typeof window.deleteNoteFromGit === 'function') {
 		promises.push(window.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
+	}
+
+	if ((credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.deleteNoteFromIPFS === 'function') {
+		promises.push(window.deleteNoteFromIPFS(noteId, credentials));
 	}
 
 	await Promise.all(promises);
