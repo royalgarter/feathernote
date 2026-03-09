@@ -234,14 +234,17 @@ window.uploadNoteToGit = async (note, creds) => {
     const filename = `${relDir}/${note.id}.md`;
     const content = createMarkdownContent(note);
     
-    // 1. Ensure directory exists
+    // 1. Ensure directory exists (only if it doesn't already)
     const parts = relDir.split('/');
     let currentPath = GIT_DIR;
     for (const part of parts) {
         currentPath += '/' + part;
         try {
+            const stat = await pfs.stat(currentPath);
+            if (stat.type !== 'dir') throw new Error('Not a directory');
+        } catch (e) {
             await pfs.mkdir(currentPath);
-        } catch (e) {}
+        }
     }
 
     // 2. Write to FS
@@ -254,35 +257,37 @@ window.uploadNoteToGit = async (note, creds) => {
     const oldFilename = `${note.id}.md`;
     if (filename !== oldFilename) {
         try {
+            await pfs.stat(`${GIT_DIR}/${oldFilename}`);
             await git.remove({ fs, dir: GIT_DIR, filepath: oldFilename });
             await pfs.unlink(`${GIT_DIR}/${oldFilename}`);
             console.log(`GIT: Migrated ${oldFilename} to ${filename}`);
         } catch (e) {
-            // Probably didn't exist, ignore
+            // File doesn't exist or already removed, ignore silently
         }
     }
 };
 
 window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
     const filename = noteIdOrPath.endsWith('.md') ? noteIdOrPath : `${noteIdOrPath}.md`;
+    const fullPath = `${GIT_DIR}/${filename}`;
+    
     try {
-        await git.remove({ fs, dir: GIT_DIR, filepath: filename });
-        console.log(`GIT: Removed ${filename} from git index`);
-    } catch (e) {
-        if (e.code !== 'NotFoundError') {
-            throw e;
+        // Only attempt removal if the file exists in FS or Git index
+        const status = await git.status({ fs, dir: GIT_DIR, filepath: filename });
+        if (status !== 'absent' && status !== 'undefined') {
+            await git.remove({ fs, dir: GIT_DIR, filepath: filename });
+            console.log(`GIT: Removed ${filename} from git index`);
         }
-        console.log('GIT: Git remove failed (file already gone):', e);
+    } catch (e) {
+        // Ignore errors for already removed files
     }
 
-    	try {
-    		await pfs.unlink(`${GIT_DIR}/${filename}`);
-    	} catch (e) {
-    		if (e.code !== 'ENOENT') {
-    			throw e;
-    		}
-    	}
-    };
+    try {
+        await pfs.unlink(fullPath);
+    } catch (e) {
+        // Ignore ENOENT (file already gone)
+    }
+};
     
     window.uploadDeletedNotesToGit = async (deletedIds, creds) => {
     	const filename = 'deleted-notes.json';
@@ -314,12 +319,14 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
             const config = getGitConfig(creds);
             const remoteRef = creds.branch || 'main';
 
-                        // 0. Check for staged changes to avoid empty commits
-                        const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
-                        const hasStagedChanges = matrix.some(row => row[1] !== row[3]);
+            // 0. Check for staged changes to avoid empty commits
+            // Instead of a full matrix scan, we can use statusMatrix with a filter or check if any files were added/removed
+            // For simplicity and correctness with isomorphic-git, we check status of common files or use a limited matrix
+            const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+            const hasStagedChanges = matrix.some(row => row[1] !== row[3]);
             
-                        // 1. Commit if changes exist
-                        if (hasStagedChanges) {
+            // 1. Commit if changes exist
+            if (hasStagedChanges) {
                             try {
                                 const sha = await git.commit({
                                     ...config,

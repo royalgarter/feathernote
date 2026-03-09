@@ -447,7 +447,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, gdriveMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -458,32 +458,45 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			if (effectiveDeletedNoteIds.includes(localNote.id)) return false;
 
 			const remoteMeta = remoteMetaMap.get(localNote.id);
-			if (!remoteMeta) {
-				// Note doesn't exist remotely at all, so it's new.
-				return true;
+			const localDate = new Date(localNote.updatedAt);
+			const remoteDate = remoteMeta ? new Date(remoteMeta.updatedAt) : null;
+
+			// If any remote is strictly newer, don't push the local version yet.
+			// We'll download the remote version later in this sync cycle.
+			if (remoteDate && localDate < remoteDate) return false;
+
+			// We upload if it's missing from ANY active sync provider OR if local is newer than ANY provider's version.
+			// (Note: Since localDate >= remoteDate, and remoteDate is the newest remote, 
+			// if localDate > remoteDate, it's newer than ALL remotes. 
+			// if localDate == remoteDate, it might still be newer than SOME remotes if they are inconsistent).
+
+			if (gitCredentials?.repoUrl) {
+				const gitMeta = gitMap.get(localNote.id);
+				if (!gitMeta || localDate > new Date(gitMeta.updatedAt || gitMeta.createdAt)) return true;
+			}
+			if (credentials.secretAccessKey) {
+				const s3Meta = s3Map.get(localNote.id);
+				if (!s3Meta || localDate > new Date(s3Meta.updatedAt)) return true;
+			}
+			if (nostrPrivateKey) {
+				const nostrMeta = nostrMap.get(localNote.id);
+				if (!nostrMeta || localDate > new Date(nostrMeta.updatedAt || nostrMeta.createdAt)) return true;
+			}
+			if (gdriveStore?.connected) {
+				const gdriveMeta = gdriveMap.get(localNote.id);
+				if (!gdriveMeta || localDate > new Date(gdriveMeta.updatedAt || gdriveMeta.createdAt)) return true;
+			}
+			if (credentials.pinataJwt || credentials.pinataApiKey) {
+				const ipfsMeta = ipfsMap.get(localNote.id);
+				if (!ipfsMeta || localDate > new Date(ipfsMeta.updatedAt)) return true;
 			}
 
-			const remoteDate = new Date(remoteMeta.updatedAt);
-			const localDate = new Date(localNote.updatedAt);
-
-			// If it's missing from any of our active sync providers, we need to upload.
-			if (gitCredentials?.repoUrl && !gitIds.has(localNote.id)) return true;
-			if (credentials.secretAccessKey && !s3Ids.has(localNote.id)) return true;
-			if (nostrPrivateKey && !nostrIds.has(localNote.id)) return true;
-			if (gdriveStore?.connected && !gdriveIds.has(localNote.id)) return true;
-			if ((credentials.pinataJwt || credentials.pinataApiKey) && !ipfsIds.has(localNote.id)) return true;
-
-			// If the remote version is strictly newer, don't push the local version yet.
-			// We'll download the remote version later in this sync cycle.
-			if (localDate < remoteDate) return false;
-
-			// Note exists remotely. Only upload if local is newer than the newest remote.
-			return localDate > remoteDate;
+			return false;
 		});
 
 		const uploadPromises = notesToUpload.map(note => uploadNote({
 			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
-			s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, remoteMetaMap, gdriveMap
+			s3Map, gitMap, nostrMap, gdriveMap, ipfsMap
 		}));
 
 
@@ -719,18 +732,21 @@ async function synchronizeImages({encryptedSettings, userId, nostrPrivateKey, no
 	}
 }
 
-async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, remoteMetaMap, gdriveMap}) {
+async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap}) {
 	const localDate = new Date(note.updatedAt);
-	const remoteMeta = remoteMetaMap?.get(note.id);
-	const gdriveMeta = gdriveMap?.get(note.id);
-	const isNewerLocally = remoteMeta && localDate > new Date(remoteMeta.updatedAt);
+
+	const shouldUploadToS3 = credentials.secretAccessKey && (!s3Map.has(note.id) || localDate > new Date(s3Map.get(note.id).updatedAt));
+	const shouldUploadToNostr = nostrPrivateKey && (!nostrMap.has(note.id) || localDate > new Date(nostrMap.get(note.id).updatedAt || nostrMap.get(note.id).createdAt));
+	const shouldUploadToGit = gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (!gitMap.has(note.id) || localDate > new Date(gitMap.get(note.id).updatedAt || gitMap.get(note.id).createdAt));
+	const shouldUploadToGDrive = gdriveStore?.connected && typeof window.uploadNoteToGoogleDrive === 'function' && (!gdriveMap.has(note.id) || localDate > new Date(gdriveMap.get(note.id).updatedAt || gdriveMap.get(note.id).createdAt));
+	const shouldUploadToIPFS = (credentials.pinataJwt || credentials.pinataApiKey) && typeof window.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
 
 	await Promise.allSettled([
-		(credentials.secretAccessKey && (isNewerLocally || !s3Ids?.has(note.id))) ? uploadNoteToS3(note, credentials) : null,
-		(nostrPrivateKey && (isNewerLocally || !nostrIds?.has(note.id))) ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
-		(gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (isNewerLocally || !gitIds?.has(note.id))) ? window.uploadNoteToGit(note, gitCredentials) : null,
-		(gdriveStore?.connected && typeof window.uploadNoteToGoogleDrive === 'function' && (isNewerLocally || !gdriveIds?.has(note.id))) ? window.uploadNoteToGoogleDrive(note, gdriveMeta) : null,
-		((credentials.pinataJwt || credentials.pinataApiKey) && typeof window.uploadNoteToIPFS === 'function' && (isNewerLocally || !ipfsIds?.has(note.id))) ? window.uploadNoteToIPFS(note, credentials) : null,
+		shouldUploadToS3 ? uploadNoteToS3(note, credentials) : null,
+		shouldUploadToNostr ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+		shouldUploadToGit ? window.uploadNoteToGit(note, gitCredentials) : null,
+		shouldUploadToGDrive ? window.uploadNoteToGoogleDrive(note, gdriveMap.get(note.id)) : null,
+		shouldUploadToIPFS ? window.uploadNoteToIPFS(note, credentials) : null,
 	].filter(x => x));
 }
 
@@ -866,7 +882,11 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		nostrIds: new Set(nostrNotes.map(n => n.id)),
 		gdriveIds: new Set(gdriveNotes.map(n => n.id)),
 		ipfsIds: new Set(ipfsNotes.map(n => n.id)),
+		s3Map: new Map(s3Notes.map(n => [n.id, n])),
+		gitMap: new Map(gitNotes.map(n => [n.id, n])),
+		nostrMap: new Map(nostrNotes.map(n => [n.id, n])),
 		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n])),
+		ipfsMap: new Map(ipfsNotes.map(n => [n.id, n])),
 		listingSucceeded
 	};
 }
