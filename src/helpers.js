@@ -1,11 +1,13 @@
 // --- Environment-agnostic Globals ---
-const BTOA = self.btoa;
-const ATOB = self.atob;
-const CRYPTO = self.crypto;
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
+const BTOA = _GLOBAL.btoa;
+const ATOB = _GLOBAL.atob;
+const CRYPTO = _GLOBAL.crypto;
 const TEXT_ENCODER = TextEncoder;
 const TEXT_DECODER = TextDecoder;
-const FETCH = self.fetch;
-const INDEXED_DB = self.indexedDB;
+const FETCH = _GLOBAL.fetch;
+const INDEXED_DB = _GLOBAL.indexedDB;
 
 const promiseTimeout = (p, ms=30e3) => Promise.race([
 	p,
@@ -15,6 +17,7 @@ const promiseTimeout = (p, ms=30e3) => Promise.race([
 const pad = (num) => num.toString().padStart(2, '0');
 
 const loadScript = (src, id) => {
+	if (typeof document === 'undefined') return Promise.resolve();
 	return new Promise((resolve, reject) => {
 		if (document.getElementById(id)) return resolve();
 		const script = document.createElement('script');
@@ -28,6 +31,7 @@ const loadScript = (src, id) => {
 };
 
 const loadStyle = (href, id) => {
+	if (typeof document === 'undefined') return Promise.resolve();
 	return new Promise((resolve, reject) => {
 		if (document.getElementById(id)) return resolve();
 		const link = document.createElement('link');
@@ -368,10 +372,10 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		remoteLists.push(await downloadDeletedNotesFromS3(credentials));
 	}
 	if (gitCredentials?.repoUrl) {
-		remoteLists.push(await window.downloadDeletedNotesFromGit(gitCredentials));
+		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromGit(gitCredentials));
 	}
 	if (gdriveStore?.connected) {
-		remoteLists.push(await window.downloadDeletedNotesFromGoogleDrive());
+		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromGoogleDrive());
 	}
 	if (credentials?.pinataJwt || credentials?.pinataApiKey) {
 		remoteLists.push(await window.downloadDeletedNotesFromIPFS(credentials));
@@ -413,10 +417,10 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 			uploadPromises.push(uploadDeletedNotesToS3(finalIdArray, credentials));
 		}
 		if (gitCredentials?.repoUrl) {
-			uploadPromises.push(window.uploadDeletedNotesToGit(finalIdArray, gitCredentials));
+			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGit(finalIdArray, gitCredentials));
 		}
 		if (gdriveStore?.connected) {
-			uploadPromises.push(window.uploadDeletedNotesToGoogleDrive(finalIdArray));
+			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGoogleDrive(finalIdArray));
 		}
 		if (credentials?.pinataJwt || credentials?.pinataApiKey) {
 			uploadPromises.push(window.uploadDeletedNotesToIPFS(finalIdArray, credentials));
@@ -433,8 +437,8 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 	try {
 		// Initialize Git if configured
 		if (gitCredentials?.repoUrl) {
-			if (typeof window.initGit === 'function') {
-				await window.initGit(gitCredentials);
+			if (typeof _GLOBAL.initGit === 'function') {
+				await _GLOBAL.initGit(gitCredentials);
 			}
 		}
 
@@ -532,9 +536,9 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		
 		// Finish Git Sync (Commit and Push) if configured
 		if (gitCredentials?.repoUrl) {
-			if (typeof window.finishGitSync === 'function') {
+			if (typeof _GLOBAL.finishGitSync === 'function') {
 				// This will check for staged changes, commit if necessary, and push
-				await window.finishGitSync(gitCredentials);
+				await _GLOBAL.finishGitSync(gitCredentials);
 			}
 		}
 
@@ -599,9 +603,9 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			} else if (remoteMeta.source === 'nostr') {
 				return Promise.resolve(remoteMeta); // Nostr also returns full event/note
 			} else if (remoteMeta.source === 'gdrive') {
-				return window.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
+				return _GLOBAL.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
 			} else if (remoteMeta.source === 'ipfs') {
-				return window.downloadNoteFromIPFS(remoteMeta, credentials);
+				return _GLOBAL.downloadNoteFromIPFS(remoteMeta, credentials);
 			} else {
 				return downloadNoteFromS3(remoteMeta, credentials);
 			}
@@ -737,16 +741,16 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 
 	const shouldUploadToS3 = credentials.secretAccessKey && (!s3Map.has(note.id) || localDate > new Date(s3Map.get(note.id).updatedAt));
 	const shouldUploadToNostr = nostrPrivateKey && (!nostrMap.has(note.id) || localDate > new Date(nostrMap.get(note.id).updatedAt || nostrMap.get(note.id).createdAt));
-	const shouldUploadToGit = gitCredentials?.repoUrl && typeof window.uploadNoteToGit === 'function' && (!gitMap.has(note.id) || localDate > new Date(gitMap.get(note.id).updatedAt || gitMap.get(note.id).createdAt));
-	const shouldUploadToGDrive = gdriveStore?.connected && typeof window.uploadNoteToGoogleDrive === 'function' && (!gdriveMap.has(note.id) || localDate > new Date(gdriveMap.get(note.id).updatedAt || gdriveMap.get(note.id).createdAt));
-	const shouldUploadToIPFS = (credentials.pinataJwt || credentials.pinataApiKey) && typeof window.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
+	const shouldUploadToGit = gitCredentials?.repoUrl && typeof _GLOBAL.uploadNoteToGit === 'function' && (!gitMap.has(note.id) || localDate > new Date(gitMap.get(note.id).updatedAt || gitMap.get(note.id).createdAt));
+	const shouldUploadToGDrive = gdriveStore?.connected && typeof _GLOBAL.uploadNoteToGoogleDrive === 'function' && (!gdriveMap.has(note.id) || localDate > new Date(gdriveMap.get(note.id).updatedAt || gdriveMap.get(note.id).createdAt));
+	const shouldUploadToIPFS = (credentials.pinataJwt || credentials.pinataApiKey) && typeof _GLOBAL.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
 
 	await Promise.allSettled([
 		shouldUploadToS3 ? uploadNoteToS3(note, credentials) : null,
-		shouldUploadToNostr ? window.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
-		shouldUploadToGit ? window.uploadNoteToGit(note, gitCredentials) : null,
-		shouldUploadToGDrive ? window.uploadNoteToGoogleDrive(note, gdriveMap.get(note.id)) : null,
-		shouldUploadToIPFS ? window.uploadNoteToIPFS(note, credentials) : null,
+		shouldUploadToNostr ? _GLOBAL.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+		shouldUploadToGit ? _GLOBAL.uploadNoteToGit(note, gitCredentials) : null,
+		shouldUploadToGDrive ? _GLOBAL.uploadNoteToGoogleDrive(note, gdriveMap.get(note.id)) : null,
+		shouldUploadToIPFS ? _GLOBAL.uploadNoteToIPFS(note, credentials) : null,
 	].filter(x => x));
 }
 
@@ -760,7 +764,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		// a signed URL is not available with V2 of the SDK, so we'll just publish the record without the URL
-		promises.push(window.publishImageToRelays(relays, nostrPrivateKey, image));
+		promises.push(_GLOBAL.publishImageToRelays(relays, nostrPrivateKey, image));
 	}
 
 	await Promise.all(promises);
@@ -772,21 +776,21 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 	let nostrNotesPromise;
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		nostrNotesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey, lastSync);
+		nostrNotesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey, lastSync);
 	} else {
 		nostrNotesPromise = Promise.resolve([]);
 	}
 
 	let gitNotesPromise;
-	if (gitCredentials?.repoUrl && typeof window.listNotesInGit === 'function') {
-		gitNotesPromise = window.listNotesInGit(gitCredentials);
+	if (gitCredentials?.repoUrl && typeof _GLOBAL.listNotesInGit === 'function') {
+		gitNotesPromise = _GLOBAL.listNotesInGit(gitCredentials);
 	} else {
 		gitNotesPromise = Promise.resolve([]);
 	}
 
 	let gdriveNotesPromise;
-	if (gdriveStore?.connected && typeof window.listNotesInGDrive === 'function') {
-		gdriveNotesPromise = window.listNotesInGDrive();
+	if (gdriveStore?.connected && typeof _GLOBAL.listNotesInGDrive === 'function') {
+		gdriveNotesPromise = _GLOBAL.listNotesInGDrive();
 	} else {
 		gdriveNotesPromise = Promise.resolve([]);
 	}
@@ -897,7 +901,7 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 	let nostrImagesPromise;
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		nostrImagesPromise = window.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
+		nostrImagesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
 	} else {
 		nostrImagesPromise = Promise.resolve([]);
 	}
@@ -937,8 +941,8 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	const promises = [];
 
 	// Remote deletions
-	if (gdriveStore.connected && typeof window.deleteNoteFromGoogleDrive === 'function') {
-		promises.push(window.deleteNoteFromGoogleDrive(noteId, remoteMeta));
+	if (gdriveStore.connected && typeof _GLOBAL.deleteNoteFromGoogleDrive === 'function') {
+		promises.push(_GLOBAL.deleteNoteFromGoogleDrive(noteId, remoteMeta));
 	}
 
 	if (credentials?.secretAccessKey) {
@@ -947,11 +951,11 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 
 	if ( nostrPrivateKey && nostrRelays ) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		promises.push(window.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
+		promises.push(_GLOBAL.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
 	}
 
-	if (gitCredentials?.repoUrl && typeof window.deleteNoteFromGit === 'function') {
-		promises.push(window.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
+	if (gitCredentials?.repoUrl && typeof _GLOBAL.deleteNoteFromGit === 'function') {
+		promises.push(_GLOBAL.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
 	}
 
 	if ((credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.deleteNoteFromIPFS === 'function') {
@@ -972,7 +976,7 @@ async function deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, no
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		// Assuming a function to publish deletion events for images exists, similar to note deletion
-		promises.push(window.publishImageDeletionToRelays(relays, nostrPrivateKey, imageId));
+		promises.push(_GLOBAL.publishImageDeletionToRelays(relays, nostrPrivateKey, imageId));
 	}
 
 	await Promise.allSettled(promises);
@@ -1062,7 +1066,7 @@ function easyMDEcheckboxChange(event) {
 
 	if (index < 0) return console.log('easyMDEcheckboxChange index not found', index);
 
-	let markdown = window.easyMDEInstance.codemirror.getValue();
+	let markdown = _GLOBAL.easyMDEInstance.codemirror.getValue();
 
 	if (event.target.checked) {
 		markdown = easyMDEreplaceNth(markdown, /\- \[[x|\s]\]/gmi, "- [x]", index + 1);
@@ -1070,5 +1074,65 @@ function easyMDEcheckboxChange(event) {
 		markdown = easyMDEreplaceNth(markdown, /\- \[[x|\s]\]/gmi, "- [ ]", index + 1);
 	}
 
-	window.easyMDEInstance.codemirror.setValue(markdown);
+	_GLOBAL.easyMDEInstance.codemirror.setValue(markdown);
+}
+
+// --- WebAuthn Biometric Helpers ---
+
+async function registerBiometric() {
+	if (!window.PublicKeyCredential) throw new Error('Biometric authentication not supported');
+
+	const challenge = CRYPTO.getRandomValues(new Uint8Array(32));
+	const userId = CRYPTO.getRandomValues(new Uint8Array(16));
+
+	const options = {
+		publicKey: {
+			challenge,
+			rp: { name: 'FeatherNote' },
+			user: {
+				id: userId,
+				name: 'user@feathernote.app',
+				displayName: 'FeatherNote User',
+			},
+			pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+			authenticatorSelection: {
+				authenticatorAttachment: 'platform',
+				userVerification: 'required',
+			},
+			timeout: 60000,
+		},
+	};
+
+	const credential = await navigator.credentials.create(options);
+	if (!credential) throw new Error('Biometric registration failed');
+
+	// Save the credential ID to persist the "lock"
+	const credentialId = bufferToBase64(credential.rawId);
+	await setMetaDB('biometric_credential_id', credentialId);
+	return true;
+}
+
+async function authenticateBiometric() {
+	if (!window.PublicKeyCredential) throw new Error('Biometric authentication not supported');
+
+	const credentialIdB64 = await getMetaDB('biometric_credential_id');
+	if (!credentialIdB64) throw new Error('No biometric credential registered');
+
+	const credentialId = base64ToBuffer(credentialIdB64);
+	const challenge = CRYPTO.getRandomValues(new Uint8Array(32));
+
+	const options = {
+		publicKey: {
+			challenge,
+			allowCredentials: [{
+				id: credentialId,
+				type: 'public-key',
+			}],
+			userVerification: 'required',
+			timeout: 60000,
+		},
+	};
+
+	const assertion = await navigator.credentials.get(options);
+	return !!assertion;
 }

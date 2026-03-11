@@ -1,5 +1,13 @@
+let _GLOBAL = typeof window !== 'undefined' ? window : self;
+
 importScripts('./libs/aws-sdk-2.1692.0.min.js');
+importScripts('./libs/isomorphic-git.min.js');
+importScripts('./libs/lightning-fs.min.js');
+importScripts('./libs/http.min.js');
 importScripts('./s3.js');
+importScripts('./git.js');
+importScripts('./nostr.js');
+importScripts('./gdrive.js');
 importScripts('./helpers.js');
 
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
@@ -443,3 +451,76 @@ self.addEventListener('push', (event) => {
 		})
 	);
 });
+
+self.addEventListener('periodicsync', (event) => {
+	if (event.tag === 'sync-notes') {
+		console.log('SW: Periodic sync triggered');
+		event.waitUntil(handlePeriodicSync());
+	}
+});
+
+async function handlePeriodicSync() {
+	try {
+		const storedUser = await performDBOperation(META_STORE, 'readonly', 'get', 'user_id');
+		const userId = storedUser ? storedUser.value : null;
+
+		const storedData = await getEncryptedSettingsDB();
+		const encryptedSettings = storedData ? storedData.encryptedSettings : null;
+
+		if (!encryptedSettings) {
+			console.log('SW: Periodic sync skipped, no S3 credentials.');
+			return;
+		}
+
+		const credentials = await decryptSettings(encryptedSettings, userId);
+		const lastSync = await performDBOperation(META_STORE, 'readonly', 'get', 'lastSync');
+		const deletedNoteIdsRaw = await performDBOperation(META_STORE, 'readonly', 'get', 'deletedNoteIds');
+		const deletedNoteIds = deletedNoteIdsRaw ? JSON.parse(deletedNoteIdsRaw.value) : [];
+
+		const gitCredentials = {
+			repoUrl: credentials.gitRepoUrl,
+			branch: credentials.gitBranch,
+			username: credentials.gitUsername,
+			token: credentials.gitToken,
+			corsProxy: credentials.gitCorsProxy,
+			email: credentials.gitEmail
+		};
+
+		// For Periodic Sync, we do a full sync
+		const result = await synchronize({
+			notes: null,
+			deletedNoteIds: deletedNoteIds,
+			isSilent: true,
+			credentials,
+			lastSync: lastSync ? lastSync.value : null,
+			nostrPrivateKey: credentials.nostrPrivateKey,
+			nostrRelays: credentials.nostrRelays,
+			gdriveStore: credentials.gdriveStore,
+			gitCredentials
+		});
+
+		if (result.success) {
+			console.log('SW: Periodic sync successful', result);
+			
+			// Update local DB with results
+			for (const remoteNote of result.updatedNotes || []) {
+				await updateNoteDB(remoteNote);
+			}
+
+			for (const noteIdToDelete of result.notesToDeleteLocally || []) {
+				await deleteNoteDB(noteIdToDelete);
+			}
+
+			if (result.effectiveDeletedNoteIds) {
+				await performDBOperation(META_STORE, 'readwrite', 'put', { key: 'deletedNoteIds', value: JSON.stringify(result.effectiveDeletedNoteIds) });
+			}
+
+			await performDBOperation(META_STORE, 'readwrite', 'put', { key: 'lastSync', value: new Date().toISOString() });
+		} else {
+			console.error('SW: Periodic sync failed', result.error);
+		}
+	} catch (error) {
+		console.error('SW: Periodic sync error', error);
+	}
+}
+

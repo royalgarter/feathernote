@@ -1,3 +1,5 @@
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
 // --- Git Functions (isomorphic-git) ---
 
 // Initialize LightningFS
@@ -28,31 +30,38 @@ const readdirRecursive = async (dir, baseDir = dir) => {
 
 // Helper to get git config object
 const getGitConfig = (creds) => {
+    const username = (creds.username || '').trim();
+    const password = (creds.token || creds.password || '').trim();
+    let url = (creds.repoUrl || '').trim();
+    
     const config = {
         fs,
         dir: GIT_DIR,
+        url: url,
         corsProxy: creds.corsProxy || 'https://cors.isomorphic-git.org',
-        username: creds.username,
-        password: creds.token || creds.password, // Support both naming conventions
         author: {
-            name: creds.username || 'FeatherNote User',
+            name: username || 'FeatherNote User',
             email: creds.email || 'user@feathernote.app',
         },
         headers: {},
     };
 
-    if (window.GitHttp) {
-        config.http = window.GitHttp;
+    if (_GLOBAL.GitHttp) {
+        config.http = _GLOBAL.GitHttp;
     }
 
-    // Explicitly add Basic Auth header to ensure it passes through proxies
-    if (config.username && config.password) {
+    // Still provide onAuth and Authorization header as fallbacks
+    if (password) {
+        const effectiveUsername = username || 'git';
         try {
-            const authString = btoa(`${config.username}:${config.password}`);
+            const authString = _GLOBAL.btoa(`${effectiveUsername}:${password}`);
             config.headers['Authorization'] = `Basic ${authString}`;
-        } catch (e) {
-            console.error('Error constructing auth header:', e);
-        }
+        } catch (e) {}
+        
+        config.onAuth = async () => ({
+            username: effectiveUsername,
+            password: password,
+        });
     }
 
     return config;
@@ -114,7 +123,7 @@ const createMarkdownContent = (note) => {
 // --- Exported Functions ---
 // Explicitly attach to window to ensure global availability across scripts
 
-window.initGit = async (creds) => {
+_GLOBAL.initGit = async (creds) => {
     if (!creds.repoUrl) return;
 
     try {
@@ -127,12 +136,13 @@ window.initGit = async (creds) => {
         isRepo = true;
     } catch (e) {}
 
+    const config = getGitConfig(creds);
+
     if (!isRepo) {
         // Clone
         console.log('GIT: Cloning...');
         await git.clone({
-            ...getGitConfig(creds),
-            url: creds.repoUrl,
+            ...config,
             ref: creds.branch || 'main',
             singleBranch: true,
             depth: 1,
@@ -142,12 +152,11 @@ window.initGit = async (creds) => {
         console.log('GIT: Pulling...');
         try {
             await git.pull({
-                ...getGitConfig(creds),
-                url: creds.repoUrl,
+                ...config,
                 ref: creds.branch || 'main',
                 singleBranch: true,
                 // fastForward: true, // Removed to allow merge
-                author: getGitConfig(creds).author
+                author: config.author
             });
 
             console.log('GIT: Pulled (and Merged)');
@@ -158,7 +167,7 @@ window.initGit = async (creds) => {
     }
 };
 
-window.listNotesInGit = async (creds) => {
+_GLOBAL.listNotesInGit = async (creds) => {
     try {
         // Check if dir exists
         try {
@@ -225,7 +234,7 @@ window.listNotesInGit = async (creds) => {
     }
 };
 
-window.uploadNoteToGit = async (note, creds) => {
+_GLOBAL.uploadNoteToGit = async (note, creds) => {
     const date = new Date(note.createdAt || note.updatedAt || Date.now());
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -267,7 +276,7 @@ window.uploadNoteToGit = async (note, creds) => {
     }
 };
 
-window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
+_GLOBAL.deleteNoteFromGit = async (noteIdOrPath, creds) => {
     const filename = noteIdOrPath.endsWith('.md') ? noteIdOrPath : `${noteIdOrPath}.md`;
     const fullPath = `${GIT_DIR}/${filename}`;
     
@@ -285,68 +294,80 @@ window.deleteNoteFromGit = async (noteIdOrPath, creds) => {
     try {
         await pfs.unlink(fullPath);
     } catch (e) {
-        // Ignore ENOENT (file already gone)
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
     }
 };
-    
-    window.uploadDeletedNotesToGit = async (deletedIds, creds) => {
-    	const filename = 'deleted-notes.json';
-    	const content = JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2);
-    	
-    	await pfs.writeFile(`${GIT_DIR}/${filename}`, content, 'utf8');
-    	await git.add({ fs, dir: GIT_DIR, filepath: filename });
-    };
-    
-    window.downloadDeletedNotesFromGit = async (creds) => {
-    	const filename = 'deleted-notes.json';
-    	const filepath = `${GIT_DIR}/${filename}`;
-    	try {
-    		const content = await pfs.readFile(filepath, 'utf8');
-    		const parsed = JSON.parse(content);
-    		// Prefer the timestamp from the file content, but fall back to file system stat
-    		const stat = await pfs.stat(filepath);
-    		return {
-    			ids: parsed.ids || [],
-    			updatedAt: parsed.updatedAt || new Date(stat.mtimeMs).toISOString()
-    		};
-    	} catch (e) {
-    		return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
-    	}
-    };    window.finishGitSync = async (creds) => {
-        if (!creds.repoUrl) return;
 
+_GLOBAL.uploadDeletedNotesToGit = async (deletedIds, creds) => {
+    const filename = 'deleted-notes.json';
+    const content = JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2);
+    
+    await pfs.writeFile(`${GIT_DIR}/${filename}`, content, 'utf8');
+    await git.add({ fs, dir: GIT_DIR, filepath: filename });
+};
+
+_GLOBAL.downloadDeletedNotesFromGit = async (creds) => {
+    const filename = 'deleted-notes.json';
+    const filepath = `${GIT_DIR}/${filename}`;
+    try {
+        const config = getGitConfig(creds);
+        // Check if file exists in FS
         try {
-            const config = getGitConfig(creds);
-            const remoteRef = creds.branch || 'main';
+            await pfs.stat(filepath);
+        } catch (e) {
+            // Not in FS, try to pull latest if we haven't
+            // (initGit already called, but just in case)
+        }
 
-            // 0. Check for staged changes to avoid empty commits
-            // Instead of a full matrix scan, we can use statusMatrix with a filter or check if any files were added/removed
-            // For simplicity and correctness with isomorphic-git, we check status of common files or use a limited matrix
-            const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
-            const hasStagedChanges = matrix.some(row => row[1] !== row[3]);
-            
-            // 1. Commit if changes exist
-            if (hasStagedChanges) {
-                            try {
-                                const sha = await git.commit({
-                                    ...config,
-                                    message: `Sync from FeatherNote: ${new Date().toISOString()}`,
-                                });
-                                console.log('GIT: Committed:', sha);
-                            } catch (e) {
-                                if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
-                                    console.log('GIT: Nothing to commit.');
-                                } else {
-                                    throw e;
-                                }
-                            }
-                        } else {
-                            console.log('GIT: Nothing to commit (staged index matches HEAD).');
-                        }
-                        
-                        // 2. Push with Fallbacks (always try, to push any existing local commits or merges)
-                        const pushOptions = { ...config, url: creds.repoUrl, ref: remoteRef };
-                    try {
+        const content = await pfs.readFile(filepath, 'utf8');
+        const parsed = JSON.parse(content);
+        
+        // Prefer the timestamp from the file content, but fall back to file system stat
+        const stat = await pfs.stat(filepath);
+        return {
+            ids: parsed.ids || [],
+            updatedAt: parsed.updatedAt || new Date(stat.mtimeMs).toISOString()
+        };
+    } catch (e) {
+        return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
+    }
+};
+
+_GLOBAL.finishGitSync = async (creds) => {
+    if (!creds.repoUrl) return;
+
+    try {
+        const config = getGitConfig(creds);
+        const remoteRef = creds.branch || 'main';
+
+        // 0. Check for staged changes to avoid empty commits
+        const matrix = await git.statusMatrix({ fs, dir: GIT_DIR });
+        const hasStagedChanges = matrix.some(row => row[1] !== row[3]);
+
+        // 1. Commit if changes exist
+        if (hasStagedChanges) {
+            try {
+                const sha = await git.commit({
+                    ...config,
+                    message: `Sync from FeatherNote: ${new Date().toISOString()}`,
+                });
+                console.log('GIT: Committed:', sha);
+            } catch (e) {
+                if (e.message && (e.message.includes('nothing to commit') || e.message.includes('no changes'))) {
+                    console.log('GIT: Nothing to commit.');
+                } else {
+                    throw e;
+                }
+            }
+        } else {
+            console.log('GIT: Nothing to commit (staged index matches HEAD).');
+        }
+        
+        // 2. Push with Fallbacks (always try, to push any existing local commits or merges)
+        const pushOptions = { ...config, url: creds.repoUrl, ref: remoteRef };
+        try {
             // Attempt 1: Standard Push
             console.log('GIT: Pushing...');
             await git.push(pushOptions);

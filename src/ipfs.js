@@ -1,3 +1,5 @@
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
 // --- IPFS Functions (via Pinata API) ---
 
 const PINATA_API_BASE = 'https://api.pinata.cloud';
@@ -210,9 +212,9 @@ const downloadDeletedNotesFromIPFS = async (creds) => {
 };
 
 // Export to window for access from other scripts
-window.uploadNoteToIPFS = uploadNoteToIPFS;
-window.listNotesInIPFS = listNotesInIPFS;
-window.downloadNoteFromIPFS = downloadNoteFromIPFS;
-window.deleteNoteFromIPFS = deleteNoteFromIPFS;
-window.uploadDeletedNotesToIPFS = uploadDeletedNotesToIPFS;
-window.downloadDeletedNotesFromIPFS = downloadDeletedNotesFromIPFS;
+_GLOBAL.uploadNoteToIPFS = uploadNoteToIPFS;
+_GLOBAL.listNotesInIPFS = listNotesInIPFS;
+_GLOBAL.downloadNoteFromIPFS = downloadNoteFromIPFS;
+_GLOBAL.deleteNoteFromIPFS = deleteNoteFromIPFS;
+_GLOBAL.uploadDeletedNotesToIPFS = uploadDeletedNotesToIPFS;
+_GLOBAL.downloadDeletedNotesFromIPFS = downloadDeletedNotesFromIPFS;

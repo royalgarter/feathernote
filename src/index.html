@@ -34,6 +34,24 @@
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
 <body id="main-app" class="flex flex-col min-h-screen" :class="{'dark': darkMode, '': !darkMode}" x-data="mainApp()" x-init="init()">
+	<!-- Biometric Lock Overlay -->
+	<div x-show="isLocked" 
+		 x-transition:enter="transition ease-out duration-300"
+		 x-transition:enter-start="opacity-0"
+		 x-transition:enter-end="opacity-100"
+		 class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white dark:bg-gray-900 p-4 text-center"
+		 style="display: none;">
+		<img src="/icons/ios/128.png" alt="FeatherNote Logo" class="w-24 h-24 mb-6 rounded-2xl shadow-lg">
+		<h1 class="text-2xl font-bold mb-2" style="color:#A2D2FF;">FeatherNote Locked</h1>
+		<p class="text-gray-600 dark:text-gray-400 mb-8 max-w-xs text-sm">Authentication required to access your notes.</p>
+		<button @click="unlockApp()" 
+				class="w-full max-w-xs bg-[#A2D2FF] text-white py-4 rounded-xl font-bold shadow-lg hover:bg-blue-400 active:scale-95 transition-all flex items-center justify-center gap-2">
+			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0 1 19.5 10.5c0 2.92-.556 5.709-1.568 8.263a2.25 2.25 0 0 1-2.097 1.423h-3.67a2.25 2.25 0 0 1-2.097-1.423 37.511 37.511 0 0 1-1.568-8.263 7.5 7.5 0 0 1 2.13-6.254ZM9.086 5.465a6 6 0 0 0-1.704 5.035c.133 1.066.307 2.121.522 3.16m1.025-5.11a3 3 0 0 1 4.835 0c.16.213.288.452.385.707m-6.083 3.69c.082.51.17 1.017.263 1.521m2.154-3.34a1.5 1.5 0 0 1 2.154 0m-2.154 3.34c.133 1.066.307 2.121.522 3.16m-2.676-3.16a1.5 1.5 0 0 1 2.154 0" />
+			</svg>
+			Unlock App
+		</button>
+	</div>
 	<!-- AppShellHeader -->
 	<header class="sticky top-0 w-full border-b bg-white z-20">
 		<div class="container flex h-16 items-center justify-between py-2 w-full mx-auto px-4">
@@ -275,6 +293,11 @@
 							</template>
 						</div>
 					</div>
+					<!-- Biometric Lock -->
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm">Biometric Lock</p>
+						<button @click="toggleBiometric()" class="cursor-pointer border px-2 py-1" x-text="biometricEnabled ? 'Disable' : 'Enable'"></button>
+					</div>
 				</div>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm" >
@@ -457,8 +480,11 @@
 <script defer src="/libs/isomorphic-git.min.js"></script>
 <script defer src="/libs/lightning-fs.min.js"></script>
 <script defer src="/libs/http.min.js"></script>
-<script defer src="/git.js?v=___VERSION___"></script>
 
+<script>
+	let _GLOBAL = typeof window !== 'undefined' ? window : self;
+</script>
+<script defer src="/git.js?v=___VERSION___"></script>
 <script defer src="/s3.js?v=___VERSION___"></script>
 <script defer src="/nostr.js?v=___VERSION___"></script>
 <script defer src="/gdrive.js?v=___VERSION___"></script>

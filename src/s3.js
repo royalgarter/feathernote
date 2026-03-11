@@ -1,3 +1,5 @@
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
 // --- S3 Functions (Client-side AWS SDK v2) ---
 // Assumes AWS SDK is loaded globally or loaded dynamically
 const getS3Client = async (creds) => {
@@ -405,3 +407,16 @@ const getPresignedUrl = async (note, creds) => {
 	return s3.getSignedUrlPromise('getObject', params);
 };
 
+// Export to window/self for access from other scripts
+_GLOBAL.uploadNoteToS3 = uploadNoteToS3;
+_GLOBAL.listNotesInS3 = listNotesInS3;
+_GLOBAL.downloadNoteFromS3 = downloadNoteFromS3;
+_GLOBAL.getNoteMetadataFromS3 = getNoteMetadataFromS3;
+_GLOBAL.deleteNoteFromS3 = deleteNoteFromS3;
+_GLOBAL.uploadImageToS3 = uploadImageToS3;
+_GLOBAL.downloadImageFromS3 = downloadImageFromS3;
+_GLOBAL.listImagesInS3 = listImagesInS3;
+_GLOBAL.deleteImageFromS3 = deleteImageFromS3;
+_GLOBAL.uploadDeletedNotesToS3 = uploadDeletedNotesToS3;
+_GLOBAL.downloadDeletedNotesFromS3 = downloadDeletedNotesFromS3;
+_GLOBAL.getPresignedUrl = getPresignedUrl;

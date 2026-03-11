@@ -7,6 +7,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	darkMode: true,
 	appVersion: '',
 
+	// --- Lock Data ---
+	isLocked: false,
+	biometricEnabled: false,
+
 	// --- Sync Settings ---
 	// syncSelection: 's3', // 's3', 'gdrive', 'nostr'
 	gdriveStore: {
@@ -109,6 +113,46 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 
+	// --- Biometric Lock Methods ---
+	async toggleBiometric() {
+		if (this.biometricEnabled) {
+			this.biometricEnabled = false;
+			localStorage.setItem('feathernote-biometric-enabled', 'false');
+			this.isLocked = false;
+			this.addToast('Biometric lock disabled', 'success');
+		} else {
+			try {
+				const success = await registerBiometric();
+				if (success) {
+					this.biometricEnabled = true;
+					localStorage.setItem('feathernote-biometric-enabled', 'true');
+					this.addToast('Biometric lock enabled', 'success');
+				}
+			} catch (e) {
+				console.error('Biometric registration failed:', e);
+				this.addToast('Biometric registration failed: ' + e.message, 'error');
+			}
+		}
+	},
+
+	async unlockApp() {
+		if (!this.biometricEnabled) {
+			this.isLocked = false;
+			return;
+		}
+
+		try {
+			const success = await authenticateBiometric();
+			if (success) {
+				this.isLocked = false;
+				this.addToast('App unlocked', 'success');
+			}
+		} catch (e) {
+			console.error('Biometric authentication failed:', e);
+			this.addToast('Biometric authentication failed: ' + e.message, 'error');
+		}
+	},
+
 	// --- Main App Init ---
 	init() {
 		// Check hash early to prioritize editor loading
@@ -151,13 +195,50 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// Register Service Worker
 		if ('serviceWorker' in navigator) {
 			navigator.serviceWorker.register('/serviceworker.js')
-				.then(registration => {
+				.then(async registration => {
 					console.log('Service Worker registered with scope:', registration.scope);
+					
+					// Periodic Sync registration
+					if ('periodicSync' in registration) {
+						try {
+							// Request permission (usually granted if app is installed and has engagement)
+							const status = await navigator.permissions.query({
+								name: 'periodic-background-sync',
+							});
+							if (status.state === 'granted') {
+								await registration.periodicSync.register('sync-notes', {
+									minInterval: 12 * 60 * 60 * 1000, // 12 hours
+								});
+								console.log('Periodic Sync registered');
+							}
+						} catch (e) {
+							console.log('Periodic Sync could not be registered:', e);
+						}
+					}
 				})
 				.catch(error => {
 					console.error('Service Worker registration failed:', error);
 				});
 		}
+
+		// Biometric Lock Init
+		this.biometricEnabled = localStorage.getItem('feathernote-biometric-enabled') === 'true';
+		if (this.biometricEnabled) {
+			this.isLocked = true;
+			// Automatically try to unlock if visibility is already true
+			if (document.visibilityState === 'visible') {
+				this.unlockApp();
+			}
+		}
+
+		// Lock on visibility change (backgrounding)
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'hidden' && this.biometricEnabled) {
+				this.isLocked = true;
+			} else if (document.visibilityState === 'visible' && this.biometricEnabled && this.isLocked) {
+				this.unlockApp();
+			}
+		});
 
 		// Auth Init
 		const storedUser = localStorage.getItem('feathernote-user');
