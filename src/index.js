@@ -710,6 +710,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- App Badging Methods ---
 	async updateAppBadge() {
+		return;
 		if ('setAppBadge' in navigator) {
 			const reminderNotesCount = this.notes.filter(note => !!note.reminder).length;
 			if (reminderNotesCount > 0) {
@@ -2209,12 +2210,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					],
 					// reasoning_effort: 'low',
 					stream: false,
-
+					temperature: 0.2,
 					extra_body: {
 						google: {
-							generation_config: {
-								temperature: 0.2,
-							},
 							thinking_config: {
 								thinking_budget: 0,
 							},
