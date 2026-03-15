@@ -1,3 +1,5 @@
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
 /*
  * FeatherNote Google Drive Sync
  *
@@ -28,7 +30,7 @@ let appFolderId = null;
  * Callback after the GAPI library is loaded.
  * Exposed globally for index.js script loading callback.
  */
-window.gapiLoaded = function() {
+_GLOBAL.gapiLoaded = function() {
 	gapi.load('client', initializeGapiClient);
 };
 
@@ -48,7 +50,7 @@ async function initializeGapiClient() {
  * Callback after the GIS library is loaded.
  * Exposed globally for index.js script loading callback.
  */
-window.gisLoaded = function() {
+_GLOBAL.gisLoaded = function() {
 	const appElement = document.querySelector('#main-app');
 	if (!appElement) return;
 	const app = Alpine.$data(appElement);
@@ -128,7 +130,7 @@ function checkGdriveSession() {
 		.then(response => {
 			if (!response.ok) {
 				if (response.status == 401) {
-					window.signOutFromGoogleDrive();
+					_GLOBAL.signOutFromGoogleDrive();
 				}
 				throw new Error('Invalid or expired token.');
 			}
@@ -294,7 +296,7 @@ async function listAllFilesFromGoogleDrive() {
 /**
  *  Sign in the user with Google Drive scope.
  */
-window.signInToGoogleDrive = function() {
+_GLOBAL.signInToGoogleDrive = function() {
 	if (tokenClient) {
 		tokenClient.requestAccessToken({prompt: 'consent'});
 	}
@@ -303,7 +305,7 @@ window.signInToGoogleDrive = function() {
 /**
  *  Sign out the user.
  */
-window.signOutFromGoogleDrive = function() {
+_GLOBAL.signOutFromGoogleDrive = function() {
 	localStorage.removeItem('gdrive_access_token');
 	if (accessToken) {
 		google.accounts.oauth2.revoke(accessToken, () => {
@@ -324,7 +326,7 @@ window.signOutFromGoogleDrive = function() {
  * Lists all notes in Google Drive.
  * @returns {Promise<Array>} List of note metadata { id, updatedAt, source: 'gdrive', fileId }
  */
-window.listNotesInGDrive = async function() {
+_GLOBAL.listNotesInGDrive = async function() {
 	if (!accessToken) return [];
 	try {
 		const files = await listAllFilesFromGoogleDrive();
@@ -347,7 +349,7 @@ window.listNotesInGDrive = async function() {
  * Downloads deleted-notes.json from Google Drive.
  * @returns {Promise<Array>} A promise that resolves with the list of deleted IDs.
  */
-window.downloadDeletedNotesFromGoogleDrive = async function() {
+_GLOBAL.downloadDeletedNotesFromGoogleDrive = async function() {
 	if (!accessToken) return { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
 	try {
 		// Try to find it in the cache first
@@ -390,7 +392,7 @@ window.downloadDeletedNotesFromGoogleDrive = async function() {
  * Uploads deleted-notes.json to Google Drive.
  * @param {Array} deletedIds The list of deleted note IDs.
  */
-window.uploadDeletedNotesToGoogleDrive = async function(deletedIds) {
+_GLOBAL.uploadDeletedNotesToGoogleDrive = async function(deletedIds) {
 	if (!accessToken) return;
 
 	try {
@@ -454,7 +456,7 @@ window.uploadDeletedNotesToGoogleDrive = async function(deletedIds) {
  * @param {string} noteId The expected note ID.
  * @returns {Promise<Object|null>} A promise that resolves with the note object or null.
  */
-window.downloadNoteFromGDrive = async function(fileId, noteId) {
+_GLOBAL.downloadNoteFromGDrive = async function(fileId, noteId) {
 	try {
 		const response = await gapi.client.drive.files.get({
 			fileId: fileId,
@@ -488,7 +490,7 @@ window.downloadNoteFromGDrive = async function(fileId, noteId) {
  * @param {Object} note The note object to upload.
  * @param {Object} remoteMeta Metadata of the remote note (optional).
  */
-window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
+_GLOBAL.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 	if (!accessToken) return;
 
 	const noteId = note.id;
@@ -560,7 +562,7 @@ window.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
  * @param {string} noteId The ID of the note to delete.
  * @param {Object} remoteMeta Metadata of the remote note (optional).
  */
-window.deleteNoteFromGoogleDrive = async function(noteId, remoteMeta = null) {
+_GLOBAL.deleteNoteFromGoogleDrive = async function(noteId, remoteMeta = null) {
 	if (!accessToken) return;
 
 	let fileId = remoteMeta?.fileId;

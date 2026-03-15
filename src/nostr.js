@@ -1,3 +1,5 @@
+_GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+
 // Helper to convert hex private key to Uint8Array
 function hexToBytes(hex) {
 	if (typeof hex !== 'string') {
@@ -20,13 +22,13 @@ function bytesToHex(bytes) {
 
 // Generate a new Nostr private key (returns hex string)
 function generateNewPrivateKey() {
-	const sk = window.NostrTools.generateSecretKey();
+	const sk = _GLOBAL.NostrTools.generateSecretKey();
 	return bytesToHex(sk);
 }
 
 // Helper to get private key as bytes from hex or nsec string
 function getSkBytes(privateKey) {
-	const { nip19 } = window.NostrTools;
+	const { nip19 } = _GLOBAL.NostrTools;
 	if (privateKey.startsWith('nsec')) {
 		const { type, data } = nip19.decode(privateKey);
 		if (type === 'nsec') {
@@ -40,7 +42,7 @@ function getSkBytes(privateKey) {
 // Publish a PRIVATE (kind 4) note to a list of relays
 async function publishNoteToRelays(relays, privateKey, note) {
 	try {
-		const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const { finalizeEvent, getPublicKey, nip04, SimplePool } = _GLOBAL.NostrTools;
 		const sk_bytes = getSkBytes(privateKey);
 		const pk = getPublicKey(sk_bytes);
 		const pool = new SimplePool();
@@ -70,7 +72,7 @@ async function publishNoteToRelays(relays, privateKey, note) {
 
 // Publish a PUBLIC (kind 30023) note to a list of relays
 async function publishPublicNoteToRelays(relays, privateKey, noteContent, noteTitle, noteTags) {
-	const { finalizeEvent, getPublicKey, nip19, SimplePool } = window.NostrTools;
+	const { finalizeEvent, getPublicKey, nip19, SimplePool } = _GLOBAL.NostrTools;
 
 	try {
 		const sk_bytes = getSkBytes(privateKey);
@@ -123,7 +125,7 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 	}
 
 	try {
-		const { getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const { getPublicKey, nip04, SimplePool } = _GLOBAL.NostrTools;
 		const sk_bytes = getSkBytes(privateKey);
 		const pk = getPublicKey(sk_bytes);
 		const decryptedEventsMap = new Map();
@@ -174,7 +176,7 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 }
 
 async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
-	const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+	const { finalizeEvent, getPublicKey, SimplePool } = _GLOBAL.NostrTools;
 	const sk_bytes = getSkBytes(privateKey);
 	const pk = getPublicKey(sk_bytes);
 	const pool = new SimplePool();
@@ -198,7 +200,7 @@ async function publishNoteDeletionToRelays(relays, privateKey, noteId) {
 
 async function publishImageToRelays(relays, privateKey, imageRecord) {
 	try {
-		const { finalizeEvent, getPublicKey, nip04, SimplePool } = window.NostrTools;
+		const { finalizeEvent, getPublicKey, nip04, SimplePool } = _GLOBAL.NostrTools;
 		const sk_bytes = getSkBytes(privateKey);
 		const pk = getPublicKey(sk_bytes);
 		const pool = new SimplePool();
@@ -227,7 +229,7 @@ async function publishImageToRelays(relays, privateKey, imageRecord) {
 }
 
 async function publishImageDeletionToRelays(relays, privateKey, imageId) {
-	const { finalizeEvent, getPublicKey, SimplePool } = window.NostrTools;
+	const { finalizeEvent, getPublicKey, SimplePool } = _GLOBAL.NostrTools;
 	const sk_bytes = getSkBytes(privateKey);
 	const pk = getPublicKey(sk_bytes);
 	const pool = new SimplePool();
@@ -249,10 +251,10 @@ async function publishImageDeletionToRelays(relays, privateKey, imageId) {
 	return signedEvent;
 }
 
-window.generateNewPrivateKey = generateNewPrivateKey;
-window.publishNoteToRelays = publishNoteToRelays;
-window.publishPublicNoteToRelays = publishPublicNoteToRelays;
-window.fetchAndDecryptEventsFromRelays = fetchAndDecryptEventsFromRelays;
-window.publishNoteDeletionToRelays = publishNoteDeletionToRelays;
-window.publishImageToRelays = publishImageToRelays;
-window.publishImageDeletionToRelays = publishImageDeletionToRelays;
+_GLOBAL.generateNewPrivateKey = generateNewPrivateKey;
+_GLOBAL.publishNoteToRelays = publishNoteToRelays;
+_GLOBAL.publishPublicNoteToRelays = publishPublicNoteToRelays;
+_GLOBAL.fetchAndDecryptEventsFromRelays = fetchAndDecryptEventsFromRelays;
+_GLOBAL.publishNoteDeletionToRelays = publishNoteDeletionToRelays;
+_GLOBAL.publishImageToRelays = publishImageToRelays;
+_GLOBAL.publishImageDeletionToRelays = publishImageDeletionToRelays;
