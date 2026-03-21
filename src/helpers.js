@@ -377,7 +377,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	if (gdriveStore?.connected) {
 		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromGoogleDrive());
 	}
-	if (credentials?.pinataJwt || credentials?.pinataApiKey) {
+	if (credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) {
 		remoteLists.push(await window.downloadDeletedNotesFromIPFS(credentials));
 	}
 
@@ -422,7 +422,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		if (gdriveStore?.connected) {
 			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGoogleDrive(finalIdArray));
 		}
-		if (credentials?.pinataJwt || credentials?.pinataApiKey) {
+		if (credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) {
 			uploadPromises.push(window.uploadDeletedNotesToIPFS(finalIdArray, credentials));
 		}
 		await Promise.allSettled(uploadPromises);
@@ -442,7 +442,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		}
 
-		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected && !credentials.pinataJwt && !credentials.pinataApiKey) return {
+		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected && !credentials.pinataJwt && !credentials.pinataApiKey && !credentials.useDirectIpfs) return {
 			success: false,
 			error: 'No sync provider configured (S3, Git, IPFS, or GDrive)',
 		};
@@ -743,7 +743,7 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 	const shouldUploadToNostr = nostrPrivateKey && (!nostrMap.has(note.id) || localDate > new Date(nostrMap.get(note.id).updatedAt || nostrMap.get(note.id).createdAt));
 	const shouldUploadToGit = gitCredentials?.repoUrl && typeof _GLOBAL.uploadNoteToGit === 'function' && (!gitMap.has(note.id) || localDate > new Date(gitMap.get(note.id).updatedAt || gitMap.get(note.id).createdAt));
 	const shouldUploadToGDrive = gdriveStore?.connected && typeof _GLOBAL.uploadNoteToGoogleDrive === 'function' && (!gdriveMap.has(note.id) || localDate > new Date(gdriveMap.get(note.id).updatedAt || gdriveMap.get(note.id).createdAt));
-	const shouldUploadToIPFS = (credentials.pinataJwt || credentials.pinataApiKey) && typeof _GLOBAL.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
+	const shouldUploadToIPFS = (credentials.useDirectIpfs || credentials.pinataJwt || credentials.pinataApiKey) && typeof _GLOBAL.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
 
 	await Promise.allSettled([
 		shouldUploadToS3 ? uploadNoteToS3(note, credentials) : null,
@@ -796,7 +796,7 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 	}
 
 	let ipfsNotesPromise;
-	if ((credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.listNotesInIPFS === 'function') {
+	if ((credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.listNotesInIPFS === 'function') {
 		ipfsNotesPromise = window.listNotesInIPFS(credentials);
 	} else {
 		ipfsNotesPromise = Promise.resolve([]);
@@ -958,7 +958,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(_GLOBAL.deleteNoteFromGit(remoteMeta?.path || noteId, gitCredentials));
 	}
 
-	if ((credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.deleteNoteFromIPFS === 'function') {
+	if ((credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.deleteNoteFromIPFS === 'function') {
 		promises.push(window.deleteNoteFromIPFS(noteId, credentials));
 	}
 

@@ -379,6 +379,14 @@
 						<label for="ipfs-gateway" class="text-right">IPFS Gateway</label>
 						<input id="ipfs-gateway" x-model="ipfsGateway" class="col-span-3 border p-1" placeholder="https://gateway.pinata.cloud/ipfs/" />
 					</div>
+					<div class="grid grid-cols-4 items-center gap-2">
+						<label for="use-direct-ipfs" class="text-right">Direct IPFS</label>
+						<input id="use-direct-ipfs" type="checkbox" x-model="useDirectIpfs" class="col-span-3 h-4 w-4" />
+					</div>
+					<div class="grid grid-cols-4 items-center gap-2" x-show="useDirectIpfs">
+						<label for="ipfs-root-cid" class="text-right">Root CID</label>
+						<input id="ipfs-root-cid" x-model="ipfsRootCid" class="col-span-3 border p-1 bg-gray-100" placeholder="Index File CID..." readonly />
+					</div>
 				</fieldset>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
@@ -489,7 +497,7 @@
 <script defer src="/s3.js?v=___VERSION___"></script>
 <script defer src="/nostr.js?v=___VERSION___"></script>
 <script defer src="/gdrive.js?v=___VERSION___"></script>
-<script defer src="/ipfs.js?v=___VERSION___"></script>
+<script type="module" src="/ipfs.js?v=___VERSION___"></script>
 <script defer src="/helpers.js?v=___VERSION___"></script>
 <script defer src="/index.js?v=___VERSION___" fetchpriority="high"></script>
 

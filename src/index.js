@@ -155,6 +155,15 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- Main App Init ---
 	init() {
+		// Set up global helper for IPFS root CID updates
+		window.updateIpfsRootCid = async (newCid) => {
+			if (!newCid || newCid === this.ipfsRootCid) return;
+			console.log(`Updating IPFS Root CID to: ${newCid}`);
+			this.ipfsRootCid = newCid;
+			// Trigger a save to persist the new CID in encrypted settings
+			await this.handleSave(true); 
+		};
+
 		// Check hash early to prioritize editor loading
 		if (window.location.hash === '#new_note') {
 			this.createNewNote();
@@ -2367,6 +2376,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	pinataApiKey: '',
 	pinataSecretApiKey: '',
 	ipfsGateway: '',
+	useDirectIpfs: true,
+	ipfsRootCid: '',
 
 	aiApiKey: '',
 	aiApiRoute: '',
@@ -2403,6 +2414,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.pinataApiKey = decrypted.pinataApiKey || '';
 		this.pinataSecretApiKey = decrypted.pinataSecretApiKey || '';
 		this.ipfsGateway = decrypted.ipfsGateway || '';
+		this.useDirectIpfs = decrypted.useDirectIpfs !== undefined ? !!decrypted.useDirectIpfs : true;
+		this.ipfsRootCid = decrypted.ipfsRootCid || '';
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
@@ -2419,9 +2432,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.gitEmail = decrypted.gitEmail || '';
 	},
 
-	async handleSave() {
+	async handleSave(isAutoSave = false) {
 		this.isSavingSettings = true;
-		localStorage.setItem('feathernote-nostr-relays', this.nostrRelays);
+		if (!isAutoSave) localStorage.setItem('feathernote-nostr-relays', this.nostrRelays);
 
 		// Get existing settings to preserve the secret key if not changed
 		const storedData = await getEncryptedSettingsDB();
@@ -2444,6 +2457,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			pinataApiKey: this.pinataApiKey,
 			pinataSecretApiKey: this.pinataSecretApiKey,
 			ipfsGateway: this.ipfsGateway,
+			useDirectIpfs: this.useDirectIpfs,
+			ipfsRootCid: this.ipfsRootCid,
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
 			aiModel: this.aiModel,
