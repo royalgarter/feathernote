@@ -442,7 +442,11 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		}
 
-		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected && !credentials.pinataJwt && !credentials.pinataApiKey && !credentials.useDirectIpfs) return {
+		// Check if IPFS is disabled
+		const ipfsDisabled = credentials.disableIPFS === true;
+		const ipfsCredentials = ipfsDisabled ? { ...credentials, useDirectIpfs: false, pinataJwt: null, pinataApiKey: null } : credentials;
+
+		if (!credentials.secretAccessKey && !gitCredentials?.repoUrl && !gdriveStore?.connected && !ipfsCredentials.pinataJwt && !ipfsCredentials.pinataApiKey && !ipfsCredentials.useDirectIpfs) return {
 			success: false,
 			error: 'No sync provider configured (S3, Git, IPFS, or GDrive)',
 		};
@@ -451,7 +455,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded } = await listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -498,11 +502,50 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			return false;
 		});
 
-		const uploadPromises = notesToUpload.map(note => uploadNote({
-			note, credentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
+		// Separate IPFS and non-IPFS uploads to prevent UI blocking
+		const ipfsNotesToUpload = notesToUpload.filter(note => {
+			const localDate = new Date(note.updatedAt);
+			const ipfsMeta = ipfsMap.get(note.id);
+			return (ipfsCredentials.useDirectIpfs || ipfsCredentials.pinataJwt || ipfsCredentials.pinataApiKey) && 
+				(!ipfsMeta || localDate > new Date(ipfsMeta.updatedAt));
+		});
+		
+		const nonIpfsNotesToUpload = notesToUpload.filter(note => !ipfsNotesToUpload.includes(note));
+
+		// Upload non-IPFS notes in parallel (they're fast)
+		const nonIpfsUploadPromises = nonIpfsNotesToUpload.map(note => uploadNote({
+			note, credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
 			s3Map, gitMap, nostrMap, gdriveMap, ipfsMap
 		}));
-
+		
+		// Upload IPFS notes sequentially with yields to prevent UI blocking
+		const uploadResults = [];
+		
+		// Run non-IPFS uploads first
+		if (nonIpfsUploadPromises.length > 0) {
+			const nonIpfsResults = await Promise.allSettled(nonIpfsUploadPromises);
+			uploadResults.push(...nonIpfsResults);
+		}
+		
+		// Yield before IPFS uploads
+		if (ipfsNotesToUpload.length > 0) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+			
+			for (const note of ipfsNotesToUpload) {
+				try {
+					await uploadNote({
+						note, credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, gitCredentials, gdriveStore,
+						s3Map, gitMap, nostrMap, gdriveMap, ipfsMap
+					});
+					uploadResults.push({ status: 'fulfilled' });
+				} catch (err) {
+					uploadResults.push({ status: 'rejected', reason: err });
+					console.error('IPFS upload error for note:', note.id, err);
+				}
+				// Yield between each IPFS upload
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+		}
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
 		const deletePromises = effectiveDeletedNoteIds.map(noteId => {
@@ -513,25 +556,30 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			});
 		});
 
-		// --- Step 4: Execute uploads and deletes ---
-		const uploadAndDeletePromises = [...uploadPromises, ...deletePromises];
-		const uploadAndDeleteResults = await Promise.allSettled(uploadAndDeletePromises);
+		// --- Step 4: Execute deletes (deletes are fast, run in parallel) ---
+		const deleteResults = await Promise.allSettled(deletePromises);
+		
+		// Combine results for counting
+		const uploadAndDeleteResults = [...uploadResults, ...deleteResults];
 
 		let successfulUploadedCount = 0;
 		const successfulDeletedIds = [];
-		uploadAndDeleteResults.forEach((result, index) => {
-			if (result.status === 'fulfilled') {
-				if (index < uploadPromises.length) {
-					successfulUploadedCount++;
-				} else {
-					// The index of the deletedId corresponds to the index in the deletePromises array
-					const deletedIdIndex = index - uploadPromises.length;
-					successfulDeletedIds.push(effectiveDeletedNoteIds[deletedIdIndex]);
-				}
-			} else {
-				console.error('Sync error during upload/delete:', result.reason);
+		
+		// Count successful uploads (first uploadResults.length items)
+		for (let i = 0; i < uploadResults.length; i++) {
+			if (uploadResults[i].status === 'fulfilled') {
+				successfulUploadedCount++;
 			}
-		});
+		}
+		
+		// Count successful deletes (remaining items are deletes)
+		for (let i = uploadResults.length; i < uploadAndDeleteResults.length; i++) {
+			if (uploadAndDeleteResults[i].status === 'fulfilled') {
+				const deletedIndex = i - uploadResults.length;
+				successfulDeletedIds.push(effectiveDeletedNoteIds[deletedIndex]);
+			}
+		}
+		
 		const successfulDeletedCount = successfulDeletedIds.length;
 		
 		// Finish Git Sync (Commit and Push) if configured
@@ -594,23 +642,58 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			notesToDeleteLocally.push(...idsToDeleteLocally);
 		}
 
-		const downloadPromises = notesToDownload.map(remoteMeta => {
-			if (remoteMeta.source === 'git') {
-				// We already have the content from listNotesInGit? 
-				// listNotesInGit returns full note objects with content!
-				// So we don't need to download again. We just return it.
-				return Promise.resolve(remoteMeta);
-			} else if (remoteMeta.source === 'nostr') {
-				return Promise.resolve(remoteMeta); // Nostr also returns full event/note
-			} else if (remoteMeta.source === 'gdrive') {
-				return _GLOBAL.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id);
-			} else if (remoteMeta.source === 'ipfs') {
-				return _GLOBAL.downloadNoteFromIPFS(remoteMeta, credentials);
+		// Download notes - process IPFS separately to prevent UI blocking
+		const downloadResults = [];
+		
+		// Group downloads by source
+		const ipfsDownloads = [];
+		const otherDownloads = [];
+		
+		for (const remoteMeta of notesToDownload) {
+			if (remoteMeta.source === 'ipfs') {
+				ipfsDownloads.push(remoteMeta);
 			} else {
-				return downloadNoteFromS3(remoteMeta, credentials);
+				otherDownloads.push(remoteMeta);
+			}
+		}
+		
+		// Run non-IPFS downloads in parallel
+		const otherDownloadPromises = otherDownloads.map(remoteMeta => {
+			if (remoteMeta.source === 'git' || remoteMeta.source === 'nostr') {
+				return Promise.resolve(remoteMeta);
+			} else if (remoteMeta.source === 'gdrive') {
+				return promiseTimeout(_GLOBAL.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id), 30000);
+			} else {
+				return promiseTimeout(downloadNoteFromS3(remoteMeta, credentials), 30000);
 			}
 		});
-		const downloadResults = await Promise.allSettled(downloadPromises);
+		
+		const otherResults = await Promise.allSettled(otherDownloadPromises);
+		otherResults.forEach((result, idx) => {
+			if (result.status === 'fulfilled' && result.value) {
+				downloadResults.push({ status: 'fulfilled', value: result.value });
+			} else {
+				downloadResults.push({ status: 'rejected', reason: result.reason || new Error('Download failed') });
+			}
+		});
+		
+		// Yield to UI before IPFS downloads
+		if (ipfsDownloads.length > 0) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+			
+			// Run IPFS downloads sequentially with yields between each
+			for (const remoteMeta of ipfsDownloads) {
+				try {
+					const result = await promiseTimeout(_GLOBAL.downloadNoteFromIPFS(remoteMeta, ipfsCredentials), 30000);
+					downloadResults.push({ status: 'fulfilled', value: result });
+				} catch (err) {
+					downloadResults.push({ status: 'rejected', reason: err });
+					console.log('Sync IPFS download error:', remoteMeta.id, err.message);
+				}
+				// Yield between each IPFS download
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+		}
 
 		const updatedNotes = [];
 		downloadResults.forEach((result, idx) => {
@@ -745,13 +828,25 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 	const shouldUploadToGDrive = gdriveStore?.connected && typeof _GLOBAL.uploadNoteToGoogleDrive === 'function' && (!gdriveMap.has(note.id) || localDate > new Date(gdriveMap.get(note.id).updatedAt || gdriveMap.get(note.id).createdAt));
 	const shouldUploadToIPFS = (credentials.useDirectIpfs || credentials.pinataJwt || credentials.pinataApiKey) && typeof _GLOBAL.uploadNoteToIPFS === 'function' && (!ipfsMap.has(note.id) || localDate > new Date(ipfsMap.get(note.id).updatedAt));
 
-	await Promise.allSettled([
+	// Run non-IPFS operations in parallel (they're fast)
+	const nonIpfsPromises = [
 		shouldUploadToS3 ? uploadNoteToS3(note, credentials) : null,
 		shouldUploadToNostr ? _GLOBAL.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
 		shouldUploadToGit ? _GLOBAL.uploadNoteToGit(note, gitCredentials) : null,
 		shouldUploadToGDrive ? _GLOBAL.uploadNoteToGoogleDrive(note, gdriveMap.get(note.id)) : null,
-		shouldUploadToIPFS ? _GLOBAL.uploadNoteToIPFS(note, credentials) : null,
-	].filter(x => x));
+	].filter(x => x);
+
+	// Run IPFS separately to avoid blocking with Helia operations
+	if (shouldUploadToIPFS) {
+		// Wait for other uploads to start first
+		await Promise.allSettled(nonIpfsPromises);
+		// Yield to UI before heavy IPFS operation
+		await new Promise(resolve => setTimeout(resolve, 0));
+		// Run IPFS with timeout
+		await promiseTimeout(_GLOBAL.uploadNoteToIPFS(note, credentials), 30000);
+	} else {
+		await Promise.allSettled(nonIpfsPromises);
+	}
 }
 
 async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {

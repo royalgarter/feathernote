@@ -155,13 +155,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- Main App Init ---
 	init() {
+		// Expose ipfsRootCid to global scope for IPFS module
+		window.ipfsRootCid = this.ipfsRootCid;
+
 		// Set up global helper for IPFS root CID updates
 		window.updateIpfsRootCid = async (newCid) => {
 			if (!newCid || newCid === this.ipfsRootCid) return;
 			console.log(`Updating IPFS Root CID to: ${newCid}`);
 			this.ipfsRootCid = newCid;
+			window.ipfsRootCid = newCid; // Also update global reference
 			// Trigger a save to persist the new CID in encrypted settings
-			await this.handleSave(true); 
+			await this.handleSave(true);
 		};
 
 		// Check hash early to prioritize editor loading
@@ -306,6 +310,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		this.loadNotesFromCacheAndFetch();
 		this.loadSettingsFromStorage().then(_ => {
+			// Initialize IPFS index file if Direct IPFS is enabled
+			if (this.useDirectIpfs && typeof window.ensureIndexFile === 'function') {
+				window.ensureIndexFile().catch(err => console.error('IPFS index initialization failed:', err));
+			}
+
 			// Delay initial sync to prioritize local UI snappiness and "offline-first" feel
 			setTimeout(() => {
 				this.syncNotes(true, 0, null, true); // Silent sync on startup
@@ -2377,6 +2386,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	pinataSecretApiKey: '',
 	ipfsGateway: '',
 	useDirectIpfs: true,
+	disableIPFS: true, // Temporary flag to disable all IPFS sync
 	ipfsRootCid: '',
 
 	aiApiKey: '',
@@ -2415,7 +2425,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.pinataSecretApiKey = decrypted.pinataSecretApiKey || '';
 		this.ipfsGateway = decrypted.ipfsGateway || '';
 		this.useDirectIpfs = decrypted.useDirectIpfs !== undefined ? !!decrypted.useDirectIpfs : true;
+		this.disableIPFS = decrypted.disableIPFS || false; // Temporary flag to disable IPFS
 		this.ipfsRootCid = decrypted.ipfsRootCid || '';
+		window.ipfsRootCid = this.ipfsRootCid; // Sync to global for IPFS module
 		this.aiApiKey = decrypted.aiApiKey || '';
 		this.aiApiRoute = decrypted.aiApiRoute || '';
 		this.aiModel = decrypted.aiModel || '';
@@ -2458,6 +2470,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			pinataSecretApiKey: this.pinataSecretApiKey,
 			ipfsGateway: this.ipfsGateway,
 			useDirectIpfs: this.useDirectIpfs,
+			disableIPFS: this.disableIPFS,
 			ipfsRootCid: this.ipfsRootCid,
 			aiApiKey: this.aiApiKey,
 			aiApiRoute: this.aiApiRoute,
