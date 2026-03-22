@@ -76,6 +76,7 @@ const getLocalIndex = async (rootCid, timeoutMs = 10000) => {
 // --- Ensure Index File (.feathernote.json) ---
 
 const ensureIndexFile = async () => {
+	return;
 	if (indexFileCid) return indexFileCid;
 
 	await initHelia();
