@@ -2385,7 +2385,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	pinataApiKey: '',
 	pinataSecretApiKey: '',
 	ipfsGateway: '',
-	useDirectIpfs: true,
+	useDirectIpfs: false,
 	disableIPFS: true, // Temporary flag to disable all IPFS sync
 	ipfsRootCid: '',
 

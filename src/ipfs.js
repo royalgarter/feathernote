@@ -332,6 +332,7 @@ const deleteNoteFromIPFS = async (noteId, creds, timeoutMs = 15000) => {
 };
 
 const uploadDeletedNotesToIPFS = async (deletedIds, creds, timeoutMs = 15000) => {
+	return;
 	const useDirect = creds.useDirectIpfs !== false;
 	if (useDirect) {
 		try {
@@ -436,5 +437,113 @@ _GLOBAL.getIPFSStatus = () => ({
 	hasRootCid: !!indexFileCid,
 	rootCid: indexFileCid
 });
+
+// --- Test Function: Upload .feathernote.json to Cloudflare IPFS Gateway ---
+
+_GLOBAL.testIPFSUpload = async (options = {}) => {
+	const {
+		log = true,
+		gateway = 'https://cloudflare-ipfs.com/ipfs/',
+		credentials = null
+	} = options;
+
+	const results = {
+		success: false,
+		heliaStatus: null,
+		indexFile: null,
+		rootCid: null,
+		gatewayUrl: null,
+		downloadTest: null,
+		errors: []
+	};
+
+	const logMsg = log ? console.log : () => {};
+	const errorMsg = log ? console.error : () => {};
+
+	try {
+		logMsg('🧪 IPFS Test: Starting...');
+
+		// Step 1: Check Helia status
+		results.heliaStatus = _GLOBAL.getIPFSStatus();
+		logMsg('📊 Helia Status:', results.heliaStatus);
+
+		// Step 2: Initialize Helia if needed
+		if (!results.heliaStatus.initialized) {
+			logMsg('⏳ Initializing Helia...');
+			await _GLOBAL.initHelia();
+			results.heliaStatus = _GLOBAL.getIPFSStatus();
+			logMsg('✅ Helia initialized:', results.heliaStatus);
+		}
+
+		// Step 3: Get or create index file
+		logMsg('📁 Getting index file...');
+		const rootCid = await _GLOBAL.ensureIndexFile();
+		results.rootCid = rootCid;
+		results.indexFile = { version: 1, updatedAt: new Date().toISOString() };
+		logMsg('✅ Index file CID:', rootCid);
+
+		// Step 4: Generate Cloudflare Gateway URL
+		results.gatewayUrl = `${gateway}${rootCid}`;
+		logMsg('🌐 Cloudflare Gateway URL:', results.gatewayUrl);
+
+		// Step 5: Test download from gateway
+		logMsg('⬇️  Testing gateway download...');
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+		try {
+			const response = await fetch(results.gatewayUrl, { signal: controller.signal });
+			clearTimeout(timeoutId);
+
+			if (response.ok) {
+				const data = await response.json();
+				results.downloadTest = {
+					success: true,
+					status: response.status,
+					data: {
+						version: data.version,
+						updatedAt: data.updatedAt,
+						noteCount: Object.keys(data.notes || {}).length,
+						deletedNoteCount: (data.deletedNoteIds || []).length
+					}
+				};
+				logMsg('✅ Gateway download successful:', results.downloadTest.data);
+			} else {
+				results.downloadTest = {
+					success: false,
+					status: response.status,
+					error: response.statusText
+				};
+				errorMsg('❌ Gateway download failed:', response.statusText);
+			}
+		} catch (err) {
+			clearTimeout(timeoutId);
+			results.downloadTest = {
+				success: false,
+				error: err.message
+			};
+			errorMsg('❌ Gateway download error:', err.message);
+		}
+
+		// Step 6: Test direct Helia download
+		logMsg('⬇️  Testing direct Helia download...');
+		const directData = await _GLOBAL.downloadNoteFromIPFS({ cid: rootCid }, credentials || {});
+		logMsg('✅ Direct Helia download successful:', {
+			version: directData.version,
+			updatedAt: directData.updatedAt,
+			noteCount: Object.keys(directData.notes || {}).length
+		});
+
+		results.success = true;
+		logMsg('🎉 IPFS Test Complete!');
+
+	} catch (err) {
+		results.errors.push(err.message);
+		errorMsg('❌ IPFS Test failed:', err.message);
+		results.success = false;
+	}
+
+	return results;
+};
 
 console.log('IPFS Module: Loaded with non-blocking operations');
