@@ -8,15 +8,15 @@ const multer = require('multer');
 const { marked } = require('marked');
 const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
-console.log(Deno.env.get('CLOUDFLARE_ACCOUNT_ID'))
-console.log(Deno.env.get('CLOUDFLARE_API_TOKEN'))
-console.log(Deno.env.get('CLOUDFLARE_KV_NAMESPACE_ID'))
-console.log(Deno.env.get('GOOGLE_CLIENT_ID'))
-console.log(Deno.env.get('NEXT_PUBLIC_GOOGLE_CLIENT_ID'))
-console.log(Deno.env.get('NODE_ENV'))
-console.log(Deno.env.get('PUBLISH_DENO_KV_ACCESS_TOKEN'))
-console.log(Deno.env.get('PUBLISH_DENO_KV_URL'))
-console.log(Deno.env.get('PUBLISH_USE_CLOUDFLAREKV'))
+console.log('CLOUDFLARE_ACCOUNT_ID=' + Deno.env.get('CLOUDFLARE_ACCOUNT_ID'))
+console.log('CLOUDFLARE_API_TOKEN=' + Deno.env.get('CLOUDFLARE_API_TOKEN'))
+console.log('CLOUDFLARE_KV_NAMESPACE_ID=' + Deno.env.get('CLOUDFLARE_KV_NAMESPACE_ID'))
+console.log('GOOGLE_CLIENT_ID=' + Deno.env.get('GOOGLE_CLIENT_ID'))
+console.log('NEXT_PUBLIC_GOOGLE_CLIENT_ID=' + Deno.env.get('NEXT_PUBLIC_GOOGLE_CLIENT_ID'))
+console.log('NODE_ENV=' + Deno.env.get('NODE_ENV'))
+console.log('PUBLISH_DENO_KV_ACCESS_TOKEN=' + Deno.env.get('PUBLISH_DENO_KV_ACCESS_TOKEN'))
+console.log('PUBLISH_DENO_KV_URL=' + Deno.env.get('PUBLISH_DENO_KV_URL'))
+console.log('PUBLISH_USE_CLOUDFLAREKV=' + Deno.env.get('PUBLISH_USE_CLOUDFLAREKV'))
 
 const CFKV = {
 	HOST: (k) => `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${process.env.CLOUDFLARE_KV_NAMESPACE_ID}/values/${k}`,
