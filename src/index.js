@@ -321,6 +321,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}, 5000);
 		})
 
+		setTimeout(() => {
+			this.syncNotes(true);
+		}, 3e3);
 		this.syncIntervalId = setInterval(() => {
 			this.syncNotes(true); // Run a silent sync
 		}, 2 * 60 * 1000); // Every 2 minutes
