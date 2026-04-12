@@ -69,13 +69,13 @@ const getGitConfig = (creds) => {
 
 // Helper to parse Frontmatter
 const parseFrontmatter = (text) => {
-    const result = { metadata: {}, body: text };
-    // Regex for frontmatter
-    const match = text.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---\s*[\r\n]+([\s\S]*)$/);
+    const result = { metadata: {}, body: '' };
+    // Regex for frontmatter - modified to handle optional body
+    const match = text.match(/^---\s*[\r\n]+([\s\S]*?)[\r\n]+---\s*([\s\S]*)$/);
     
     if (match) {
         const yamlBlock = match[1];
-        result.body = match[2].trim(); // Remove leading/trailing whitespace from body
+        result.body = (match[2] || '').trim(); // Remove leading/trailing whitespace from body
         
         yamlBlock.split('\n').forEach(line => {
             const colonIndex = line.indexOf(':');
@@ -95,6 +95,15 @@ const parseFrontmatter = (text) => {
                 result.metadata[key] = value;
             }
         });
+
+        // Use base64 body if available (preferred for integrity)
+        if (result.metadata.body_base64) {
+            try {
+                result.body = decodeURIComponent(escape(_GLOBAL.atob(result.metadata.body_base64)));
+            } catch (e) {
+                console.warn("GIT: Failed to decode body_base64, falling back to plain text", e);
+            }
+        }
     }
     return result;
 };
@@ -112,10 +121,19 @@ const createMarkdownContent = (note) => {
     if (note.tags && note.tags.length > 0) {
         lines.push(`tags: [${note.tags.join(', ')}]`);
     }
+
+    // Add base64 version of the body to frontmatter
+    if (note.content) {
+        try {
+            const b64 = _GLOBAL.btoa(unescape(encodeURIComponent(note.content)));
+            lines.push(`body_base64: ${b64}`);
+        } catch (e) {
+            console.error("GIT: Failed to base64 encode note content", e);
+        }
+    }
     
     lines.push('---');
-    lines.push('');
-    lines.push(note.content || '');
+    // Note: No plain text body is added here to avoid raw text in the file.
     
     return lines.join('\n');
 };
