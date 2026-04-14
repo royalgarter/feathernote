@@ -318,7 +318,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		setTimeout(() => {
 			this.syncNotes(false, 0, null, true);
-		}, 5e3);
+		}, 3e3);
+		
 		this.syncIntervalId = setInterval(() => {
 			this.syncNotes(false, 0, null, true);
 		}, 60e3);
