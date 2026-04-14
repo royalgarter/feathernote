@@ -314,19 +314,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (this.useDirectIpfs && typeof window.ensureIndexFile === 'function') {
 				window.ensureIndexFile().catch(err => console.error('IPFS index initialization failed:', err));
 			}
-
-			// Delay initial sync to prioritize local UI snappiness and "offline-first" feel
-			setTimeout(() => {
-				this.syncNotes(true, 0, null, true); // Silent sync on startup
-			}, 5000);
 		})
 
 		setTimeout(() => {
-			this.syncNotes(true);
-		}, 3e3);
+			this.syncNotes(false, 0, null, true);
+		}, 5e3);
 		this.syncIntervalId = setInterval(() => {
-			this.syncNotes(true); // Run a silent sync
-		}, 2 * 60 * 1000); // Every 2 minutes
+			this.syncNotes(false, 0, null, true);
+		}, 60e3);
 
 		window.addEventListener('online', () => {
 			this.showToast({ title: 'Online', description: 'Connection restored. Syncing...', quiet: true });
@@ -361,7 +356,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			} else if (event.key === 'Escape') {
 				if (this.editingNoteId) {
 					event.preventDefault();
-					(this.noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && this.saveNote(true);
+					// (this.noteEditorContent != window.easyMDEInstance?.value()) && confirm('Save note before closing?') && this.saveNote(true);
 					this.cancelEdit();
 				}
 			}
