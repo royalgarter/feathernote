@@ -149,9 +149,27 @@ _GLOBAL.initGit = async (creds) => {
     } catch (e) {}
 
     let isRepo = false;
+    let remoteUrlChanged = false;
     try {
         await git.resolveRef({ fs, dir: GIT_DIR, ref: 'HEAD' });
         isRepo = true;
+        
+        // Check if remote URL has changed
+        try {
+            const remotes = await git.listRemotes({ fs, dir: GIT_DIR });
+            const currentRemote = remotes.find(r => r.remote === 'origin');
+            if (!currentRemote || currentRemote.url !== creds.repoUrl) {
+                remoteUrlChanged = true;
+                console.log('GIT: Remote URL changed, reinitializing...');
+                
+                // Remove old repo and clone fresh
+                await pfs.rm(GIT_DIR, { recursive: true, force: true });
+                await pfs.mkdir(GIT_DIR);
+                isRepo = false;
+            }
+        } catch (e) {
+            console.warn('GIT: Could not check remote URL, continuing:', e);
+        }
     } catch (e) {}
 
     const config = getGitConfig(creds);
@@ -393,7 +411,7 @@ _GLOBAL.finishGitSync = async (creds) => {
 
         } catch (pushErr) {
             console.warn('GIT: Push failed, attempting to pull and retry:', pushErr);
-            
+
             try {
                 // Attempt 2: Pull (Fetch + Merge) then Push
                 await git.pull({
@@ -402,12 +420,12 @@ _GLOBAL.finishGitSync = async (creds) => {
                     author: config.author
                 });
                 console.log('GIT: Pull successful. Retrying push...');
-                
+
                 await git.push(pushOptions);
                 console.log('GIT: Pushed successfully after merge.');
 
             } catch (retryErr) {
-                // Attempt 3: Force Push
+                // Attempt 3: Force Push (final fallback)
                 console.warn('GIT: Standard push failed after merge. Attempting force push as final fallback:', retryErr);
                 await git.push({ ...pushOptions, force: true });
                 console.log('GIT: Force push successful.');
