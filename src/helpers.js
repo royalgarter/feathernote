@@ -405,8 +405,10 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	});
 
 	// --- Upload Phase ---
-	// 3. Only upload if the merged set differs from the master (most recent remote state)
-	const hasChanged = finalIds.size !== initialMasterIds.size || ![...finalIds].every(id => initialMasterIds.has(id));
+	// 3. Only upload if the merged set differs from what we started with
+	const hasChanged = remoteLists.length === 0 
+		? false  // No remote providers, nothing to sync
+		: (finalIds.size !== initialMasterIds.size || ![...finalIds].every(id => initialMasterIds.has(id)));
 
 	const finalIdArray = Array.from(finalIds).slice(-100);
 
