@@ -404,11 +404,11 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		}
 	});
 
-	const finalIdArray = Array.from(finalIds).slice(-100);
-
 	// --- Upload Phase ---
-	// 3. Only upload if the list has actually changed
-	const hasChanged = finalIdArray.length !== initialMasterIds.size || !finalIdArray.every(id => initialMasterIds.has(id));
+	// 3. Only upload if the merged set differs from the master (most recent remote state)
+	const hasChanged = finalIds.size !== initialMasterIds.size || ![...finalIds].every(id => initialMasterIds.has(id));
+
+	const finalIdArray = Array.from(finalIds).slice(-100);
 
 	if (hasChanged) {
 		console.log('Deleted notes list has changed, uploading to all providers.');
