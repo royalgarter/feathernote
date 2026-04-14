@@ -407,22 +407,20 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	// --- Upload Phase ---
 	const finalIdArray = Array.from(finalIds).slice(-100);
 
-	// Check if the merged result differs from all remotes
-	// Only upload if at least one remote doesn't have the merged list
-	let hasChanged = false;
-	
+	// If no remotes configured, nothing to sync
 	if (remoteLists.length === 0) {
-		// No remotes: only upload if we have local deletions to persist
-		hasChanged = deletedNoteIds.length > 0;
-	} else {
-		// Check if all remotes already have the merged list
-		for (const remote of remoteLists) {
-			const remoteSet = new Set(remote.ids);
-			const remoteMatches = remoteSet.size === finalIds.size && [...finalIds].every(id => remoteSet.has(id));
-			if (!remoteMatches) {
-				hasChanged = true;
-				break;
-			}
+		console.log('No remote providers configured, skipping deleted notes sync.');
+		return { finalIdArray, hasChanged: false };
+	}
+
+	// Check if the merged result differs from any remote
+	let hasChanged = false;
+	for (const remote of remoteLists) {
+		const remoteSet = new Set(remote.ids);
+		const remoteMatches = remoteSet.size === finalIds.size && [...finalIds].every(id => remoteSet.has(id));
+		if (!remoteMatches) {
+			hasChanged = true;
+			break;
 		}
 	}
 
