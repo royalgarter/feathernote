@@ -2424,7 +2424,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.pinataSecretApiKey = decrypted.pinataSecretApiKey || '';
 		this.ipfsGateway = decrypted.ipfsGateway || '';
 		this.useDirectIpfs = decrypted.useDirectIpfs !== undefined ? !!decrypted.useDirectIpfs : true;
-		this.disableIPFS = decrypted.disableIPFS || false; // Temporary flag to disable IPFS
+		this.disableIPFS = decrypted.disableIPFS || true; // Temporary flag to disable IPFS
 		this.ipfsRootCid = decrypted.ipfsRootCid || '';
 		window.ipfsRootCid = this.ipfsRootCid; // Sync to global for IPFS module
 		this.aiApiKey = decrypted.aiApiKey || '';
