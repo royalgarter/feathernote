@@ -394,7 +394,7 @@ const addSharedContentDB = (item) => performDBOperation(SHARED_CONTENT_STORE, 'r
 const clearSharedContentDB = () => performDBOperation(SHARED_CONTENT_STORE, 'readwrite', 'clear');
 
 async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore}) {
-	const remoteLists = [];
+	let remoteLists = [];
 
 	// --- Download Phase ---
 	if (credentials?.secretAccessKey) {
