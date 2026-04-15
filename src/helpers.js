@@ -414,9 +414,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	// 1. Find the master list (most recent)
 	let masterList = { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
 	if (remoteLists.length > 0) {
-		masterList = remoteLists.reduce((newest, current) => {
-			return new Date(current.updatedAt) > new Date(newest.updatedAt) ? current : newest;
-		});
+		masterList.ids = remoteLists.map(x => x.ids).flat();
 	}
 
 	// 2. Merge local and other remote IDs into the master list
