@@ -45,7 +45,7 @@ const uploadNoteToS3 = async (note, creds) => {
 	if (!creds?.secretAccessKey) return;
 
 	const s3 = await getS3Client(creds);
-	const body = note.html || JSON.stringify(note, null, 2);
+	const body = note.html || YAML.stringify(note);
 
 	const date = new Date(note.createdAt || note.updatedAt || Date.now());
 	const y = date.getFullYear();
@@ -133,7 +133,7 @@ const downloadNoteFromS3 = async (noteOrId, creds) => {
 		const data = await s3.getObject(params).promise();
 		if (data?.Body) {
 			const str = (new TextDecoder()).decode(data.Body);
-			return JSON.parse(str);
+			return YAML.parse(str);
 		}
 	} catch (err) {
 		// If it failed and we didn't try the flat ID yet, try it
@@ -143,7 +143,7 @@ const downloadNoteFromS3 = async (noteOrId, creds) => {
 			const data = await s3.getObject(flatParams).promise();
 			if (data?.Body) {
 				const str = (new TextDecoder()).decode(data.Body);
-				return JSON.parse(str);
+				return YAML.parse(str);
 			}
 		}
 		throw err;
@@ -348,7 +348,7 @@ const uploadDeletedNotesToS3 = async (deletedIds, creds) => {
 	const params = {
 		Bucket: creds.bucket,
 		Key: key,
-		Body: JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2),
+		Body: YAML.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }),
 		ContentType: 'application/json',
 	};
 
@@ -371,7 +371,7 @@ const downloadDeletedNotesFromS3 = async (creds) => {
 		const data = await s3.getObject(params).promise();
 		if (data?.Body) {
 			const str = (new TextDecoder()).decode(data.Body);
-			const parsed = JSON.parse(str);
+			const parsed = YAML.parse(str);
 			// Return the full object including the updatedAt from the file content
 			return {
 				ids: parsed.ids || [],

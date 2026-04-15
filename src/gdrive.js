@@ -376,7 +376,7 @@ _GLOBAL.downloadDeletedNotesFromGoogleDrive = async function() {
 		});
 
 		if (response.body) {
-			const data = JSON.parse(response.body);
+			const data = YAML.parse(response.body);
 			return {
 				ids: data.ids || [],
 				updatedAt: data.updatedAt || new Date(file.modifiedTime).toISOString()
@@ -428,10 +428,10 @@ _GLOBAL.uploadDeletedNotesToGoogleDrive = async function(deletedIds) {
 		const multipartRequestBody =
 			delimiter +
 			'Content-Type: application/json\r\n\r\n' +
-			JSON.stringify(metadata) +
+			YAML.stringify(metadata) +
 			delimiter +
 			'Content-Type: application/json\r\n\r\n' +
-			JSON.stringify(content) +
+			YAML.stringify(content) +
 			close_delim;
 
 		const path = existingFileId ? `/upload/drive/v3/files/${existingFileId}` : '/upload/drive/v3/files';
@@ -469,7 +469,7 @@ _GLOBAL.downloadNoteFromGDrive = async function(fileId, noteId) {
 			return null;
 		}
 
-		const noteData = JSON.parse(response.body);
+		const noteData = YAML.parse(response.body);
 
 		// Verification: Ensure content property exists
 		if (typeof noteData.content === 'undefined') {
@@ -531,10 +531,10 @@ _GLOBAL.uploadNoteToGoogleDrive = async function(note, remoteMeta = null) {
 	const multipartRequestBody =
 		delimiter +
 		'Content-Type: application/json\r\n\r\n' +
-		JSON.stringify(metadata) +
+		YAML.stringify(metadata) +
 		delimiter +
 		'Content-Type: application/json\r\n\r\n' +
-		JSON.stringify(note) +
+		YAML.stringify(note) +
 		close_delim;
 
 	const path = existingFileId ? `/upload/drive/v3/files/${existingFileId}` : '/upload/drive/v3/files';

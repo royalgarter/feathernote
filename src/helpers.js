@@ -9,6 +9,35 @@ const TEXT_DECODER = TextDecoder;
 const FETCH = _GLOBAL.fetch;
 const INDEXED_DB = _GLOBAL.indexedDB;
 
+// --- YAML Helpers with JSON Fallback ---
+const YAML = {
+	stringify(obj) {
+		try {
+			return jsyaml.dump(obj, {
+				noRefs: true,
+				lineWidth: -1,
+			});
+		} catch (e) {
+			console.warn('YAML stringify failed, falling back to JSON:', e);
+			return JSON.stringify(obj);
+		}
+	},
+	
+	parse(str) {
+		try {
+			return jsyaml.load(str);
+		} catch (e) {
+			console.warn('YAML parse failed, falling back to JSON:', e);
+			try {
+				return JSON.parse(str);
+			} catch (jsonError) {
+				console.error('Both YAML and JSON parse failed:', jsonError);
+				throw jsonError;
+			}
+		}
+	}
+};
+
 const promiseTimeout = (p, ms=30e3) => Promise.race([
 	p,
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))

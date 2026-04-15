@@ -255,7 +255,7 @@ app.post('/api/publish', async (req, res) => {
 
 	const noteId = crypto.randomBytes(8).toString('hex');
 	const noteData = { title: title || 'Untitled Note', content };
-	const noteString = JSON.stringify(noteData);
+	const noteString = YAML.stringify(noteData);
 	const noteSize = new TextEncoder().encode(noteString).length;
 
 	try {
@@ -302,7 +302,7 @@ app.get('/publish/:noteId', async (req, res) => {
 
 			const value = await CFKV.get(noteId);
 			if (value) {
-				note = JSON.parse(value);
+				note = YAML.parse(value);
 			}
 		}
 
@@ -323,7 +323,7 @@ app.get('/publish/:noteId', async (req, res) => {
 			const filePath = path.join(publishedNotesDir, `${noteId}.json`);
 			if (fs.existsSync(filePath)) {
 				const data = fs.readFileSync(filePath, 'utf8');
-				note = JSON.parse(data);
+				note = YAML.parse(data);
 			} else {
 				note = PUBLISHED[noteId];
 			}

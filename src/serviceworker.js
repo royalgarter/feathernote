@@ -4,6 +4,7 @@ importScripts('./libs/aws-sdk-2.1692.0.min.js');
 importScripts('./libs/isomorphic-git.min.js');
 importScripts('./libs/lightning-fs.min.js');
 importScripts('./libs/http.min.js');
+importScripts('./libs/js-yaml.min.js');
 importScripts('./s3.js');
 importScripts('./git.js');
 importScripts('./nostr.js');
@@ -36,6 +37,7 @@ const urlsToCache = [
 	'/libs/isomorphic-git.min.js',
 	'/libs/lightning-fs.min.js',
 	'/libs/http.min.js',
+	'/libs/js-yaml.min.js',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
 	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0',
 	'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',

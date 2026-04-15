@@ -837,7 +837,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		try {
 			const cachedNotes = localStorage.getItem('feathernote-notes-cache');
 			if (cachedNotes) {
-				this.notes = JSON.parse(cachedNotes);
+				this.notes = YAML.parse(cachedNotes);
 				// this.miniSearch?.removeAll();
 				// this.miniSearch?.addAll(this.notes);
 				// this.loading = false; // Stop loading indicator early
@@ -856,7 +856,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		try {
 			let saved = this.notes?.slice?.(0, 12);
 
-			localStorage.setItem('feathernote-notes-cache', JSON.stringify(saved));
+			localStorage.setItem('feathernote-notes-cache', YAML.stringify(saved));
 		} catch (error) {
 			console.error('Error updating notes cache:', error);
 		}
@@ -1217,7 +1217,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					tags: n.tags,
 					reminder: n.reminder
 				}));
-				const stateString = JSON.stringify({ notes: notesState, deleted: this.deletedNoteIds });
+				const stateString = YAML.stringify({ notes: notesState, deleted: this.deletedNoteIds });
 				return await calculateHash(stateString);
 			} catch (e) {
 				console.warn('Hash calculation failed', e);

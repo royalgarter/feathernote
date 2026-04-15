@@ -150,7 +150,7 @@ async function fetchAndDecryptEventsFromRelays(relays, privateKey) {
 					console.log('got event:', event);
 					try {
 						const decryptedContent = await nip04.decrypt(sk_bytes, event.pubkey, event.content);
-						const parsedContent = JSON.parse(decryptedContent);
+						const parsedContent = YAML.parse(decryptedContent);
 						decryptedEventsMap.set(event.id, parsedContent);
 					} catch (ex) {
 						console.error('Error decrypting event:', ex);

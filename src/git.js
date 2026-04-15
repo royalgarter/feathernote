@@ -338,8 +338,8 @@ _GLOBAL.deleteNoteFromGit = async (noteIdOrPath, creds) => {
 
 _GLOBAL.uploadDeletedNotesToGit = async (deletedIds, creds) => {
     const filename = 'deleted-notes.json';
-    const content = JSON.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() }, null, 2);
-    
+    const content = YAML.stringify({ ids: deletedIds, updatedAt: new Date().toISOString() });
+
     await pfs.writeFile(`${GIT_DIR}/${filename}`, content, 'utf8');
     await git.add({ fs, dir: GIT_DIR, filepath: filename });
 };
@@ -358,7 +358,7 @@ _GLOBAL.downloadDeletedNotesFromGit = async (creds) => {
         }
 
         const content = await pfs.readFile(filepath, 'utf8');
-        const parsed = JSON.parse(content);
+        const parsed = YAML.parse(content);
         
         // Prefer the timestamp from the file content, but fall back to file system stat
         const stat = await pfs.stat(filepath);
