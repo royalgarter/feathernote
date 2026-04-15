@@ -410,6 +410,8 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		remoteLists.push(await window.downloadDeletedNotesFromIPFS(credentials));
 	}
 
+	remoteLists = remoteLists.filter(x => x.ids.length) // filter to avoid any remote with empty setup for deleted note ids
+
 	// --- Merge Phase ---
 	// 1. Find the master list (most recent)
 	let masterList = { ids: [], updatedAt: '1970-01-01T00:00:00.000Z' };
