@@ -10,17 +10,17 @@
 
 	<!-- Open Graph / Facebook -->
 	<meta property="og:type" content="website">
-	<meta property="og:url" content="https://feathernote.deno.dev">
+	<meta property="og:url" content="https://feathernote.royalgarter.deno.net">
 	<meta property="og:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
 	<meta property="og:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
-	<meta property="og:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+	<meta property="og:image" content="https://feathernote.royalgarter.deno.net/icons/ios/512.png">
 
 	<!-- Twitter -->
 	<meta property="twitter:card" content="summary_large_image">
-	<meta property="twitter:url" content="https://feathernote.deno.dev">
+	<meta property="twitter:url" content="https://feathernote.royalgarter.deno.net">
 	<meta property="twitter:title" content="FeatherNote: Featherweight PWA, Private Note-Taking">
 	<meta property="twitter:description" content="FeatherNote: A featherweight, offline-first PWA for note-taking with Markdown, S3 Sync, and Share Target API. Your notes, your cloud, your control.">
-	<meta property="twitter:image" content="https://feathernote.deno.dev/icons/ios/512.png">
+	<meta property="twitter:image" content="https://feathernote.royalgarter.deno.net/icons/ios/512.png">
 
 	<link rel="apple-touch-icon" sizes="180x180" href="/icons/ios/180.png">
 	<link rel="icon" type="image/png" sizes="32x32" href="/icons/ios/32.png">
@@ -348,7 +348,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="hidden col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="nostr-private-key" class="text-right">Nostr Key</label>
 						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border p-1" placeholder="nsec..." autocomplete="new-password" />
@@ -359,7 +359,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
+				<fieldset class="hidden col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="pinata-jwt" class="text-right">Pinata JWT</label>
 						<input id="pinata-jwt" type="password" x-model="pinataJwt" class="col-span-3 border p-1" placeholder="JWT Token..." autocomplete="new-password" />
@@ -495,10 +495,10 @@
 <script>
 	let _GLOBAL = typeof window !== 'undefined' ? window : self;
 </script>
-<script type="module" src="/ipfs.js?v=___VERSION___"></script>
+<!-- <script type="module" src="/ipfs.js?v=___VERSION___"></script> -->
 <script defer src="/git.js?v=___VERSION___"></script>
 <script defer src="/s3.js?v=___VERSION___"></script>
-<script defer src="/nostr.js?v=___VERSION___"></script>
+<!-- <script defer src="/nostr.js?v=___VERSION___"></script> -->
 <script defer src="/gdrive.js?v=___VERSION___"></script>
 <script defer src="/helpers.js?v=___VERSION___"></script>
 <script defer src="/index.js?v=___VERSION___" fetchpriority="high"></script>

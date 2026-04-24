@@ -407,7 +407,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromGoogleDrive());
 	}
 	if (credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) {
-		remoteLists.push(await window.downloadDeletedNotesFromIPFS(credentials));
+		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromIPFS?.(credentials));
 	}
 
 	remoteLists = remoteLists.filter(x => x.ids.length) // filter to avoid any remote with empty setup for deleted note ids
@@ -727,7 +727,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			// Run IPFS downloads sequentially with yields between each
 			for (const remoteMeta of ipfsDownloads) {
 				try {
-					const result = await promiseTimeout(_GLOBAL.downloadNoteFromIPFS(remoteMeta, ipfsCredentials), 30000);
+					const result = await promiseTimeout(_GLOBAL.downloadNoteFromIPFS?.(remoteMeta, ipfsCredentials), 30000);
 					downloadResults.push({ status: 'fulfilled', value: result });
 				} catch (err) {
 					downloadResults.push({ status: 'rejected', reason: err });
@@ -874,7 +874,7 @@ async function uploadNote({note, credentials, nostrPrivateKey, nostrRelays, gitC
 	// Run non-IPFS operations in parallel (they're fast)
 	const nonIpfsPromises = [
 		shouldUploadToS3 ? uploadNoteToS3(note, credentials) : null,
-		shouldUploadToNostr ? _GLOBAL.publishNoteToRelays(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
+		shouldUploadToNostr ? _GLOBAL.publishNoteToRelays?.(nostrRelays.split(',').map(r => r.trim()), nostrPrivateKey, note) : null,
 		shouldUploadToGit ? _GLOBAL.uploadNoteToGit(note, gitCredentials) : null,
 		shouldUploadToGDrive ? _GLOBAL.uploadNoteToGoogleDrive(note, gdriveMap.get(note.id)) : null,
 	].filter(x => x);
@@ -902,7 +902,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		// a signed URL is not available with V2 of the SDK, so we'll just publish the record without the URL
-		promises.push(_GLOBAL.publishImageToRelays(relays, nostrPrivateKey, image));
+		promises.push(_GLOBAL.publishImageToRelays?.(relays, nostrPrivateKey, image));
 	}
 
 	await Promise.all(promises);
@@ -914,7 +914,7 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 	let nostrNotesPromise;
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		nostrNotesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey, lastSync);
+		nostrNotesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays?.(relays, nostrPrivateKey, lastSync);
 	} else {
 		nostrNotesPromise = Promise.resolve([]);
 	}
@@ -1039,7 +1039,7 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 	let nostrImagesPromise;
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		nostrImagesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays(relays, nostrPrivateKey);
+		nostrImagesPromise = _GLOBAL.fetchAndDecryptEventsFromRelays?.(relays, nostrPrivateKey);
 	} else {
 		nostrImagesPromise = Promise.resolve([]);
 	}
@@ -1089,7 +1089,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 
 	if ( nostrPrivateKey && nostrRelays ) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
-		promises.push(_GLOBAL.publishNoteDeletionToRelays(relays, nostrPrivateKey, noteId));
+		promises.push(_GLOBAL.publishNoteDeletionToRelays?.(relays, nostrPrivateKey, noteId));
 	}
 
 	if (gitCredentials?.repoUrl && typeof _GLOBAL.deleteNoteFromGit === 'function') {
@@ -1097,7 +1097,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	}
 
 	if ((credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) && typeof window.deleteNoteFromIPFS === 'function') {
-		promises.push(window.deleteNoteFromIPFS(noteId, credentials));
+		promises.push(_GLOBAL.deleteNoteFromIPFS?.(noteId, credentials));
 	}
 
 	await Promise.all(promises);
@@ -1114,7 +1114,7 @@ async function deleteImageFromRemotes({imageId, credentials, nostrPrivateKey, no
 	if (nostrPrivateKey && nostrRelays) {
 		const relays = nostrRelays.split(',').map(r => r.trim());
 		// Assuming a function to publish deletion events for images exists, similar to note deletion
-		promises.push(_GLOBAL.publishImageDeletionToRelays(relays, nostrPrivateKey, imageId));
+		promises.push(_GLOBAL.publishImageDeletionToRelays?.(relays, nostrPrivateKey, imageId));
 	}
 
 	await Promise.allSettled(promises);
