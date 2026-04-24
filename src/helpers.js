@@ -410,7 +410,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromIPFS?.(credentials));
 	}
 
-	remoteLists = remoteLists.filter(x => x.ids?.length) // filter to avoid any remote with empty setup for deleted note ids
+	remoteLists = remoteLists.filter(x => x?.ids?.length) // filter to avoid any remote with empty setup for deleted note ids
 
 	// --- Merge Phase ---
 	// 1. Find the master list (most recent)
