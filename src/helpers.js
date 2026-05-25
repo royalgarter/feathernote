@@ -460,13 +460,13 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 			uploadPromises.push(uploadDeletedNotesToS3(finalIdArray, credentials));
 		}
 		if (gitCredentials?.repoUrl) {
-			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGit(finalIdArray, gitCredentials));
+			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGit?.(finalIdArray, gitCredentials));
 		}
 		if (gdriveStore?.connected) {
-			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGoogleDrive(finalIdArray));
+			uploadPromises.push(_GLOBAL.uploadDeletedNotesToGoogleDrive?.(finalIdArray));
 		}
 		if (credentials?.useDirectIpfs || credentials?.pinataJwt || credentials?.pinataApiKey) {
-			uploadPromises.push(window.uploadDeletedNotesToIPFS(finalIdArray, credentials));
+			uploadPromises.push(_GLOBAL.uploadDeletedNotesToIPFS?.(finalIdArray, credentials));
 		}
 		await Promise.allSettled(uploadPromises);
 	} else {
