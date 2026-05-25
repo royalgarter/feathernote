@@ -180,8 +180,16 @@ self.addEventListener('fetch', (event) => {
 					let text = data.get('text') || '';
 					let title = data.get('title') || '';
 					let sharedUrl = data.get('url') || '';
+					let imageFile = data.get('image');
 
 					title = title.replace(/\n/g, ' ');
+
+					let imageReference = '';
+					if (imageFile instanceof File) {
+						const imageId = generateUniqueId('img');
+						await addImageDB({ id: imageId, blob: imageFile, synced: false });
+						imageReference = `![Shared Image](/images/${imageId})`;
+					}
 
 					const urlRegex = /(https?:\/\/[^\s]+)/g;
 
@@ -287,11 +295,14 @@ self.addEventListener('fetch', (event) => {
 							inboxNote = await getNoteByTitleDB(TITLE_SHARED);
 						}
 
+						// Combine image reference and the new item content
+						const finalContent = [imageReference, newItem].filter(Boolean).join('\n\n');
+
 						if (inboxNote) {
 							if (inboxNote.content) {
-								inboxNote.content = newItem + '\n' + inboxNote.content;
+								inboxNote.content = finalContent + '\n' + inboxNote.content;
 							} else {
-								inboxNote.content = newItem;
+								inboxNote.content = finalContent;
 							}
 							inboxNote.updatedAt = new Date().toISOString();
 							await updateNoteDB(inboxNote);
@@ -304,7 +315,7 @@ self.addEventListener('fetch', (event) => {
 							const newNote = {
 								id: 'shared-inbox-' + generateUniqueId(),
 								title: TITLE_SHARED,
-								content: newItem,
+								content: finalContent,
 								createdAt: new Date().toISOString(),
 								updatedAt: new Date().toISOString(),
 								tags: ['shared', 'inbox'],
