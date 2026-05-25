@@ -188,7 +188,7 @@ self.addEventListener('fetch', (event) => {
 					if (imageFile instanceof File) {
 						const imageId = generateUniqueId('img');
 						await addImageDB({ id: imageId, blob: imageFile, synced: false });
-						imageReference = `![Shared Image](/images/${imageId})`;
+						imageReference = `![Shared Image](/images/${imageId})\n`;
 					}
 
 					const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -301,7 +301,7 @@ self.addEventListener('fetch', (event) => {
 							const imageNote = {
 								id: 'shared-image-' + generateUniqueId(),
 								title: 'Shared Image ' + timestamp,
-								content: imageReference + (newItem.trim() !== '*' ? '\n\n' + newItem : ''),
+								content: imageReference,
 								createdAt: new Date().toISOString(),
 								updatedAt: new Date().toISOString(),
 								tags: ['shared', 'image'],
