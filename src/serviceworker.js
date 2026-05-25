@@ -294,48 +294,49 @@ self.addEventListener('fetch', (event) => {
 						let targetNote;
 
 						if (imageFile instanceof File) {
-							targetNoteId = await getMetaDB('shared_images_id');
-							targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
-							if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED_IMAGES);
+							// Create a new individual note for the shared image
+							const now = new Date();
+							const timestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+							
+							const imageNote = {
+								id: 'shared-image-' + generateUniqueId(),
+								title: 'Shared Image ' + timestamp,
+								content: imageReference + (newItem.trim() !== '*' ? '\n\n' + newItem : ''),
+								createdAt: new Date().toISOString(),
+								updatedAt: new Date().toISOString(),
+								tags: ['shared', 'image'],
+							};
+							await addNoteDB(imageNote);
+							noteIdToRedirect = imageNote.id;
 						} else {
 							targetNoteId = await getMetaDB('shared_inbox_id');
 							targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
 							if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED);
-						}
 
-						const contentToStore = imageFile instanceof File ? imageReference : newItem;
-						const additionalContent = imageFile instanceof File && newItem.trim() !== '*' ? newItem : '';
-						const finalContent = [contentToStore, additionalContent].filter(Boolean).join('\n\n');
-
-						if (targetNote) {
-							if (targetNote.content) {
-								targetNote.content = finalContent + '\n' + targetNote.content;
+							const finalContent = newItem;
+							if (targetNote) {
+								if (targetNote.content) {
+									targetNote.content = finalContent + '\n' + targetNote.content;
+								} else {
+									targetNote.content = finalContent;
+								}
+								targetNote.updatedAt = new Date().toISOString();
+								await updateNoteDB(targetNote);
+								noteIdToRedirect = targetNote.id;
+								if (targetNote.id !== targetNoteId) await setMetaDB('shared_inbox_id', targetNote.id);
 							} else {
-								targetNote.content = finalContent;
+								const newNote = {
+									id: 'shared-inbox-' + generateUniqueId(),
+									title: TITLE_SHARED,
+									content: finalContent,
+									createdAt: new Date().toISOString(),
+									updatedAt: new Date().toISOString(),
+									tags: ['shared', 'inbox'],
+								};
+								await addNoteDB(newNote);
+								noteIdToRedirect = newNote.id;
+								await setMetaDB('shared_inbox_id', newNote.id);
 							}
-							targetNote.updatedAt = new Date().toISOString();
-							await updateNoteDB(targetNote);
-							noteIdToRedirect = targetNote.id;
-
-							if (imageFile instanceof File) {
-								if (targetNote.id !== await getMetaDB('shared_images_id')) await setMetaDB('shared_images_id', targetNote.id);
-							} else {
-								if (targetNote.id !== await getMetaDB('shared_inbox_id')) await setMetaDB('shared_inbox_id', targetNote.id);
-							}
-						} else {
-							// Create a new note
-							const newNote = {
-								id: (imageFile instanceof File ? 'shared-images-' : 'shared-inbox-') + generateUniqueId(),
-								title: imageFile instanceof File ? TITLE_SHARED_IMAGES : TITLE_SHARED,
-								content: finalContent,
-								createdAt: new Date().toISOString(),
-								updatedAt: new Date().toISOString(),
-								tags: ['shared', imageFile instanceof File ? 'images' : 'inbox'],
-							};
-							await addNoteDB(newNote);
-							noteIdToRedirect = newNote.id;
-							if (imageFile instanceof File) await setMetaDB('shared_images_id', newNote.id);
-							else await setMetaDB('shared_inbox_id', newNote.id);
 						}
 					}
 				} catch (criticalError) {
