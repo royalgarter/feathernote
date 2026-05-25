@@ -34,7 +34,8 @@ The `/share` handler in `src/serviceworker.js` processes incoming share requests
     *   A unique ID is generated via `generateUniqueId('img')`.
     *   The file blob is stored in the `IMAGE_STORE` IndexedDB using `addImageDB`.
     *   A markdown image reference `![Shared Image](/images/<id>)` is created.
-4.  **Note Integration**:
-    *   The image reference and existing text/link content are combined into a final string using `filter(Boolean).join('\n\n')`.
-    *   This content is prepended to the existing 'Shared Inbox' note or used to create a new one if it doesn't exist.
+## Note Integration
+*   **Images**: If a file is shared, it is stored in the 'Shared Images' note (or created if it doesn't exist). Any text/link content associated with the share is appended after the image markdown.
+*   **Text/Links**: If only text or a URL is shared, it is stored in the 'Shared Inbox' note as before.
+*   **Unique Destinations**: The app uses `shared_images_id` and `shared_inbox_id` meta keys to keep these destinations separate.
 5.  **Backward Compatibility**: The code checks `imageFile instanceof File`. If no image is shared, the reference remains empty and the text/link sharing logic proceeds as it did previously.
