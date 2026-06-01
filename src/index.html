@@ -155,10 +155,14 @@
 					<label for="note-tags" class="block text-sm font-medium">Tags (comma-separated)</label>
 					<input type="text" id="note-tags" x-model="noteEditorTags" class="mt-1 block w-full border p-2" placeholder="e.g. work, personal, ideas" />
 				</div>
-				<div class="mb-4 pb-4">
-					<label for="note-reminder" class="block text-sm font-medium">Reminder Date/Time (Optional)</label>
-					<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border p-2" />
-				</div>
+			<div class="mb-4 pb-4">
+				<label for="note-reminder" class="block text-sm font-medium">Reminder Date/Time (Optional)</label>
+				<input type="datetime-local" id="note-reminder" x-model="noteEditorReminder" class="cursor-pointer mt-1 block w-full border p-2" />
+			</div>
+			<div class="mb-4 pb-4 flex items-center gap-2">
+				<input type="checkbox" id="note-body-encoded" x-model="noteEditorBodyEncoded" class="cursor-pointer" />
+				<label for="note-body-encoded" class="text-sm font-medium cursor-pointer">Base64 encode body in Git storage (hide from plain view)</label>
+			</div>
 				<!-- <div class="flex justify-end gap-2">
 					<button @click="cancelEdit()" class="cursor-pointer border px-4 py-2">Cancel</button>
 					<button @click="deleteNote(noteEditorNoteId)" class="cursor-pointer border px-4 py-2 font-bold">Delete</button>

@@ -58,6 +58,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	noteEditorBaseContent: null,
 	noteEditorTags: '',
 	noteEditorReminder: '',
+	noteEditorBodyEncoded: true,
 
 	// --- Notification Data ---
 	notificationsEnabled: false,
@@ -891,7 +892,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	async addNote(title, content, reminder, tags) {
+	async addNote(title, content, reminder, tags, bodyEncoded) {
 		try {
 			const now = new Date().toISOString();
 			const newNote = {
@@ -903,6 +904,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				reminder: reminder || undefined,
 				tags: tags || [],
 				priority: 0,
+				bodyEncoded: bodyEncoded !== false,
 			};
 			await addNoteDB(newNote);
 			this.notes.unshift(newNote);
@@ -2000,6 +2002,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.noteEditorContent = '';
 		this.noteEditorReminder = '';
 		this.noteEditorTags = '';
+		this.noteEditorBodyEncoded = true;
 
 		this.$nextTick(() => this.prepareEasyMDE(this.editingNoteId));
 		this.$nextTick(() => document.getElementById('note-title').setAttribute('placeholder', 'Note at ' + new Date().toString().substr(0, 21)));
@@ -2075,6 +2078,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.noteEditorBaseContent = note.content; // Capture base content for merge
 			this.noteEditorReminder = note.reminder || '';
 			this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
+			this.noteEditorBodyEncoded = note.bodyEncoded !== false;
 		} else {
 			this.showToast({ variant: 'error', title: 'Error', description: 'Note not found.' });
 			this.editingNoteId = null;
@@ -2100,12 +2104,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				content: window.easyMDEInstance?.value() || this.noteEditorContent,
 				reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
 				tags: tags,
+				bodyEncoded: this.noteEditorBodyEncoded,
 			};
 
 			if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
 				await this.updateNote(this.noteEditorNoteId, noteData);
 			} else {
-				const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags);
+				const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags, noteData.bodyEncoded);
 				if (newNote) {
 					this.noteEditorNoteId = newNote.id;
 				}

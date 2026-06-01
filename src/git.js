@@ -96,7 +96,7 @@ const parseFrontmatter = (text) => {
             }
         });
 
-        // Use base64 body if available (preferred for integrity)
+        // Decode base64 body if encoded; otherwise use raw body text
         if (result.metadata.body_base64) {
             try {
                 result.body = decodeURIComponent(escape(_GLOBAL.atob(result.metadata.body_base64)));
@@ -117,24 +117,30 @@ const createMarkdownContent = (note) => {
     if (note.createdAt) lines.push(`createdAt: ${note.createdAt}`);
     if (note.priority) lines.push(`priority: ${note.priority}`);
     if (note.reminder) lines.push(`reminder: ${note.reminder}`);
+    if (note.bodyEncoded !== undefined) lines.push(`body_encoded: ${note.bodyEncoded}`);
     
     if (note.tags && note.tags.length > 0) {
         lines.push(`tags: [${note.tags.join(', ')}]`);
     }
 
-    // Add base64 version of the body to frontmatter
     if (note.content) {
-        try {
-            const b64 = _GLOBAL.btoa(unescape(encodeURIComponent(note.content)));
-            lines.push(`body_base64: ${b64}`);
-        } catch (e) {
-            console.error("GIT: Failed to base64 encode note content", e);
+        if (note.bodyEncoded === false) {
+            lines.push('---');
+            lines.push('');
+            lines.push(note.content);
+        } else {
+            try {
+                const b64 = _GLOBAL.btoa(unescape(encodeURIComponent(note.content)));
+                lines.push(`body_base64: ${b64}`);
+            } catch (e) {
+                console.error("GIT: Failed to base64 encode note content", e);
+            }
+            lines.push('---');
         }
+    } else {
+        lines.push('---');
     }
-    
-    lines.push('---');
-    // Note: No plain text body is added here to avoid raw text in the file.
-    
+
     return lines.join('\n');
 };
 
@@ -256,6 +262,7 @@ _GLOBAL.listNotesInGit = async (creds) => {
                         createdAt: createdAt,
                         reminder: metadata.reminder || null,
                         priority: metadata.priority || 0,
+                        bodyEncoded: metadata.body_encoded !== 'false',
                         source: 'git'
                     });
                 } catch (readErr) {
