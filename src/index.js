@@ -2157,8 +2157,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						description: 'A shareable link has been created and copied to your clipboard.'
 					});
 					navigator.clipboard.writeText(result.url);
-					prompt('Share this Nostr URL (copied to clipboard):', result.url);
 
+					this.showToast({ title: 'Share Nostr URL copied to clipboard', description: result.url });
+					window.open(result.url, '_blank');
 				} else {
 					throw new Error(result.error || 'Failed to publish to Nostr relays.');
 				}
@@ -2197,7 +2198,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							description: 'A shareable link has been created and copied to your clipboard.'
 						});
 						navigator.clipboard.writeText(url);
-						prompt('Share this S3 URL (copied to clipboard):', url);
+						this.showToast({ title: 'Share S3 URL copied to clipboard', description: url });
+						window.open(url, '_blank');
 					} else {
 						throw new Error('Failed to create S3 pre-signed URL.');
 					}
@@ -2237,7 +2239,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					description: 'A shareable link has been created and copied to your clipboard.'
 				});
 				navigator.clipboard.writeText(fullUrl);
-				prompt('Share this URL (copied to clipboard):', fullUrl);
+				this.showToast({ title: 'Share URL copied to clipboard', description: fullUrl });
+				window.open(fullUrl, '_blank');
 			} else {
 				throw new Error(data.error || 'Failed to create shareable link.');
 			}
