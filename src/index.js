@@ -389,7 +389,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	getNoteSyncStatus(note) {
-		return this.noteSyncStatus[note.id] || { status: 'idle', updatedAt: note.updatedAt };
+		if (this.noteSyncStatus[note.id]) {
+			return this.noteSyncStatus[note.id];
+		}
+		const hasSynced = this.lastSync && (new Date(note.updatedAt) <= new Date(this.lastSync));
+		return { status: hasSynced ? 'ok' : 'idle', updatedAt: note.updatedAt };
 	},
 
 	getNoteSyncIconClass(status) {
@@ -423,17 +427,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	getProviderIcon(provider) {
 		switch(provider) {
 			case 's3':
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>`;
 			case 'gdrive':
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 14.28L4.36 21H12.2l3.84-6.72H8.2zm14.1-1.74l-3.84-6.72H10.6l3.84 6.72h7.86zm-5.63.87l-3.84-6.72L5 13.41l3.84 6.72 7.83-6.72z" /></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 14.28L4.36 21H12.2l3.84-6.72H8.2zm14.1-1.74l-3.84-6.72H10.6l3.84 6.72h7.86zm-5.63.87l-3.84-6.72L5 13.41l3.84 6.72 7.83-6.72z" /></svg>`;
 			case 'git':
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path><circle cx="6" cy="6" r="3"></circle></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path><circle cx="6" cy="6" r="3"></circle></svg>`;
 			case 'ipfs':
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"></path><path d="M12 22V12"></path><path d="M12 12L2 7"></path><path d="M12 12l10-5"></path></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"></path><path d="M12 22V12"></path><path d="M12 12L2 7"></path><path d="M12 12l10-5"></path></svg>`;
 			case 'nostr':
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>`;
 			default:
-				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>`;
+				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>`;
 		}
 	},
 
@@ -470,11 +474,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		
 		if (!allStatus) {
 			allStatus = {};
-			if (this.s3Bucket) allStatus.s3 = { status: 'idle' };
-			if (this.gdriveStore && this.gdriveStore.connected) allStatus.gdrive = { status: 'idle' };
-			if (this.gitRepoUrl) allStatus.git = { status: 'idle' };
-			if (this.useDirectIpfs || this.pinataJwt || this.pinataApiKey) allStatus.ipfs = { status: 'idle' };
-			if (this.nostrPrivateKey) allStatus.nostr = { status: 'idle' };
+			const hasSynced = this.lastSync && (new Date(note.updatedAt) <= new Date(this.lastSync));
+			const defaultStatus = hasSynced ? 'ok' : 'idle';
+			
+			if (this.s3Bucket) allStatus.s3 = { status: defaultStatus };
+			if (this.gdriveStore && this.gdriveStore.connected) allStatus.gdrive = { status: defaultStatus };
+			if (this.gitRepoUrl) allStatus.git = { status: defaultStatus };
+			if (this.useDirectIpfs || this.pinataJwt || this.pinataApiKey) allStatus.ipfs = { status: defaultStatus };
+			if (this.nostrPrivateKey) allStatus.nostr = { status: defaultStatus };
 			return allStatus;
 		}
 
