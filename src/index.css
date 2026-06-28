@@ -147,6 +147,10 @@
 	color: var(--color-blue-400);
 }
 
+.EasyMDEContainer .editor-toolbar button[aria-label*="crypt"] {
+	color: var(--color-yellow-400);
+}
+
 .EasyMDEContainer .editor-toolbar button[aria-label*="AI"] {
 	color: var(--color-yellow-400);
 }

@@ -8,6 +8,12 @@ const multer = require('multer');
 const { marked } = require('marked');
 const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
 
+// --- YAML Fallback for Server ---
+const YAML = {
+	stringify: (obj) => JSON.stringify(obj, null, 2),
+	parse: (str) => JSON.parse(str)
+};
+
 // console.log('CLOUDFLARE_ACCOUNT_ID=' + Deno.env.get('CLOUDFLARE_ACCOUNT_ID'))
 // console.log('CLOUDFLARE_API_TOKEN=' + Deno.env.get('CLOUDFLARE_API_TOKEN'))
 // console.log('CLOUDFLARE_KV_NAMESPACE_ID=' + Deno.env.get('CLOUDFLARE_KV_NAMESPACE_ID'))
@@ -248,13 +254,13 @@ app.get('/api/proxy', async (req, res) => {
 // --- Share/Publish Endpoints ---
 const PUBLISHED = {};
 app.post('/api/publish', async (req, res) => {
-	const { title, content } = req.body;
+	const { title, content, isEncrypted } = req.body;
 	if (!content) {
 		return res.status(400).json({ error: 'Content cannot be empty.' });
 	}
 
 	const noteId = crypto.randomBytes(8).toString('hex');
-	const noteData = { title: title || 'Untitled Note', content };
+	const noteData = { title: title || 'Untitled Note', content, isEncrypted: !!isEncrypted };
 	const noteString = YAML.stringify(noteData);
 	const noteSize = new TextEncoder().encode(noteString).length;
 
@@ -332,6 +338,20 @@ app.get('/publish/:noteId', async (req, res) => {
 		// If note is still not found, return 404
 		if (!note) {
 			return res.status(404).send('Note not found.');
+		}
+
+		if (note.isEncrypted) {
+			try {
+				const templatePath = path.join(__dirname, 'self-decrypting.html');
+				const template = fs.readFileSync(templatePath, 'utf8');
+				const selfDecryptingHtml = template
+					.replaceAll('{{TITLE}}', note.title)
+					.replace('{{ENCRYPTED_PAYLOAD}}', note.content);
+				return res.send(selfDecryptingHtml);
+			} catch (e) {
+				console.error('Failed to load self-decrypting template:', e);
+				return res.status(500).send('Internal server error loading encrypted template.');
+			}
 		}
 
 		const htmlContent = marked.parse(note.content);

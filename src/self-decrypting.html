@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Encrypted Note: {{TITLE}}</title>
+	<style>
+		body {
+			background-color: #ffffff;
+			color: #000000;
+			font-family: monospace;
+			margin: 0;
+			padding: 2rem;
+		}
+		.container {
+			max-width: 600px;
+			margin: 4rem auto;
+		}
+		h1 {
+			font-size: 1.5rem;
+			border-bottom: 1px solid #000000;
+			padding-bottom: 0.5rem;
+			margin-top: 0;
+		}
+		p {
+			line-height: 1.5;
+		}
+		.input-group {
+			margin-top: 1.5rem;
+		}
+		input[type="password"] {
+			font-family: monospace;
+			padding: 0.5rem;
+			font-size: 1rem;
+			border: 1px solid #000000;
+			width: 100%;
+			box-sizing: border-box;
+			margin-bottom: 1rem;
+			outline: none;
+		}
+		button {
+			font-family: monospace;
+			background-color: #000000;
+			color: #ffffff;
+			border: none;
+			padding: 0.5rem 1rem;
+			font-size: 1rem;
+			cursor: pointer;
+			width: 100%;
+		}
+		button:hover {
+			background-color: #333333;
+		}
+		.error-message {
+			color: #ff0000;
+			margin-top: 1rem;
+			display: none;
+		}
+		#content {
+			display: none;
+			max-width: 600px;
+			margin: 2rem auto;
+			padding: 1rem;
+			border: solid black;
+			border-width: thin;
+		}
+		#content h1 { font-size: 1.5rem; border-bottom: 1px solid #000000; padding-bottom: 0.5rem; margin-top: 2rem; }
+		#content h2 { font-size: 1.25rem; margin-top: 1.5rem; }
+		#content h3 { font-size: 1.1rem; margin-top: 1.2rem; }
+		#content p { line-height: 1.5; margin-bottom: 1rem; }
+		#content ul, #content ol { padding-left: 2rem; margin-bottom: 1rem; }
+		#content li { margin-bottom: 0.25rem; }
+		#content pre { background-color: #f4f4f4; padding: 1rem; border: 1px solid #000000; overflow-x: auto; margin-bottom: 1rem; }
+		#content code { font-family: monospace; background-color: #f4f4f4; padding: 0.1rem 0.3rem; }
+		#content blockquote { border-left: 3px solid #000000; padding-left: 1rem; margin-left: 0; font-style: italic; }
+	</style>
+</head>
+<body>
+	<div id="prompt" class="container">
+		<h1>Encrypted Note</h1>
+		<p>This note is password-protected. Enter the password to unlock it.</p>
+		<div class="input-group">
+			<input type="password" id="pwd" placeholder="Enter password" autofocus />
+			<button onclick="decryptAndShow()">Unlock Note</button>
+		</div>
+		<div id="error-msg" class="error-message">Incorrect password. Please try again.</div>
+	</div>
+
+	<div id="content"></div>
+
+	<script>
+		const encryptedPayload = "{{ENCRYPTED_PAYLOAD}}";
+		const textEncoder = new TextEncoder();
+		const textDecoder = new TextDecoder();
+
+		async function deriveKey(password, salt) {
+			const passwordBytes = textEncoder.encode(password);
+			const baseKey = await crypto.subtle.importKey(
+				'raw', passwordBytes, 'PBKDF2', false, ['deriveKey']
+			);
+			return crypto.subtle.deriveKey(
+				{ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+				baseKey,
+				{ name: 'AES-GCM', length: 256 },
+				false,
+				['encrypt', 'decrypt']
+			);
+		}
+
+		async function decrypt(combinedBase64, password) {
+			const binString = atob(combinedBase64);
+			const len = binString.length;
+			const combinedBytes = new Uint8Array(len);
+			for (let i = 0; i < len; i++) {
+				combinedBytes[i] = binString.charCodeAt(i);
+			}
+			const salt = combinedBytes.slice(0, 16);
+			const iv = combinedBytes.slice(16, 28);
+			const ciphertextBytes = combinedBytes.slice(28);
+
+			const key = await deriveKey(password, salt);
+			const decryptedBuffer = await crypto.subtle.decrypt(
+				{ name: 'AES-GCM', iv }, key, ciphertextBytes
+			);
+			return textDecoder.decode(decryptedBuffer);
+		}
+
+		async function decryptAndShow() {
+			const pwd = document.getElementById('pwd').value;
+			if (!pwd) return;
+			const errorMsg = document.getElementById('error-msg');
+			errorMsg.style.display = 'none';
+
+			try {
+				const decrypted = await decrypt(encryptedPayload, pwd);
+				document.getElementById('prompt').style.display = 'none';
+				
+				const contentDiv = document.getElementById('content');
+				contentDiv.innerHTML = `<h1>${document.querySelector('title')?.innerText?.replace('Encrypted Note: ', '')}</h1>\n` + decrypted;
+				contentDiv.style.display = 'block';
+			} catch (e) {
+				console.error(e);
+				errorMsg.style.display = 'block';
+				document.getElementById('pwd').value = '';
+				document.getElementById('pwd').focus();
+			}
+		}
+
+		document.getElementById('pwd').addEventListener('keypress', (e) => {
+			if (e.key === 'Enter') decryptAndShow();
+		});
+	</script>
+</body>
+</html>

@@ -60,6 +60,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	noteEditorTags: '',
 	noteEditorReminder: '',
 	noteEditorBodyEncoded: true,
+	noteEditorIsEncrypted: false,
+	currentNotePassword: null,
 
 	// --- Notification Data ---
 	notificationsEnabled: false,
@@ -384,7 +386,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			minute: '2-digit',
 		})
 	},
-	getNotePreview(content) {
+	getNotePreview(note) {
+		if (note?.isEncrypted) {
+			return '**********';
+		}
+		const content = note?.content;
 		return content ? `${content.trim().replace(/(\r?\n)+/g, '\n').substring(0, 300)}...` : '<!-- EMPTY -->';
 	},
 
@@ -1024,7 +1030,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	async addNote(title, content, reminder, tags, bodyEncoded) {
+	async addNote(title, content, reminder, tags, bodyEncoded, isEncrypted = false) {
 		try {
 			const now = new Date().toISOString();
 			const newNote = {
@@ -1037,6 +1043,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				tags: tags || [],
 				priority: 0,
 				bodyEncoded: bodyEncoded !== false,
+				isEncrypted: !!isEncrypted,
 			};
 			await addNoteDB(newNote);
 			this.notes.unshift(newNote);
@@ -1104,11 +1111,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const content = window.easyMDEInstance?.value();
 		if (content === null || content === undefined) return;
 
+		let finalContent = content;
+		if (this.noteEditorIsEncrypted) {
+			if (!this.currentNotePassword) {
+				return; // Cannot safely encrypt without password, skip autosave
+			}
+			finalContent = await _GLOBAL.encrypt(finalContent, this.currentNotePassword);
+		}
+
 		const noteData = {
 			title: this.noteEditorTitle.trim() || ('Note at ' + new Date().toString().substr(0, 21)),
-			content: content,
+			content: finalContent,
 			reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
 			tags: this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag),
+			isEncrypted: this.noteEditorIsEncrypted,
 		};
 
 		if (noteInDb.title === noteData.title &&
@@ -1754,6 +1770,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						},
 						className: "fa fa-share-square-o",
 						title: "Share",
+					},{
+						name: "Encrypt",
+						action: function(editor){
+							Alpine.$data(document.querySelector('body'))?.toggleNoteEncryption();
+						},
+						className: "fa fa-unlock-alt",
+						title: "Encrypt / Decrypt Note",
 					},
 					"|",
 					"bold", "italic", "heading",
@@ -2038,6 +2061,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				&& window.easyMDEInstance?.togglePreview?.()
 			);
 
+			this.$nextTick(() => {
+				this.updatePadlockIcon();
+			});
+
 			this.noteEditorVisible = false;
 			this.easyMDEIniting = false;
 		} catch (ex) {
@@ -2224,9 +2251,31 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const note = isId ? await this.getNote(id) : noteOrId;
 
 		if (note) {
+			let finalContent = note.content;
+			this.noteEditorIsEncrypted = !!note.isEncrypted;
+			this.currentNotePassword = null;
+
+			if (note.isEncrypted) {
+				const pwd = prompt("This note is encrypted. Please enter the password to view/edit:");
+				if (!pwd) {
+					this.showToast({ variant: 'error', title: 'Cancelled', description: 'Cannot view note without password.' });
+					this.cancelEdit();
+					return;
+				}
+				try {
+					finalContent = await _GLOBAL.decrypt(note.content, pwd);
+					this.currentNotePassword = pwd;
+				} catch (e) {
+					console.error("Decryption failed:", e);
+					this.showToast({ variant: 'error', title: 'Decryption Failed', description: 'Incorrect password or corrupted content.' });
+					this.cancelEdit();
+					return;
+				}
+			}
+
 			this.noteEditorTitle = note.title;
-			this.noteEditorContent = note.content;
-			this.noteEditorBaseContent = note.content; // Capture base content for merge
+			this.noteEditorContent = finalContent;
+			this.noteEditorBaseContent = finalContent; // Capture base content for merge
 			this.noteEditorReminder = note.reminder || '';
 			this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
 			this.noteEditorBodyEncoded = note.bodyEncoded !== false;
@@ -2236,6 +2285,49 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		this.$nextTick(() => this.prepareEasyMDE(id, options));
+	},
+
+	toggleNoteEncryption() {
+		const app = this;
+		if (app.noteEditorIsEncrypted) {
+			// Ask if they want to decrypt the note (remove encryption)
+			const confirmDecrypt = confirm("Do you want to decrypt this note (remove password protection permanently)?");
+			if (confirmDecrypt) {
+				app.noteEditorIsEncrypted = false;
+				app.currentNotePassword = null;
+				app.showToast({ title: 'Decryption Pending', description: 'Save the note to remove password protection.' });
+				app.updatePadlockIcon();
+			}
+		} else {
+			// Prompt for a password to encrypt
+			const pwd = prompt("Enter a password to encrypt this note (this password is NOT stored anywhere):");
+			if (!pwd) {
+				app.showToast({ variant: 'error', title: 'Cancelled', description: 'Encryption was cancelled.' });
+				return;
+			}
+			const pwdConfirm = prompt("Please confirm your password:");
+			if (pwd !== pwdConfirm) {
+				app.showToast({ variant: 'error', title: 'Error', description: 'Passwords do not match.' });
+				return;
+			}
+			app.noteEditorIsEncrypted = true;
+			app.currentNotePassword = pwd;
+			app.showToast({ title: 'Encryption Pending', description: 'Save the note to finalize password protection.' });
+			app.updatePadlockIcon();
+		}
+	},
+
+	updatePadlockIcon() {
+		const lockBtn = document.querySelector('.EasyMDEContainer .editor-toolbar button.fa-lock, .EasyMDEContainer .editor-toolbar button.fa-unlock-alt');
+		if (lockBtn) {
+			if (this.noteEditorIsEncrypted) {
+				lockBtn.className = 'fa fa-lock active text-yellow-500';
+				lockBtn.title = 'Note is Encrypted (Click to Decrypt)';
+			} else {
+				lockBtn.className = 'fa fa-unlock-alt';
+				lockBtn.title = 'Note is Unencrypted (Click to Encrypt)';
+			}
+		}
 	},
 
 	async saveNote(isAuto) {
@@ -2250,18 +2342,34 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
 
+			let rawContent = window.easyMDEInstance?.value() || this.noteEditorContent;
+			let isEncrypted = this.noteEditorIsEncrypted;
+
+			if (isEncrypted) {
+				if (!this.currentNotePassword) {
+					const pwd = prompt("Enter a password to encrypt this note:");
+					if (!pwd) {
+						this.showToast({ variant: 'error', title: 'Error', description: 'A password is required to save an encrypted note.' });
+						return;
+					}
+					this.currentNotePassword = pwd;
+				}
+				rawContent = await _GLOBAL.encrypt(rawContent, this.currentNotePassword);
+			}
+
 			const noteData = {
 				title: finalTitle,
-				content: window.easyMDEInstance?.value() || this.noteEditorContent,
+				content: rawContent,
 				reminder: this.noteEditorReminder.trim() !== '' ? this.noteEditorReminder : undefined,
 				tags: tags,
 				bodyEncoded: this.noteEditorBodyEncoded,
+				isEncrypted: isEncrypted,
 			};
 
 			if (this.noteEditorNoteId && this.noteEditorNoteId !== 'new') {
 				await this.updateNote(this.noteEditorNoteId, noteData);
 			} else {
-				const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags, noteData.bodyEncoded);
+				const newNote = await this.addNote(noteData.title, noteData.content, noteData.reminder, noteData.tags, noteData.bodyEncoded, isEncrypted);
 				if (newNote) {
 					this.noteEditorNoteId = newNote.id;
 				}
@@ -2332,13 +2440,37 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const credentials = await decryptSettings(encryptedSettings, this.userId);
 			if (credentials && credentials.s3Bucket) {
 				try {
-					this.showToast({ title: 'Publishing to S3...', description: 'Creating a shareable link via S3.' });
+					let shareHtml = marked.parse(content);
+					const encryptShare = confirm("Do you want to encrypt this shared S3 link with a password?");
+					if (encryptShare) {
+						const sharePassword = prompt("Enter a password for the viewer of this link (do not forget it!):");
+						if (!sharePassword) {
+							this.showToast({ variant: 'error', title: 'Cancelled', description: 'Sharing cancelled.' });
+							return;
+						}
+
+						const wrappedHtml = `<h1 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb;">${this.noteEditorTitle}</h1><div>${shareHtml}</div>`;
+						const encryptedPayload = await _GLOBAL.encrypt(wrappedHtml, sharePassword);
+
+						try {
+							const template = await fetch('/self-decrypting.html').then(r => r.text());
+							shareHtml = template
+								.replace('{{TITLE}}', this.noteEditorTitle)
+								.replace('{{ENCRYPTED_PAYLOAD}}', encryptedPayload);
+						} catch (e) {
+							console.error('Failed to load self-decrypting template:', e);
+							this.showToast({ variant: 'error', title: 'Error', description: 'Could not load the encryption template.' });
+							return;
+						}
+					}
+
+				this.showToast({ title: 'Publishing to S3...', description: 'Creating a shareable link via S3.' });
 					const note = {
 						id: this.noteEditorNoteId || generateUniqueId(this.noteEditorTitle),
 						title: this.noteEditorTitle,
 						content: content,
 						updatedAt: new Date().toISOString(),
-						html: marked.parse(content),
+						html: encryptShare ? shareHtml : marked.parse(content),
 					};
 					await uploadNoteToS3(note, credentials);
 					const url = await getPresignedUrl(note, credentials);
@@ -2369,6 +2501,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// Fallback using server storage
 		try {
 			this.showToast({ title: 'Publishing...', description: 'Creating a shareable link via the server.' });
+			
+			let finalContent = content;
+			let isEncrypted = false;
+			const encryptShare = confirm("Do you want to encrypt this shared server link with a password?");
+			if (encryptShare) {
+				const sharePassword = prompt("Enter a password for the viewer of this link (do not forget it!):");
+				if (!sharePassword) {
+					this.showToast({ variant: 'error', title: 'Cancelled', description: 'Sharing cancelled.' });
+					return;
+				}
+				finalContent = await _GLOBAL.encrypt(finalContent, sharePassword);
+				isEncrypted = true;
+			}
+
 			const response = await fetch('/api/publish', {
 				method: 'POST',
 				headers: {
@@ -2376,7 +2522,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				body: JSON.stringify({
 					title: this.noteEditorTitle,
-					content: content
+					content: finalContent,
+					isEncrypted: isEncrypted
 				}),
 			});
 

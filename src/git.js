@@ -118,6 +118,7 @@ const createMarkdownContent = (note) => {
     if (note.priority) lines.push(`priority: ${note.priority}`);
     if (note.reminder) lines.push(`reminder: ${note.reminder}`);
     if (note.bodyEncoded !== undefined) lines.push(`body_encoded: ${note.bodyEncoded}`);
+    if (note.isEncrypted !== undefined) lines.push(`is_encrypted: ${note.isEncrypted}`);
     
     if (note.tags && note.tags.length > 0) {
         lines.push(`tags: [${note.tags.join(', ')}]`);
@@ -263,6 +264,7 @@ _GLOBAL.listNotesInGit = async (creds) => {
                         reminder: metadata.reminder || null,
                         priority: metadata.priority || 0,
                         bodyEncoded: metadata.body_encoded !== 'false',
+                        isEncrypted: metadata.is_encrypted === 'true',
                         source: 'git'
                     });
                 } catch (readErr) {

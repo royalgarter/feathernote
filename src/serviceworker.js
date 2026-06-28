@@ -24,6 +24,7 @@ const urlsToCache = [
 	'/nostr.js',
 	'/gdrive.js',
 	'/manifest.json',
+	'/self-decrypting.html',
 	'/favicon.ico',
 	'/favicon.png',
 	'/icons/icons.json',

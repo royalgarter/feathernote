@@ -1291,3 +1291,74 @@ async function authenticateBiometric() {
 	const assertion = await navigator.credentials.get(options);
 	return !!assertion;
 }
+
+// --- Universal Text Encryption Helpers ---
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+async function deriveKey(password, salt) {
+	const passwordBytes = textEncoder.encode(password);
+	const baseKey = await crypto.subtle.importKey(
+		'raw', passwordBytes, 'PBKDF2', false, ['deriveKey']
+	);
+	return crypto.subtle.deriveKey(
+		{ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+		baseKey,
+		{ name: 'AES-GCM', length: 256 },
+		false,
+		['encrypt', 'decrypt']
+	);
+}
+
+async function encrypt(plaintext, password) {
+	const salt = crypto.getRandomValues(new Uint8Array(16)); // 16 bytes salt
+	const iv = crypto.getRandomValues(new Uint8Array(12));   // 12 bytes IV for GCM
+	
+	const key = await deriveKey(password, salt);
+	const plaintextBytes = textEncoder.encode(plaintext);
+	
+	const ciphertextBuffer = await crypto.subtle.encrypt(
+		{ name: 'AES-GCM', iv }, key, plaintextBytes
+	);
+	const ciphertextBytes = new Uint8Array(ciphertextBuffer);
+
+	// Combine everything into a single byte array for easy transport
+	const combinedBytes = new Uint8Array(salt.length + iv.length + ciphertextBytes.length);
+	combinedBytes.set(salt, 0);
+	combinedBytes.set(iv, salt.length);
+	combinedBytes.set(ciphertextBytes, salt.length + iv.length);
+
+	// Convert binary to a clean, transferable string (stack-safe for large notes)
+	let binary = '';
+	const len = combinedBytes.byteLength;
+	for (let i = 0; i < len; i++) {
+		binary += String.fromCharCode(combinedBytes[i]);
+	}
+	return btoa(binary);
+}
+
+async function decrypt(combinedBase64, password) {
+	const binString = atob(combinedBase64);
+	const len = binString.length;
+	const combinedBytes = new Uint8Array(len);
+	for (let i = 0; i < len; i++) {
+		combinedBytes[i] = binString.charCodeAt(i);
+	}
+
+	// Slice out the structural components exactly as they were packed
+	const salt = combinedBytes.slice(0, 16);
+	const iv = combinedBytes.slice(16, 28);
+	const ciphertextBytes = combinedBytes.slice(28);
+
+	const key = await deriveKey(password, salt);
+	
+	const decryptedBuffer = await crypto.subtle.decrypt(
+		{ name: 'AES-GCM', iv }, key, ciphertextBytes
+	);
+	
+	return textDecoder.decode(decryptedBuffer);
+}
+
+_GLOBAL.encrypt = encrypt;
+_GLOBAL.decrypt = decrypt;
