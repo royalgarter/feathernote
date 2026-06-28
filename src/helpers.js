@@ -38,6 +38,8 @@ const YAML = {
 	}
 };
 
+_GLOBAL.YAML = YAML;
+
 const promiseTimeout = (p, ms=30e3) => Promise.race([
 	p,
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))

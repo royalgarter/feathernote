@@ -1,4 +1,5 @@
 _GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
+const YAML = _GLOBAL.YAML;
 
 /*
  * FeatherNote Google Drive Sync

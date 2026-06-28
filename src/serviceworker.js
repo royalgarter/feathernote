@@ -5,11 +5,11 @@ importScripts('./libs/isomorphic-git.min.js');
 importScripts('./libs/lightning-fs.min.js');
 importScripts('./libs/http.min.js');
 importScripts('./libs/js-yaml.min.js');
+importScripts('./helpers.js');
 importScripts('./s3.js');
 importScripts('./git.js');
 importScripts('./nostr.js');
 importScripts('./gdrive.js');
-importScripts('./helpers.js');
 
 const CACHE_NAME = 'feathernote-cache-v' + DB_VERSION;
 
