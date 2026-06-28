@@ -186,10 +186,16 @@
 									<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
 								</div>
 								<div class="flex items-center gap-2">
-									<span class="text-xs rounded-full p-1.5 shadow-sm" :class="getNoteSyncIconClass(getNoteSyncStatus(note).status).color + ' ' + getNoteSyncIconClass(getNoteSyncStatus(note).status).bg">
-										<span x-text="getNoteSyncIcon(getNoteSyncStatus(note).status)"></span>
-									</span>
-									<h4 class="text-base font-bold truncate mb-2" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
+									<div class="flex gap-1">
+										<template x-for="provider in ['s3', 'gdrive', 'git', 'ipfs', 'nostr']" :key="provider">
+											<template x-if="getNoteSyncStatusByProvider(note)[provider]">
+												<span class="rounded-full p-1 flex items-center justify-center shadow-sm" :title="getProviderName(provider) + ': ' + (getNoteSyncStatusByProvider(note)[provider].status || 'idle')" :class="getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').color + ' ' + getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').bg">
+													<span x-html="getProviderIcon(provider)"></span>
+												</span>
+											</template>
+										</template>
+									</div>
+									<h4 class="text-base font-bold truncate" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
 								</div>
 								<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>

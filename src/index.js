@@ -419,21 +419,76 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			default: return '○';
 		}
 	},
+
+	getProviderIcon(provider) {
+		switch(provider) {
+			case 's3':
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>`;
+			case 'gdrive':
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 14.28L4.36 21H12.2l3.84-6.72H8.2zm14.1-1.74l-3.84-6.72H10.6l3.84 6.72h7.86zm-5.63.87l-3.84-6.72L5 13.41l3.84 6.72 7.83-6.72z" /></svg>`;
+			case 'git':
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path><circle cx="6" cy="6" r="3"></circle></svg>`;
+			case 'ipfs':
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"></path><path d="M12 22V12"></path><path d="M12 12L2 7"></path><path d="M12 12l10-5"></path></svg>`;
+			case 'nostr':
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>`;
+			default:
+				return `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>`;
+		}
+	},
+
+	getProviderName(provider) {
+		switch(provider) {
+			case 's3': return 'S3';
+			case 'gdrive': return 'Drive';
+			case 'git': return 'Git';
+			case 'ipfs': return 'IPFS';
+			case 'nostr': return 'Nostr';
+			default: return provider;
+		}
+	},
+
+	getProviderSyncIconClass(status) {
+		switch(status) {
+			case 'ok':
+				return { color: 'text-green-500', bg: 'bg-green-100' };
+			case 'syncing':
+				return { color: 'text-blue-500', bg: 'bg-blue-100' };
+			case 'partial':
+				return { color: 'text-yellow-500', bg: 'bg-yellow-100' };
+			case 'error':
+				return { color: 'text-red-500', bg: 'bg-red-100' };
+			case 'idle':
+				return { color: 'text-gray-400', bg: 'bg-gray-100' };
+			default:
+				return { color: 'text-gray-400', bg: 'bg-gray-100' };
+		}
+	},
+
+	getNoteSyncStatusByProvider(note) {
+		const allStatus = this.noteSyncStatus[note.id] || {};
+		// If it's an old format (single status), convert it
+		if (allStatus.status && typeof allStatus.status === 'string') {
+			return { s3: allStatus, gdrive: allStatus, git: allStatus, ipfs: allStatus, nostr: allStatus };
+		}
+		return allStatus;
+	},
 	
-getNoteSummary(note) {
+
+	getNoteSummary(note) {
 		const status = this.getNoteSyncStatus(note);
 		const syncInfo = this.getNoteSyncIconClass(status.status);
-				return `<span class="flex items-center gap-2">
-						<span class="text-xs ${syncInfo.color} ${syncInfo.bg} rounded-full p-1.5 shadow-sm">
-							${status.status === 'ok' ? '✓' : status.status === 'syncing' ? '⟳' : status.status === 'partial' ? '⚠' : status.status === 'error' ? '✗' : '○'}
-						</span>
-						<span class="font-medium">
-							${note.title}
-						</span>
-						<span class="text-xs ${status.status === 'ok' ? 'text-green-600' : status.status === 'syncing' ? 'text-blue-600' : status.status === 'partial' ? 'text-yellow-600' : status.status === 'error' ? 'text-red-600' : 'text-gray-600'} ml-2">
-							${status.status}
-						</span>
-					</span>`;
+		return `<span class="flex items-center gap-2">
+				<span class="text-xs ${syncInfo.color} ${syncInfo.bg} rounded-full p-1.5 shadow-sm">
+					${status.status === 'ok' ? '✓' : status.status === 'syncing' ? '⟳' : status.status === 'partial' ? '⚠' : status.status === 'error' ? '✗' : '○'}
+				</span>
+				<span class="font-medium">
+					${note.title}
+				</span>
+				<span class="text-xs ${status.status === 'ok' ? 'text-green-600' : status.status === 'syncing' ? 'text-blue-600' : status.status === 'partial' ? 'text-yellow-600' : status.status === 'error' ? 'text-red-600' : 'text-gray-600'} ml-2">
+					${status.status}
+				</span>
+			</span>`;
 	},
 
 	getCoverImage(note) {
@@ -1330,37 +1385,37 @@ getNoteSummary(note) {
 				}
 
 				const notesToDeleteLocally = result.notesToDeleteLocally || [];
-						for (const noteIdToDelete of notesToDeleteLocally) {
-							await deleteNoteDB(noteIdToDelete);
-						}
+				for (const noteIdToDelete of notesToDeleteLocally) {
+					await deleteNoteDB(noteIdToDelete);
+				}
 
-						// Mark notes as syncing (blue icon)
-						for (const note of effectiveNotes || []) {
-							if (note.id && !this.noteSyncStatus[note.id]) {
-								this.noteSyncStatus[note.id] = { status: 'syncing', updatedAt: new Date().toISOString() };
-							}
-						}
+				// Mark notes as syncing (blue icon)
+				for (const note of effectiveNotes || []) {
+					if (note.id && !this.noteSyncStatus[note.id]) {
+						this.noteSyncStatus[note.id] = { status: 'syncing', updatedAt: new Date().toISOString() };
+					}
+				}
 
 						// Handle deletedNoteIds queue
-			if (result.effectiveDeletedNoteIds) {
-				this.deletedNoteIds = result.effectiveDeletedNoteIds;
+				if (result.effectiveDeletedNoteIds) {
+					this.deletedNoteIds = result.effectiveDeletedNoteIds;
 
-				if (this.deletedNoteIds.length > 0) {
-					localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
-				} else {
-					localStorage.removeItem('feathernote-deleted-note-ids');
+					if (this.deletedNoteIds.length > 0) {
+						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
+					} else {
+						localStorage.removeItem('feathernote-deleted-note-ids');
+					}
 				}
-			}
 
-			await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-			this.updateNotesCache();
+				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
+				this.updateNotesCache();
 
-			// Update sync status for notes
-			for (const note of result.updatedNotes || []) {
-				if (this.noteSyncStatus[note.id]) {
-					this.noteSyncStatus[note.id] = { status: 'ok', updatedAt: new Date().toISOString() };
+				// Update sync status for notes
+				for (const note of result.updatedNotes || []) {
+					if (this.noteSyncStatus[note.id]) {
+						this.noteSyncStatus[note.id] = { status: 'ok', updatedAt: new Date().toISOString() };
+					}
 				}
-			}
 				for (const noteId of result.uploadedNoteIds || []) {
 					if (!this.noteSyncStatus[noteId]) {
 						this.noteSyncStatus[noteId] = { status: 'ok', updatedAt: new Date().toISOString() };
