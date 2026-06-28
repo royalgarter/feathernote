@@ -180,24 +180,24 @@
 						:style="{ 'border-color': getNoteColor(note) }"
 						@click="editNote(note.id)"
 					>
-							<div class="flex-grow min-w-0">
-								<div class="flex justify-between items-baseline mb-2">
-									<span class="text-xs italic" x-text="formatDate(note.updatedAt)"></span>
-									<div class="flex gap-1">
-										<template x-for="provider in ['s3', 'gdrive', 'git', 'ipfs', 'nostr']" :key="provider">
-											<template x-if="getNoteSyncStatusByProvider(note)[provider]">
-												<span class="rounded-full p-1 flex items-center justify-center" :title="getProviderName(provider) + ': ' + (getNoteSyncStatusByProvider(note)[provider].status || 'idle')" :class="getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').color + ' ' + getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').bg">
-													<span x-html="getProviderIcon(provider)"></span>
-												</span>
-											</template>
+						<div class="flex-grow min-w-0">
+							<div class="flex justify-between items-baseline mb-2">
+								<div class="flex gap-1">
+									<span class="text-xs italic mt-0.5" x-text="formatDate(note.updatedAt)"></span>
+									<template x-for="provider in ['s3', 'gdrive', 'git', 'ipfs', 'nostr']" :key="provider">
+										<template x-if="getNoteSyncStatusByProvider(note)[provider]">
+											<span class="rounded-full p-1 flex items-center justify-center" :title="getProviderName(provider) + ': ' + (getNoteSyncStatusByProvider(note)[provider].status || 'idle')" :class="getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').color + ' ' + getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').bg">
+												<span x-html="getProviderIcon(provider)"></span>
+											</span>
 										</template>
-									</div>
-									<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
+									</template>
 								</div>
-								<div class="flex items-center gap-2">
-									<h4 class="text-base font-bold truncate" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
-								</div>
-								<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
+								<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
+							</div>
+							<div class="flex items-center gap-2">
+								<h4 class="text-base font-bold truncate" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
+							</div>
+							<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>
 
 						<div class="mt-4 pt-2 border-t flex flex-col gap-2">
