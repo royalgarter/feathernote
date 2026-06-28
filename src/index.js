@@ -408,6 +408,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				return { icon: 'clock', color: 'text-gray-400', bg: 'bg-gray-100' };
 		}
 	},
+
+	getNoteSyncIcon(status) {
+		switch(status) {
+			case 'ok': return '✓';
+			case 'syncing': return '⟳';
+			case 'partial': return '⚠';
+			case 'error': return '✗';
+			case 'idle': return '○';
+			default: return '○';
+		}
+	},
 	
 getNoteSummary(note) {
 		const status = this.getNoteSyncStatus(note);

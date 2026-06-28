@@ -186,13 +186,10 @@
 									<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
 								</div>
 								<div class="flex items-center gap-2">
-									<span class="text-xs ${getNoteSyncIconClass(getNoteSyncStatus(note).status).color} ${getNoteSyncIconClass(getNoteSyncStatus(note).status).bg} rounded-full p-1.5 shadow-sm">
-										${getNoteSyncStatus(note).status === 'ok' ? '✓' : getNoteSyncStatus(note).status === 'syncing' ? '⟳' : getNoteSyncStatus(note).status === 'partial' ? '⚠' : getNoteSyncStatus(note).status === 'error' ? '✗' : '○'}
+									<span class="text-xs rounded-full p-1.5 shadow-sm" :class="getNoteSyncIconClass(getNoteSyncStatus(note).status).color + ' ' + getNoteSyncIconClass(getNoteSyncStatus(note).status).bg">
+										<span x-text="getNoteSyncIcon(getNoteSyncStatus(note).status)"></span>
 									</span>
 									<h4 class="text-base font-bold truncate mb-2" :style="{ 'color': getNoteColor(note) }" x-text="note.title"></h4>
-									<span class="text-xs ${getNoteSyncStatus(note).status === 'ok' ? 'text-green-600' : getNoteSyncStatus(note).status === 'syncing' ? 'text-blue-600' : getNoteSyncStatus(note).status === 'partial' ? 'text-yellow-600' : getNoteSyncStatus(note).status === 'error' ? 'text-red-600' : 'text-gray-600'} ml-2">
-										${getNoteSyncStatus(note).status}
-									</span>
 								</div>
 								<p class="text-sm line-clamp-5 break-all" x-text="getNotePreview(note.content)"></p>
 						</div>
