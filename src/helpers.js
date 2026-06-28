@@ -400,7 +400,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 
 	// --- Download Phase ---
 	if (credentials?.secretAccessKey) {
-		remoteLists.push(await downloadDeletedNotesFromS3(credentials));
+		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromS3(credentials));
 	}
 	if (gitCredentials?.repoUrl) {
 		remoteLists.push(await _GLOBAL.downloadDeletedNotesFromGit(gitCredentials));
@@ -718,7 +718,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			} else if (remoteMeta.source === 'gdrive') {
 				return promiseTimeout(_GLOBAL.downloadNoteFromGDrive(remoteMeta.fileId, remoteMeta.id), 30000);
 			} else {
-				return promiseTimeout(downloadNoteFromS3(remoteMeta, credentials), 30000);
+				return promiseTimeout(_GLOBAL.downloadNoteFromS3(remoteMeta, credentials), 30000);
 			}
 		});
 		
@@ -920,7 +920,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 }
 
 async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore}) {
-	const s3NotesPromise = listNotesInS3(credentials, lastSync);
+	const s3NotesPromise = _GLOBAL.listNotesInS3(credentials, lastSync);
 
 	let nostrNotesPromise;
 	if (nostrPrivateKey && nostrRelays) {
@@ -1103,7 +1103,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 	}
 
 	if (credentials?.secretAccessKey && !skipS3) {
-		promises.push(deleteNoteFromS3(remoteMeta || noteId, credentials));
+		promises.push(_GLOBAL.deleteNoteFromS3(remoteMeta || noteId, credentials));
 	}
 
 	if ( nostrPrivateKey && nostrRelays ) {

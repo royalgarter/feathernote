@@ -2241,10 +2241,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				const credentials = await decryptSettings(encryptedSettings, userId);
 				if (credentials) {
 					const localNote = await getNoteDB(id);
-					const remoteMeta = await getNoteMetadataFromS3(localNote || id, credentials);
+					const remoteMeta = await _GLOBAL.getNoteMetadataFromS3(localNote || id, credentials);
 
 					if (remoteMeta && localNote && new Date(remoteMeta.lastModified) > new Date(localNote.updatedAt)) {
-						const remoteNote = await downloadNoteFromS3(localNote || id, credentials);
+						const remoteNote = await _GLOBAL.downloadNoteFromS3(localNote || id, credentials);
 
 						if (remoteNote.content) {
 							const updatedNote = await this.mergeRemoteNote(remoteNote);

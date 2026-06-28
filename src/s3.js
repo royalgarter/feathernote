@@ -1,5 +1,4 @@
 _GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
-const YAML = _GLOBAL.YAML;
 
 // --- S3 Functions (Client-side AWS SDK v2) ---
 // Assumes AWS SDK is loaded globally or loaded dynamically

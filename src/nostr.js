@@ -1,5 +1,4 @@
 _GLOBAL = _GLOBAL || (typeof window !== 'undefined' ? window : self);
-const YAML = _GLOBAL.YAML;
 
 // Helper to convert hex private key to Uint8Array
 function hexToBytes(hex) {
