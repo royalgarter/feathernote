@@ -466,10 +466,31 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	getNoteSyncStatusByProvider(note) {
-		const allStatus = this.noteSyncStatus[note.id] || {};
+		let allStatus = this.noteSyncStatus[note.id];
+		
+		if (!allStatus) {
+			allStatus = {};
+			if (this.s3Bucket) allStatus.s3 = { status: 'idle' };
+			if (this.gdriveStore && this.gdriveStore.connected) allStatus.gdrive = { status: 'idle' };
+			if (this.gitRepoUrl) allStatus.git = { status: 'idle' };
+			if (this.useDirectIpfs || this.pinataJwt || this.pinataApiKey) allStatus.ipfs = { status: 'idle' };
+			if (this.nostrPrivateKey) allStatus.nostr = { status: 'idle' };
+			return allStatus;
+		}
+
 		// If it's an old format (single status), convert it
 		if (allStatus.status && typeof allStatus.status === 'string') {
-			return { s3: allStatus, gdrive: allStatus, git: allStatus, ipfs: allStatus, nostr: allStatus };
+			const converted = {};
+			if (this.s3Bucket) converted.s3 = allStatus;
+			if (this.gdriveStore && this.gdriveStore.connected) converted.gdrive = allStatus;
+			if (this.gitRepoUrl) converted.git = allStatus;
+			if (this.useDirectIpfs || this.pinataJwt || this.pinataApiKey) converted.ipfs = allStatus;
+			if (this.nostrPrivateKey) converted.nostr = allStatus;
+			
+			if (Object.keys(converted).length === 0) {
+				return { s3: allStatus, gdrive: allStatus, git: allStatus, ipfs: allStatus, nostr: allStatus };
+			}
+			return converted;
 		}
 		return allStatus;
 	},
