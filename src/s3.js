@@ -210,6 +210,42 @@ const deleteNoteFromS3 = async (noteOrId, creds) => {
 	}
 };
 
+const deleteNotesFromS3Bulk = async (notesOrIds, creds) => {
+	if (!creds?.secretAccessKey || !notesOrIds || notesOrIds.length === 0) return;
+
+	const s3 = await getS3Client(creds);
+	const keysToDelete = new Set();
+
+	notesOrIds.forEach(noteOrId => {
+		const id = typeof noteOrId === 'string' ? noteOrId : noteOrId.id;
+		const key = getS3ObjectKey(noteOrId.path || noteOrId, creds);
+		keysToDelete.add(key);
+
+		const flatKey = getS3ObjectKey(id, creds);
+		if (key !== flatKey) {
+			keysToDelete.add(flatKey);
+		}
+	});
+
+	if (keysToDelete.size === 0) return;
+
+	const params = {
+		Bucket: creds.bucket,
+		Delete: {
+			Objects: Array.from(keysToDelete).map(key => ({ Key: key })),
+			Quiet: true
+		}
+	};
+
+	try {
+		await s3.deleteObjects(params).promise();
+		console.log(`S3 Bulk: Deleted ${keysToDelete.size} objects from S3 successfully.`);
+	} catch (err) {
+		console.error("S3 Bulk Delete Error:", err);
+		throw new Error(`Failed to perform bulk delete in S3: ${err.code} - ${err.message}`);
+	}
+};
+
 // --- S3 Functions for Images ---
 const getImageS3ObjectKey = (imageId, imageType, creds) => {
 	const path = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
@@ -413,6 +449,7 @@ _GLOBAL.listNotesInS3 = listNotesInS3;
 _GLOBAL.downloadNoteFromS3 = downloadNoteFromS3;
 _GLOBAL.getNoteMetadataFromS3 = getNoteMetadataFromS3;
 _GLOBAL.deleteNoteFromS3 = deleteNoteFromS3;
+_GLOBAL.deleteNotesFromS3Bulk = deleteNotesFromS3Bulk;
 _GLOBAL.uploadImageToS3 = uploadImageToS3;
 _GLOBAL.downloadImageFromS3 = downloadImageFromS3;
 _GLOBAL.listImagesInS3 = listImagesInS3;

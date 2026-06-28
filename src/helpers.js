@@ -498,7 +498,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded, failedProviders } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 
 		// --- Step 2: Determine which notes to upload ---
@@ -521,23 +521,23 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			// if localDate > remoteDate, it's newer than ALL remotes. 
 			// if localDate == remoteDate, it might still be newer than SOME remotes if they are inconsistent).
 
-			if (gitCredentials?.repoUrl) {
+			if (gitCredentials?.repoUrl && !failedProviders.git) {
 				const gitMeta = gitMap.get(localNote.id);
 				if (!gitMeta || localDate > new Date(gitMeta.updatedAt || gitMeta.createdAt)) return true;
 			}
-			if (credentials.secretAccessKey) {
+			if (credentials.secretAccessKey && !failedProviders.s3) {
 				const s3Meta = s3Map.get(localNote.id);
 				if (!s3Meta || localDate > new Date(s3Meta.updatedAt)) return true;
 			}
-			if (nostrPrivateKey) {
+			if (nostrPrivateKey && !failedProviders.nostr) {
 				const nostrMeta = nostrMap.get(localNote.id);
 				if (!nostrMeta || localDate > new Date(nostrMeta.updatedAt || nostrMeta.createdAt)) return true;
 			}
-			if (gdriveStore?.connected) {
+			if (gdriveStore?.connected && !failedProviders.gdrive) {
 				const gdriveMeta = gdriveMap.get(localNote.id);
 				if (!gdriveMeta || localDate > new Date(gdriveMeta.updatedAt || gdriveMeta.createdAt)) return true;
 			}
-			if (credentials.pinataJwt || credentials.pinataApiKey) {
+			if ((credentials.pinataJwt || credentials.pinataApiKey) && !failedProviders.ipfs) {
 				const ipfsMeta = ipfsMap.get(localNote.id);
 				if (!ipfsMeta || localDate > new Date(ipfsMeta.updatedAt)) return true;
 			}
@@ -591,19 +591,28 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		}
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
+		let s3DeletePromise = Promise.resolve();
+		const hasS3 = !!credentials?.secretAccessKey;
+		if (hasS3 && effectiveDeletedNoteIds.length > 0) {
+			const s3NotesOrIds = effectiveDeletedNoteIds.map(id => remoteMetaMap.get(id) || id);
+			if (typeof _GLOBAL.deleteNotesFromS3Bulk === 'function') {
+				s3DeletePromise = _GLOBAL.deleteNotesFromS3Bulk(s3NotesOrIds, credentials);
+			}
+		}
+
 		const deletePromises = effectiveDeletedNoteIds.map(noteId => {
 			const remoteMeta = remoteMetaMap.get(noteId);
 			const gdriveMeta = gdriveMap?.get(noteId);
 			return deleteNoteFromRemotes({
-				noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta: gdriveMeta || remoteMeta
+				noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta: gdriveMeta || remoteMeta,
+				skipS3: hasS3
 			});
 		});
 
 		// --- Step 4: Execute deletes (deletes are fast, run in parallel) ---
-		const deleteResults = await Promise.allSettled(deletePromises);
+		const deleteResults = await Promise.allSettled([...deletePromises, s3DeletePromise]);
 		
-		// Combine results for counting
-		const uploadAndDeleteResults = [...uploadResults, ...deleteResults];
+		const s3BulkDeleteSucceeded = !hasS3 || (deleteResults[deleteResults.length - 1]?.status === 'fulfilled');
 
 		let successfulUploadedCount = 0;
 		const successfulDeletedIds = [];
@@ -616,10 +625,10 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		}
 		
 		// Count successful deletes (remaining items are deletes)
-		for (let i = uploadResults.length; i < uploadAndDeleteResults.length; i++) {
-			if (uploadAndDeleteResults[i].status === 'fulfilled') {
-				const deletedIndex = i - uploadResults.length;
-				successfulDeletedIds.push(effectiveDeletedNoteIds[deletedIndex]);
+		for (let i = 0; i < deletePromises.length; i++) {
+			const deleteResult = deleteResults[i];
+			if (deleteResult.status === 'fulfilled' && s3BulkDeleteSucceeded) {
+				successfulDeletedIds.push(effectiveDeletedNoteIds[i]);
 			}
 		}
 		
@@ -1015,6 +1024,13 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 	});
 
 	const listingSucceeded = [s3Res, nostrRes, gitRes, gdriveRes, ipfsRes].every(r => r.status === 'fulfilled');
+	const failedProviders = {
+		s3: s3Res.status === 'rejected',
+		nostr: nostrRes.status === 'rejected',
+		git: gitRes.status === 'rejected',
+		gdrive: gdriveRes.status === 'rejected',
+		ipfs: ipfsRes.status === 'rejected'
+	};
 
 
 	return {
@@ -1029,7 +1045,8 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		nostrMap: new Map(nostrNotes.map(n => [n.id, n])),
 		gdriveMap: new Map(gdriveNotes.map(n => [n.id, n])),
 		ipfsMap: new Map(ipfsNotes.map(n => [n.id, n])),
-		listingSucceeded
+		listingSucceeded,
+		failedProviders
 	};
 }
 
@@ -1075,7 +1092,7 @@ async function listImages({credentials, nostrPrivateKey, nostrRelays}) {
 	return Array.from(mergedImages.values());
 }
 
-async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta}) {
+async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nostrRelays, gdriveStore, gitCredentials, remoteMeta, skipS3 = false}) {
 	const promises = [];
 
 	// Remote deletions
@@ -1083,7 +1100,7 @@ async function deleteNoteFromRemotes({noteId, credentials, nostrPrivateKey, nost
 		promises.push(_GLOBAL.deleteNoteFromGoogleDrive(noteId, remoteMeta));
 	}
 
-	if (credentials?.secretAccessKey) {
+	if (credentials?.secretAccessKey && !skipS3) {
 		promises.push(deleteNoteFromS3(remoteMeta || noteId, credentials));
 	}
 

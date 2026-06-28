@@ -34,7 +34,7 @@
 	<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
 </head>
-<body id="main-app" class="flex flex-col min-h-screen" :class="{'dark': darkMode, '': !darkMode}" x-data="mainApp()" x-init="init()">
+<body id="main-app" class="flex flex-col min-h-screen font-mono" :class="{'dark': darkMode, '': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- Biometric Lock Overlay -->
 	<div x-show="isLocked"
 		 x-transition:enter="transition ease-out duration-300"
