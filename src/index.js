@@ -30,8 +30,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	user: null,
 	isGsiLoaded: false,
 
-	// --- Note Manager Data ---
-	notes: [],
+		// --- Note Manager Data ---
+		notes: [],
+		noteSyncStatus: {},
 	searchTag: '',
 	suggestions: [], // New property
 	loading: true,
@@ -385,6 +386,43 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 	getNotePreview(content) {
 		return content ? `${content.trim().replace(/(\r?\n)+/g, '\n').substring(0, 300)}...` : '<!-- EMPTY -->';
+	},
+
+	getNoteSyncStatus(note) {
+		return this.noteSyncStatus[note.id] || { status: 'idle', updatedAt: note.updatedAt };
+	},
+
+	getNoteSyncIconClass(status) {
+		switch(status) {
+			case 'ok':
+				return { icon: 'check', color: 'text-green-500', bg: 'bg-green-100' };
+			case 'syncing':
+				return { icon: 'loader', color: 'text-blue-500', bg: 'bg-blue-100' };
+			case 'partial':
+				return { icon: 'alert-triangle', color: 'text-yellow-500', bg: 'bg-yellow-100' };
+			case 'error':
+				return { icon: 'x-circle', color: 'text-red-500', bg: 'bg-red-100' };
+			case 'idle':
+				return { icon: 'clock', color: 'text-gray-400', bg: 'bg-gray-100' };
+			default:
+				return { icon: 'clock', color: 'text-gray-400', bg: 'bg-gray-100' };
+		}
+	},
+	
+getNoteSummary(note) {
+		const status = this.getNoteSyncStatus(note);
+		const syncInfo = this.getNoteSyncIconClass(status.status);
+				return `<span class="flex items-center gap-2">
+						<span class="text-xs ${syncInfo.color} ${syncInfo.bg} rounded-full p-1.5 shadow-sm">
+							${status.status === 'ok' ? '✓' : status.status === 'syncing' ? '⟳' : status.status === 'partial' ? '⚠' : status.status === 'error' ? '✗' : '○'}
+						</span>
+						<span class="font-medium">
+							${note.title}
+						</span>
+						<span class="text-xs ${status.status === 'ok' ? 'text-green-600' : status.status === 'syncing' ? 'text-blue-600' : status.status === 'partial' ? 'text-yellow-600' : status.status === 'error' ? 'text-red-600' : 'text-gray-600'} ml-2">
+							${status.status}
+						</span>
+					</span>`;
 	},
 
 	getCoverImage(note) {
@@ -1281,23 +1319,42 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				const notesToDeleteLocally = result.notesToDeleteLocally || [];
-				for (const noteIdToDelete of notesToDeleteLocally) {
-					await deleteNoteDB(noteIdToDelete);
+						for (const noteIdToDelete of notesToDeleteLocally) {
+							await deleteNoteDB(noteIdToDelete);
+						}
+
+						// Mark notes as syncing (blue icon)
+						for (const note of effectiveNotes || []) {
+							if (note.id && !this.noteSyncStatus[note.id]) {
+								this.noteSyncStatus[note.id] = { status: 'syncing', updatedAt: new Date().toISOString() };
+							}
+						}
+
+						// Handle deletedNoteIds queue
+			if (result.effectiveDeletedNoteIds) {
+				this.deletedNoteIds = result.effectiveDeletedNoteIds;
+
+				if (this.deletedNoteIds.length > 0) {
+					localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
+				} else {
+					localStorage.removeItem('feathernote-deleted-note-ids');
 				}
+			}
 
-				// Handle deletedNoteIds queue
-				if (result.effectiveDeletedNoteIds) {
-					this.deletedNoteIds = result.effectiveDeletedNoteIds;
+			await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
+			this.updateNotesCache();
 
-					if (this.deletedNoteIds.length > 0) {
-						localStorage.setItem('feathernote-deleted-note-ids', JSON.stringify(this.deletedNoteIds));
-					} else {
-						localStorage.removeItem('feathernote-deleted-note-ids');
+			// Update sync status for notes
+			for (const note of result.updatedNotes || []) {
+				if (this.noteSyncStatus[note.id]) {
+					this.noteSyncStatus[note.id] = { status: 'ok', updatedAt: new Date().toISOString() };
+				}
+			}
+				for (const noteId of result.uploadedNoteIds || []) {
+					if (!this.noteSyncStatus[noteId]) {
+						this.noteSyncStatus[noteId] = { status: 'ok', updatedAt: new Date().toISOString() };
 					}
 				}
-
-				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-				this.updateNotesCache();
 
 				this.lastSync = new Date().toISOString();
 				localStorage.setItem('feathernote-lastSync', this.lastSync);
