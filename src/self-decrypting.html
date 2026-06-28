@@ -136,7 +136,7 @@
 				document.getElementById('prompt').style.display = 'none';
 				
 				const contentDiv = document.getElementById('content');
-				contentDiv.innerHTML = `<h1>${document.querySelector('title')?.innerText?.replace('Encrypted Note: ', '')}</h1>\n` + decrypted;
+				contentDiv.innerHTML = decrypted;
 				contentDiv.style.display = 'block';
 			} catch (e) {
 				console.error(e);

@@ -1242,6 +1242,28 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// And also newer than the last local save?
 		const isRemoteNewer = localNote && new Date(remoteNote.updatedAt) > new Date(localNote.updatedAt);
 
+		// Attempt to decrypt remote note if it is encrypted and we are actively editing it
+		let finalRemoteContent = remoteNote.content;
+		let remoteDecryptedSuccessfully = true;
+
+		if (isEditingThisNote && remoteNote.isEncrypted) {
+			if (this.currentNotePassword) {
+				try {
+					finalRemoteContent = await _GLOBAL.decrypt(remoteNote.content, this.currentNotePassword);
+				} catch (e) {
+					console.error("Failed to decrypt remote note content during sync/merge:", e);
+					remoteDecryptedSuccessfully = false;
+				}
+			} else {
+				remoteDecryptedSuccessfully = false;
+			}
+		}
+
+		if (isEditingThisNote && !remoteDecryptedSuccessfully) {
+			console.warn("Skipping live update/merge for currently editing encrypted note because decryption failed or password was missing.");
+			return false;
+		}
+
 		if (isEditingThisNote && hasUserMadeChanges && isRemoteNewer) {
 			// *** 3-Way Merge Logic ***
 			if (typeof diff_match_patch === 'undefined') {
@@ -1259,7 +1281,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			const dmp = new diff_match_patch();
 			const baseText = this.noteEditorBaseContent;
 			const localText = localContent;
-			const remoteText = remoteNote.content;
+			const remoteText = finalRemoteContent; // Use decrypted remote content
 
 			// Create a patch from BASE to LOCAL (user's changes)
 			const patch = dmp.patch_make(baseText, localText);
@@ -1279,14 +1301,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				this.showToast({ variant: 'error', title: 'Merge Conflict', description: 'Could not fully merge changes. Please review the note.' });
 			}
 
-			// Update editor and save to DB
+			// Update editor
 			if (window.easyMDEInstance) {
 				window.easyMDEInstance.value(finalContent);
 			}
 			this.noteEditorContent = finalContent;
 			this.noteEditorBaseContent = finalContent; // The new base is the merged content
 
-			const updatedNote = { ...remoteNote, content: finalContent, updatedAt: new Date().toISOString() };
+			// Re-encrypt the merged content before writing to DB!
+			let dbContent = finalContent;
+			if (remoteNote.isEncrypted) {
+				dbContent = await _GLOBAL.encrypt(finalContent, this.currentNotePassword);
+			}
+
+			const updatedNote = { ...remoteNote, content: dbContent, updatedAt: new Date().toISOString() };
 			await updateNoteDB(updatedNote);
 			this.updateNotesCache();
 
@@ -1308,10 +1336,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			// If the user is currently editing this note, refresh their editor with the new content
 			if (isEditingThisNote) {
 				if (window.easyMDEInstance) {
-					window.easyMDEInstance.value(remoteNote.content);
+					window.easyMDEInstance.value(finalRemoteContent); // Use decrypted remote content
 				}
-				this.noteEditorContent = remoteNote.content;
-				this.noteEditorBaseContent = remoteNote.content; // Update base to prevent false conflicts
+				this.noteEditorContent = finalRemoteContent;
+				this.noteEditorBaseContent = finalRemoteContent; // Update base to prevent false conflicts
 				this.showToast({ quiet: true, title: 'Note Updated', description: 'A newer version was loaded into the editor.' });
 			}
 
