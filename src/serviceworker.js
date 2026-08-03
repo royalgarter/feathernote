@@ -58,6 +58,7 @@ const urlsToCache = [
 	'https://cdn.jsdelivr.net/npm/katex@0.16.23/dist/katex.min.css',
 	'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css',
 	'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js',
+	'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
 ];
 
 self.addEventListener('install', (event) => {

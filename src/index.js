@@ -1698,6 +1698,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					loadStyle('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css', 'highlight-css'),
 					loadScript('//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js', 'highlight-js'),
 				]);
+				loadScript('//cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js', 'mermaid-js').then(() => {
+					if (window.mermaid) {
+						mermaid.initialize({ startOnLoad: false, theme: 'default' });
+					}
+				}).catch(e => console.warn('Mermaid library unavailable:', e));
 				await Promise.all([
 					loadScript('//cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js', 'marked-katex-js'),
 					loadScript('//cdn.jsdelivr.net/npm/marked-highlight@2.2.2/lib/index.umd.min.js', 'marked-highlight-js'),
@@ -1721,6 +1726,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					emptyLangClass: 'hljs',
 					langPrefix: 'hljs language-',
 					highlight(code, lang, info) {
+						if (lang === 'mermaid') return code; // handled by mermaid.run() post-render
 						const language = hljs.getLanguage(lang) ? lang : 'plaintext';
 						return hljs.highlight(code, { language }).value;
 					}
@@ -1757,7 +1763,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					let renderedHTML = (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/))
+					let renderedHTML = (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/) || plainText.includes('```mermaid'))
 							? marked.parse(plainText)
 							: window.easyMDEInstance.markdown(plainText);
 
@@ -1768,7 +1774,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					setTimeout(() => {
 						document.querySelectorAll(easyMDEqueryPreviewCheckbox).forEach(x => {
 							x.addEventListener('change', easyMDEcheckboxChange);
-						})
+						});
+						if (window.mermaid) {
+							const previewEl = document.querySelector('.EasyMDEContainer .editor-preview');
+							if (previewEl) mermaid.run({ nodes: previewEl.querySelectorAll('pre code.language-mermaid') });
+						}
 					}, 100);
 
 					return renderedHTML;
