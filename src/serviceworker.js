@@ -172,182 +172,7 @@ self.addEventListener('fetch', (event) => {
 
 	// Handle the share target separately.
 	if ((event.request.method === 'POST' || event.request.method === 'GET') && url.pathname === '/share') {
-		event.respondWith(
-			(async () => {
-				let noteIdToRedirect = '';
-				try {
-					const data = event.request.method === 'POST' ? await event.request.formData() : url.searchParams;
-					const TITLE_SHARED = 'Shared Inbox';
-
-					let text = data.get('text') || '';
-					let title = data.get('title') || '';
-					let sharedUrl = data.get('url') || '';
-					let imageFile = data.get('image');
-
-					title = title.replace(/\n/g, ' ');
-
-					let imageReference = '';
-					if (imageFile instanceof File) {
-						const imageId = generateUniqueId('img');
-						await addImageDB({ id: imageId, blob: imageFile, synced: false });
-						imageReference = `![Shared Image](/images/${imageId})\n`;
-					}
-
-					const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-					if (!sharedUrl) {
-						// Try to find URL in text or title if not explicitly provided
-						const textUrlMatch = text.match(urlRegex);
-						const titleUrlMatch = title.match(urlRegex);
-
-						if (textUrlMatch) {
-							sharedUrl = textUrlMatch[0];
-						} else if (titleUrlMatch) {
-							sharedUrl = titleUrlMatch[0];
-						} else {
-							// Fallback: try decoding if it looks like an encoded URL
-							try {
-								const decodedText = decodeURIComponent(text);
-								const decodedMatch = decodedText.match(urlRegex);
-								if (decodedMatch) sharedUrl = decodedMatch[0];
-							} catch (e) {}
-						}
-					}
-
-					if (sharedUrl) {
-						try {
-							const proxyUrl = `/api/proxy?url=${encodeURIComponent(sharedUrl)}`;
-							const proxyResponse = await fetch(proxyUrl);
-							if (proxyResponse.ok) {
-								const finalUrl = proxyResponse.headers.get('X-Final-Url') || sharedUrl;
-								sharedUrl = typeof removeTrackingParams === 'function' ? removeTrackingParams(finalUrl) : finalUrl;
-
-								const html = await proxyResponse.text();
-
-								// Extract title (prefer og:title then <title>)
-								const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
-													html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:title["'][^>]*>/i);
-								const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-
-								let remoteTitle = '';
-								if (ogTitleMatch && ogTitleMatch[1]) {
-									remoteTitle = ogTitleMatch[1].trim();
-								} else if (titleMatch && titleMatch[1]) {
-									remoteTitle = titleMatch[1].trim();
-								}
-
-								if (remoteTitle) {
-									title = remoteTitle.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-								}
-
-								// Extract description (prefer og:description then description)
-								const descMatch = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
-												html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:description["'][^>]*>/i) ||
-												html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["'][^>]*>/i) ||
-												html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["'][^>]*>/i);
-
-								if (descMatch && descMatch[1]) {
-									const description = descMatch[1].trim().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-									if (description) {
-										if (text) {
-											text = description + '\n\n' + text;
-										} else {
-											text = description;
-										}
-									}
-								}
-							}
-						} catch (e) {
-							console.error('Failed to unshorten or fetch metadata:', e);
-						}
-					}
-
-					let newItem = '- [ ] ';
-					if (title && sharedUrl) {
-						newItem += `[${title}](${sharedUrl})`;
-					} else if (title) {
-						newItem += title;
-					} else if (sharedUrl) {
-						newItem += `[${sharedUrl}](${sharedUrl})`;
-					}
-
-					if (text) {
-						if (text.trim().includes('\n')) {
-							// text = '\n```\n' + text + '\n```\n';
-							text = text.replaceAll('\n', ' | ');
-						}
-
-						text = text.trim();
-
-						if (!title.includes(text) && !sharedUrl.includes(text)) {
-							if (title || sharedUrl) {
-								newItem += ` > ${text}`;
-							} else {
-								newItem += text;
-							}
-						}
-					}
-
-					if (newItem.trim() !== '*') {
-						const TITLE_SHARED = 'Shared Inbox';
-						const TITLE_SHARED_IMAGES = 'Shared Images';
-						
-						let targetNoteId;
-						let targetNote;
-
-						if (imageFile instanceof File) {
-							// Create a new individual note for the shared image
-							const now = new Date();
-							const timestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-							
-							const imageNote = {
-								id: 'shared-image-' + generateUniqueId(),
-								title: 'Shared Image ' + timestamp,
-								content: imageReference,
-								createdAt: new Date().toISOString(),
-								updatedAt: new Date().toISOString(),
-								tags: ['shared', 'image'],
-							};
-							await addNoteDB(imageNote);
-							noteIdToRedirect = imageNote.id;
-						} else {
-							targetNoteId = await getMetaDB('shared_inbox_id');
-							targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
-							if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED);
-
-							const finalContent = newItem;
-							if (targetNote) {
-								if (targetNote.content) {
-									targetNote.content = finalContent + '\n' + targetNote.content;
-								} else {
-									targetNote.content = finalContent;
-								}
-								targetNote.updatedAt = new Date().toISOString();
-								await updateNoteDB(targetNote);
-								noteIdToRedirect = targetNote.id;
-								if (targetNote.id !== targetNoteId) await setMetaDB('shared_inbox_id', targetNote.id);
-							} else {
-								const newNote = {
-									id: 'shared-inbox-' + generateUniqueId(),
-									title: TITLE_SHARED,
-									content: finalContent,
-									createdAt: new Date().toISOString(),
-									updatedAt: new Date().toISOString(),
-									tags: ['shared', 'inbox'],
-								};
-								await addNoteDB(newNote);
-								noteIdToRedirect = newNote.id;
-								await setMetaDB('shared_inbox_id', newNote.id);
-							}
-						}
-					}
-				} catch (criticalError) {
-					console.error('A critical error occurred in the /share handler:', criticalError);
-				}
-
-				return Response.redirect('/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : ''), 303);
-			})()
-		);
+		event.respondWith(handleShareTarget(event.request, url));
 		return;
 	}
 
@@ -375,7 +200,6 @@ self.addEventListener('fetch', (event) => {
 	);
 });
 
-
 self.addEventListener('activate', (event) => {
 	self.clients.claim(); // Take control of all open clients immediately
 	event.waitUntil(
@@ -392,9 +216,6 @@ self.addEventListener('activate', (event) => {
 		})
 	);
 });
-
-
-
 
 const scheduledNotifications = new Map();
 
@@ -553,3 +374,236 @@ async function handlePeriodicSync() {
 	}
 }
 
+// Test URL: http://localhost:7347/share?title=Testing%20Snappy%20Share&url=https://news.ycombinator.com&text=Check%20out%20this%20link
+async function handleShareTarget(request, url) {
+	let noteIdToRedirect = '';
+	let summaryItem = '';
+	try {
+		const data = request.method === 'POST' ? await request.formData() : url.searchParams;
+		const TITLE_SHARED = 'Shared Inbox';
+
+		let text = data.get('text') || '';
+		let title = data.get('title') || '';
+		let sharedUrl = data.get('url') || '';
+		let imageFile = data.get('image');
+
+		title = title.replace(/\n/g, ' ');
+
+		let imageReference = '';
+		if (imageFile instanceof File) {
+			const imageId = generateUniqueId('img');
+			await addImageDB({ id: imageId, blob: imageFile, synced: false });
+			imageReference = `![Shared Image](/images/${imageId})\n`;
+		}
+
+		const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+		if (!sharedUrl) {
+			// Try to find URL in text or title if not explicitly provided
+			const textUrlMatch = text.match(urlRegex);
+			const titleUrlMatch = title.match(urlRegex);
+
+			if (textUrlMatch) {
+				sharedUrl = textUrlMatch[0];
+			} else if (titleUrlMatch) {
+				sharedUrl = titleUrlMatch[0];
+			} else {
+				// Fallback: try decoding if it looks like an encoded URL
+				try {
+					const decodedText = decodeURIComponent(text);
+					const decodedMatch = decodedText.match(urlRegex);
+					if (decodedMatch) sharedUrl = decodedMatch[0];
+				} catch (e) {}
+			}
+		}
+
+		let newItem = '- [ ] ';
+		if (title && sharedUrl) {
+			newItem += `[${title}](${sharedUrl})`;
+		} else if (title) {
+			newItem += title;
+		} else if (sharedUrl) {
+			newItem += `[${sharedUrl}](${sharedUrl})`;
+		}
+
+		if (text) {
+			if (text.trim().includes('\n')) {
+				text = text.replaceAll('\n', ' | ');
+			}
+			text = text.trim();
+			if (!title.includes(text) && !sharedUrl.includes(text)) {
+				if (title || sharedUrl) {
+					newItem += ` > ${text}`;
+				} else {
+					newItem += text;
+				}
+			}
+		}
+
+		if (newItem.trim() !== '*') {
+			summaryItem = (title || sharedUrl || text || 'New shared item').substring(0, 100);
+			if (imageFile instanceof File) {
+				// Create a new individual note for the shared image
+				const now = new Date();
+				const timestamp = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+				
+				const imageNote = {
+					id: 'shared-image-' + generateUniqueId(),
+					title: 'Shared Image ' + timestamp,
+					content: imageReference,
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					tags: ['shared', 'image'],
+				};
+				await addNoteDB(imageNote);
+				noteIdToRedirect = imageNote.id;
+			} else {
+				let targetNoteId = await getMetaDB('shared_inbox_id');
+				let targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
+				if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED);
+
+				const finalContent = newItem;
+				if (targetNote) {
+					if (targetNote.content) {
+						targetNote.content = finalContent + '\n' + targetNote.content;
+					} else {
+						targetNote.content = finalContent;
+					}
+					targetNote.updatedAt = new Date().toISOString();
+					await updateNoteDB(targetNote);
+					noteIdToRedirect = targetNote.id;
+					if (targetNote.id !== targetNoteId) await setMetaDB('shared_inbox_id', targetNote.id);
+				} else {
+					const newNote = {
+						id: 'shared-inbox-' + generateUniqueId(),
+						title: TITLE_SHARED,
+						content: finalContent,
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+						tags: ['shared', 'inbox'],
+					};
+					await addNoteDB(newNote);
+					noteIdToRedirect = newNote.id;
+					await setMetaDB('shared_inbox_id', newNote.id);
+				}
+			}
+		}
+	} catch (criticalError) {
+		console.error('A critical error occurred in the /share handler:', criticalError);
+	}
+
+	const openUrl = '/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : '');
+	const safeSummary = summaryItem.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+	const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Shared - FeatherNote</title>
+	<meta name="theme-color" content="#A2D2FF">
+	<link rel="icon" type="image/png" href="/favicon.png">
+	<style>
+		* { box-sizing: border-box; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+			margin: 0;
+			padding: 20px;
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background-color: #f8fafc;
+			color: #1e293b;
+		}
+		.card {
+			background: #ffffff;
+			border: 1px solid #e2e8f0;
+			border-radius: 16px;
+			padding: 28px 24px;
+			max-width: 360px;
+			width: 100%;
+			text-align: center;
+			box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+		}
+		.icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 48px;
+			height: 48px;
+			border-radius: 50%;
+			background-color: #dcfce7;
+			color: #16a34a;
+			font-size: 24px;
+			margin-bottom: 16px;
+		}
+		h2 {
+			margin: 0 0 8px 0;
+			font-size: 1.25rem;
+			font-weight: 700;
+		}
+		p.preview {
+			font-size: 0.875rem;
+			color: #64748b;
+			margin: 0 0 24px 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			word-break: break-all;
+		}
+		.actions {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.btn {
+			display: block;
+			width: 100%;
+			padding: 12px 16px;
+			border-radius: 8px;
+			font-size: 0.95rem;
+			font-weight: 600;
+			text-decoration: none;
+			cursor: pointer;
+			border: none;
+		}
+		.btn-primary {
+			background-color: #A2D2FF;
+			color: #0f172a;
+		}
+		.btn-primary:hover {
+			background-color: #8ecae6;
+		}
+		.btn-secondary {
+			background-color: #f1f5f9;
+			color: #475569;
+		}
+		.btn-secondary:hover {
+			background-color: #e2e8f0;
+		}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<div class="icon">✓</div>
+		<h2>Saved to Shared Inbox</h2>
+		<p class="preview">${safeSummary || 'Item appended successfully'}</p>
+		<div class="actions">
+			<a href="${openUrl}" class="btn btn-primary">Open in FeatherNote</a>
+			<button onclick="window.close(); history.back();" class="btn btn-secondary">Close</button>
+		</div>
+	</div>
+</body>
+</html>`;
+
+	return new Response(html, {
+		status: 200,
+		headers: {
+			'Content-Type': 'text/html; charset=utf-8',
+			'Cache-Control': 'no-store'
+		}
+	});
+}
