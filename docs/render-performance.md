@@ -64,11 +64,11 @@ Audit identified key bottlenecks in the rendering pipeline. Optimizations organi
   - Fix: Truncate (`substring(0,300)`) FIRST, then clean newlines on the small slice. Cache result on `note._preview`.
   - Status: **DONE**
 
-- [x] **T8. Editor/list toggle uses `x-show` instead of `x-if`**
+- [x] **T8. Editor/list toggle `x-show` vs `x-if`**
   - Location: `src/index.html:137,176`
   - Problem: `x-if` tears down entire notes grid DOM and re-mounts editor subtree on every enter/exit of editing. Recreates all 100 cards.
-  - Fix: Convert both to `x-show` with `x-cloak`. Preserves DOM node identity, avoids full re-creation. Added `[x-cloak]` CSS rule.
-  - Status: **DONE**
+  - Fix attempt: Convert both to `x-show` + `[x-cloak]` to preserve DOM.
+  - Status: **REVERTED — caused interaction lag.** Keeping grid always-mounted means every autosave/`updateNote` re-renders the hidden grid while typing. Restored `x-if` (grid unmounts during editing — best for typing snappiness). Enter/exit mount cost is a one-time, acceptable trade vs. per-keystroke hidden-grid churn.
 
 ### Phase 4 — Images
 

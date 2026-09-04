@@ -28,10 +28,11 @@ On first open of the PWA, sync latest notes ASAP and show per-provider sync stat
 - [x] **P2b. Wire `onProgress` in `syncNotes` to update `noteSyncStatus` live**
   - Location: `src/index.js` `syncNotes`
   - Fix: Pass a callback that:
-    - On `provider-listed`: mark that provider `ok` for all local notes (progressive, as each provider completes).
+    - On `provider-listed`: mark that provider `ok` for local notes (progressive, as each provider completes).
     - On `list-done`: confirm all succeeded providers `ok`.
     - On `uploaded`/`downloaded`: mark specific notes `ok`.
-  - Added `syncProviders()` + `_providerStatusFor()` helper methods; `markProvider()` normalizes the per-note status to a per-provider map.
+  - Added `syncProviders()` + `_providerStatusFor()` helper methods; `markProviderStatus()` normalizes per-note status to a per-provider map.
+  - **Perf-guard:** `markProviderStatus()` only targets notes currently on screen (`paginatedNotes`) and skips providers already at status — avoids churn that slowed interaction. (Original `markProvider` hit ALL notes every event.)
 
 ### P3 — Faster full sync
 

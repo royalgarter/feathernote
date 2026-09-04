@@ -543,6 +543,25 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return entry;
 	},
 
+	// Mark a provider's sync status for notes. When noteIds is null, targets the notes
+	// currently on screen (paginatedNotes). Idempotent: skips providers already at status,
+	// so bursty sync progress events don't cause repeated reactive re-renders.
+	markProviderStatus(provider, status, noteIds) {
+		const visibleIds = noteIds && noteIds.length > 0
+			? new Set(noteIds)
+			: new Set((this.paginatedNotes && this.paginatedNotes.length > 0 ? this.paginatedNotes : this.notes).map(n => n.id));
+		for (const id of visibleIds) {
+			let entry = this.noteSyncStatus[id];
+			if (!entry || (entry.status && typeof entry.status === 'string')) {
+				entry = this._providerStatusFor(this.syncProviders());
+				this.noteSyncStatus[id] = entry;
+			}
+			if (entry && typeof entry === 'object' && !entry.status && entry[provider]?.status !== status) {
+				entry[provider] = { status, updatedAt: new Date().toISOString() };
+			}
+		}
+	},
+
 
 	getNoteSummary(note) {
 		const status = this.getNoteSyncStatus(note);
@@ -1488,41 +1507,27 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			};
 
 			// Live per-provider sync progress: light up status icons as each phase completes,
-			// rather than only after the entire sync finishes.
-			const markProvider = (provider, status, noteIds) => {
-				const targetIds = noteIds.length > 0 ? noteIds : this.notes.map(n => n.id);
-				for (const id of targetIds) {
-					let entry = this.noteSyncStatus[id];
-					if (!entry || (entry.status && typeof entry.status === 'string')) {
-						// normalize to per-provider map
-						entry = this._providerStatusFor(this.syncProviders());
-						this.noteSyncStatus[id] = entry;
-					}
-					if (entry && typeof entry === 'object' && !entry.status) {
-						entry[provider] = { status, updatedAt: new Date().toISOString() };
-					}
-				}
-			};
+			// rather than only after the entire sync finishes. Only touches notes currently
+			// on screen, and skips already-ok providers, to keep interaction snappy.
 			const handleSyncProgress = async (progress) => {
 				const enabledProviders = this.syncProviders();
 				if (progress.type === 'provider-listed') {
-					// Light up this provider's icon as soon as its list completes (true progressive)
 					if (!progress.failed && enabledProviders.includes(progress.provider)) {
-						markProvider(progress.provider, 'ok', this.notes.map(n => n.id));
+						this.markProviderStatus(progress.provider, 'ok', null);
 					}
 				} else if (progress.type === 'list-done') {
 					for (const p of enabledProviders) {
 						if (!progress.failedProviders?.[p]) {
-							markProvider(p, 'ok', this.notes.map(n => n.id));
+							this.markProviderStatus(p, 'ok', null);
 						}
 					}
 				} else if (progress.type === 'uploaded') {
 					for (const p of enabledProviders) {
-						markProvider(p, 'ok', progress.uploadedNoteIds || []);
+						this.markProviderStatus(p, 'ok', progress.uploadedNoteIds || []);
 					}
 				} else if (progress.type === 'downloaded') {
 					for (const p of enabledProviders) {
-						markProvider(p, 'ok', progress.downloadedNoteIds || []);
+						this.markProviderStatus(p, 'ok', progress.downloadedNoteIds || []);
 					}
 				}
 			};
