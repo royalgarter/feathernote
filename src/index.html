@@ -112,7 +112,7 @@
 		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto': editingNoteId === null }"
 	>
 		<!-- Search Box & Add Note -->
-		<template x-if="editingNoteId === null">
+		<div id="search-wrapper" x-show="editingNoteId === null" x-cloak>
 			<div id="search" class="flex justify-between items-center px-4 pt-6 pb-2 gap-4">
 				<div class="relative w-full max-w-xs">
 					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border py-2 px-4" :placeholder="'Search ' + (notes.length || '') + ' notes...'"/>
@@ -126,7 +126,7 @@
 				</div>
 				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 border">Compose</button>
 			</div>
-		</template>
+		</div>
 
 		<!-- Welcome -->
 		<div id="welcome-section" x-show="editingNoteId === null && notes.length === 0" class="py-4 px-6 my-4 w-full" style="display: block;">
@@ -134,7 +134,7 @@
 		</div>
 
 		<!-- Note Editor View -->
-		<template x-if="editingNoteId !== null">
+		<div id="note-editor-wrapper" x-show="editingNoteId !== null" x-cloak>
 			<div id="note-editor" class="p-4" style="height: 100vh;max-height: calc(100vh - 4.1rem);">
 				<div class="flex justify-between items-center mb-4">
 					<h3 class="text-lg font-semibold" x-text="noteEditorNoteId ? ('Editing: #' + noteEditorNoteId) : 'New Note'"></h3>
@@ -170,10 +170,10 @@
 					<button @click="saveNote()" class="cursor-pointer border px-4 py-2 font-bold">Save</button>
 				</div> -->
 			</div>
-		</template>
+		</div>
 
 		<!-- Notes List View -->
-		<template x-if="editingNoteId === null">
+		<div id="notes-list-wrapper" x-show="editingNoteId === null" x-cloak>
 			<div id="notes-list" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer"
@@ -223,7 +223,7 @@
 				<span x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
 				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Next</button>
 			</div>
-		</template>
+		</div>
 
 		<!-- Loading State -->
 		<template x-if="!notes.length && loading">

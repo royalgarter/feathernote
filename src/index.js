@@ -62,6 +62,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	noteEditorBodyEncoded: true,
 	noteEditorIsEncrypted: false,
 	currentNotePassword: null,
+	_lastEditorLongMode: false,
 
 	// --- Notification Data ---
 	notificationsEnabled: false,
@@ -387,11 +388,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		})
 	},
 	getNotePreview(note) {
-		if (note?.isEncrypted) {
+		if (!note) return '<!-- EMPTY -->';
+		if (note.isEncrypted) {
 			return '**********';
 		}
-		const content = note?.content;
-		return content ? `${content.trim().replace(/(\r?\n)+/g, '\n').substring(0, 300)}...` : '<!-- EMPTY -->';
+		if (note._preview !== undefined) return note._preview;
+		const content = note.content;
+		if (!content) return '<!-- EMPTY -->';
+		// Truncate first, then clean newlines on the small slice — avoids scanning the whole body
+		const slice = content.trim().substring(0, 300).replace(/(\r?\n)+/g, '\n');
+		note._preview = `${slice}...`;
+		return note._preview;
 	},
 
 	getNoteSyncStatus(note) {
@@ -1016,8 +1023,23 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Defer indexing to avoid blocking the main thread
 			setTimeout(() => {
-				this.miniSearch?.removeAll();
-				this.miniSearch?.addAll(this.notes.filter(x => !this.miniSearch?.has?.(x.id)));
+				if (!this.miniSearch) return;
+				this._indexedNoteSig = this._indexedNoteSig || new Map();
+				const currentIds = new Set();
+				for (const note of this.notes) {
+					currentIds.add(note.id);
+					const sig = (note.title || '') + (note.content || '');
+					if (this._indexedNoteSig.get(note.id) !== sig) {
+						this.miniSearch.add(note);
+						this._indexedNoteSig.set(note.id, sig);
+					}
+				}
+				for (const id of this._indexedNoteSig.keys()) {
+					if (!currentIds.has(id)) {
+						this.miniSearch.remove(id);
+						this._indexedNoteSig.delete(id);
+					}
+				}
 			}, 100);
 
 			this.updateNotesCache();
@@ -1050,6 +1072,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.scheduleNotification(newNote, !!reminder);
 			this.updateAppBadge();
 			this.miniSearch?.add(newNote);
+			(this._indexedNoteSig = this._indexedNoteSig || new Map()).set(newNote.id, (newNote.title || '') + (newNote.content || ''));
 			this.updateNotesCache();
 			// this.showToast({ title: 'Note Added', description: 'New note created.' });
 			this.syncNotes(false, 1, [newNote]);
@@ -1084,6 +1107,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			// this.miniSearch?.removeAll();
 
 			if (this.miniSearch && !this.miniSearch.has(updatedNote.id)) this.miniSearch.add(updatedNote);
+			(this._indexedNoteSig = this._indexedNoteSig || new Map()).set(updatedNote.id, (updatedNote.title || '') + (updatedNote.content || ''));
 			this.updateNotesCache();
 
 			if (!isSilent) {
@@ -1198,6 +1222,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			// Remove from UI
 			this.notes = this.notes.filter((note) => note.id !== id);
+			this.miniSearch?.remove(id);
+			this._indexedNoteSig?.delete(id);
 			this.updateNotesCache();
 
 			// Add to deletion queue for next sync
@@ -1387,15 +1413,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		let startHash = null;
 		const calculateStateHash = async () => {
 			try {
-				const notesState = this.notes.map(n => ({
-					id: n.id,
-					updatedAt: n.updatedAt,
-					title: n.title,
-					content: n.content,
-					tags: n.tags,
-					reminder: n.reminder
-				}));
-				const stateString = YAML.stringify({ notes: notesState, deleted: this.deletedNoteIds });
+			const notesState = this.notes.map(n => ({
+				id: n.id,
+				updatedAt: n.updatedAt,
+				title: n.title,
+				tags: n.tags
+			}));
+			const stateString = YAML.stringify({ notes: notesState, deleted: this.deletedNoteIds });
 				return await calculateHash(stateString);
 			} catch (e) {
 				console.warn('Hash calculation failed', e);
@@ -1479,8 +1503,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					}
 				}
 
-				await this.fetchNotes(); // Refresh notes from DB after all updates/deletions
-				this.updateNotesCache();
+				// Refresh notes from DB only when remote changes actually landed (avoids full re-render on idle sync)
+				if (downloadedCount > 0 || notesToDeleteLocally.length > 0) {
+					await this.fetchNotes();
+				}
+				await this.updateNotesCache();
 
 				// Update sync status for notes
 				for (const note of result.updatedNotes || []) {
@@ -1763,13 +1790,36 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				},
 				// forceSync: true,
 				previewRender: function(plainText) {
-					let renderedHTML = (plainText.includes('$$') || ~plainText.search(/\$[^\n]+\$/) || plainText.includes('```mermaid'))
-							? marked.parse(plainText)
-							: window.easyMDEInstance.markdown(plainText);
+					const renderPreview = (text) => {
+						let html = (text.includes('$$') || ~text.search(/\$[^\n]+\$/) || text.includes('```mermaid'))
+								? marked.parse(text)
+								: window.easyMDEInstance.markdown(text);
+						html = html.replace(/disabled\=\"\"\s+type\=\"checkbox\"\>/g, 'type="checkbox">');
+						return html;
+					};
 
+					if (plainText.length > PREVIEW_DEBOUNCE_THRESHOLD && typeof window.__previewDebounceTimer !== 'undefined' && window.__previewDebounceCached !== undefined) {
+						// Return last cached render immediately, re-render on pause
+						clearTimeout(window.__previewDebounceTimer);
+						window.__previewDebounceTimer = setTimeout(() => {
+							const previewEl = document.querySelector('.EasyMDEContainer .editor-preview');
+							if (previewEl) {
+								window.__previewDebounceTimer = undefined;
+								window.__previewDebounceCached = renderPreview(plainText);
+								previewEl.innerHTML = window.__previewDebounceCached;
+								document.querySelectorAll(easyMDEqueryPreviewCheckbox).forEach(x => {
+									x.addEventListener('change', easyMDEcheckboxChange);
+								});
+								if (window.mermaid) {
+									mermaid.run({ nodes: previewEl.querySelectorAll('pre code.language-mermaid') });
+								}
+							}
+						}, 200);
+						return window.__previewDebounceCached;
+					}
 
-					renderedHTML = renderedHTML.replace(/disabled\=\"\"\s+type\=\"checkbox\"\>/g, 'type="checkbox">');
-					// console.log(renderedHTML);
+					let renderedHTML = renderPreview(plainText);
+					window.__previewDebounceCached = renderedHTML;
 
 					setTimeout(() => {
 						document.querySelectorAll(easyMDEqueryPreviewCheckbox).forEach(x => {
@@ -2317,6 +2367,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.noteEditorReminder = note.reminder || '';
 			this.noteEditorTags = note.tags ? note.tags.join(', ') : '';
 			this.noteEditorBodyEncoded = note.bodyEncoded !== false;
+
+			// Invalidate the debounced preview cache when switching notes
+			window.__previewDebounceCached = undefined;
+			window.__previewDebounceTimer = undefined;
+
+			// Adaptive editor options for very long notes (perf)
+			if (window.easyMDEInstance?.codemirror) {
+				const isLong = finalContent.length > EDITOR_LONG_NOTE_THRESHOLD;
+				if (this._lastEditorLongMode !== isLong) {
+					this._lastEditorLongMode = isLong;
+					window.easyMDEInstance.codemirror.setOption('lineNumbers', !isLong);
+				}
+			}
 		} else {
 			this.showToast({ variant: 'error', title: 'Error', description: 'Note not found.' });
 			this.editingNoteId = null;

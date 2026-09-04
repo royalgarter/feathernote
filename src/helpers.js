@@ -1204,6 +1204,9 @@ function generateUniqueId(title) {
 
 const easyMDEqueryPreviewCheckbox = '.EasyMDEContainer .editor-preview input';
 
+const PREVIEW_DEBOUNCE_THRESHOLD = 5000; // Note chars above which previewRender is debounced
+const EDITOR_LONG_NOTE_THRESHOLD = 50000; // Note chars above which editor perf options are reduced
+
 function easyMDEreplaceNth(haystack, searchRegex, replace, index){
 	console.log('easyMDEreplaceNth', haystack.length, searchRegex, replace, index)
 	let occurrence = 0;
