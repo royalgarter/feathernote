@@ -321,10 +321,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 		})
 
-		setTimeout(() => {
+		// Kick off the first sync as soon as the browser is idle (faster than fixed 3s delay),
+		// with a fallback so it can't be starved. Guarded so the periodic interval doesn't double-fire.
+		let _startupSyncRan = false;
+		const runStartupSync = () => {
+			if (_startupSyncRan || this.isSyncing) return;
+			_startupSyncRan = true;
 			this.syncNotes(false, 0, null, true);
-		}, 3e3);
-		
+		};
+		if (typeof requestIdleCallback === 'function') {
+			requestIdleCallback(() => runStartupSync(), { timeout: 1500 });
+		} else {
+			setTimeout(runStartupSync, 1500);
+		}
+
 		this.syncIntervalId = setInterval(() => {
 			this.syncNotes(false, 0, null, true);
 		}, 60e3);
@@ -514,7 +524,25 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 		return allStatus;
 	},
-	
+
+	syncProviders() {
+		const providers = [];
+		if (this.s3Bucket) providers.push('s3');
+		if (this.gdriveStore && this.gdriveStore.connected) providers.push('gdrive');
+		if (this.gitRepoUrl) providers.push('git');
+		if (this.useDirectIpfs || this.pinataJwt || this.pinataApiKey) providers.push('ipfs');
+		if (this.nostrPrivateKey) providers.push('nostr');
+		return providers;
+	},
+
+	_providerStatusFor(providers) {
+		const entry = {};
+		for (const p of providers) {
+			entry[p] = { status: 'idle', updatedAt: new Date().toISOString() };
+		}
+		return entry;
+	},
+
 
 	getNoteSummary(note) {
 		const status = this.getNoteSyncStatus(note);
@@ -1459,6 +1487,46 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				email: this.gitEmail
 			};
 
+			// Live per-provider sync progress: light up status icons as each phase completes,
+			// rather than only after the entire sync finishes.
+			const markProvider = (provider, status, noteIds) => {
+				const targetIds = noteIds.length > 0 ? noteIds : this.notes.map(n => n.id);
+				for (const id of targetIds) {
+					let entry = this.noteSyncStatus[id];
+					if (!entry || (entry.status && typeof entry.status === 'string')) {
+						// normalize to per-provider map
+						entry = this._providerStatusFor(this.syncProviders());
+						this.noteSyncStatus[id] = entry;
+					}
+					if (entry && typeof entry === 'object' && !entry.status) {
+						entry[provider] = { status, updatedAt: new Date().toISOString() };
+					}
+				}
+			};
+			const handleSyncProgress = async (progress) => {
+				const enabledProviders = this.syncProviders();
+				if (progress.type === 'provider-listed') {
+					// Light up this provider's icon as soon as its list completes (true progressive)
+					if (!progress.failed && enabledProviders.includes(progress.provider)) {
+						markProvider(progress.provider, 'ok', this.notes.map(n => n.id));
+					}
+				} else if (progress.type === 'list-done') {
+					for (const p of enabledProviders) {
+						if (!progress.failedProviders?.[p]) {
+							markProvider(p, 'ok', this.notes.map(n => n.id));
+						}
+					}
+				} else if (progress.type === 'uploaded') {
+					for (const p of enabledProviders) {
+						markProvider(p, 'ok', progress.uploadedNoteIds || []);
+					}
+				} else if (progress.type === 'downloaded') {
+					for (const p of enabledProviders) {
+						markProvider(p, 'ok', progress.downloadedNoteIds || []);
+					}
+				}
+			};
+
 			const result = await synchronize({
 				notes: effectiveNotes,
 				deletedNoteIds: effectiveDeletedIds,
@@ -1468,7 +1536,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				nostrRelays: this.nostrRelays,
 				gdriveStore: this.gdriveStore,
 				lastSync: this.lastSync,
-				gitCredentials
+				gitCredentials,
+				onProgress: handleSyncProgress
 			});
 
 			if (result.success) {
@@ -1478,6 +1547,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					if (await this.mergeRemoteNote(remoteNote)) {
 						downloadedCount++;
 					}
+					// Yield to the event loop so many downloads don't starve the UI
+					await new Promise(resolve => setTimeout(resolve, 0));
 				}
 
 				const notesToDeleteLocally = result.notesToDeleteLocally || [];

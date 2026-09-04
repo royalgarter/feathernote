@@ -40,7 +40,7 @@ const YAML = {
 
 _GLOBAL.YAML = YAML;
 
-const promiseTimeout = (p, ms=30e3) => Promise.race([
+const promiseTimeout = (p, ms=20e3) => Promise.race([
 	p,
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
 ]);
@@ -478,7 +478,7 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	return { finalIdArray, hasChanged };
 }
 
-async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials}) {
+async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials, onProgress}) {
 	try {
 		// Initialize Git if configured
 		if (gitCredentials?.repoUrl) {
@@ -500,8 +500,13 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
-		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded, failedProviders } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore});
+		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded, failedProviders } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore, onProgress});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
+
+		// Signal list phase completion so the UI can mark providers synced progressively
+		if (typeof onProgress === 'function') {
+			await onProgress({ type: 'list-done', failedProviders });
+		}
 
 		// --- Step 2: Determine which notes to upload ---
 		const isPartialSync = Array.isArray(notes);
@@ -590,6 +595,11 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				// Yield between each IPFS upload
 				await new Promise(resolve => setTimeout(resolve, 0));
 			}
+		}
+
+		// Signal upload completion so the UI can mark notes synced progressively
+		if (typeof onProgress === 'function') {
+			await onProgress({ type: 'uploaded', uploadedNoteIds: notesToUpload.map(n => n.id) });
 		}
 
 		// --- Step 3: Determine which notes to delete from Remotes ---
@@ -764,6 +774,11 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 			}
 		});
 
+		// Signal download completion so the UI can mark notes synced progressively
+		if (typeof onProgress === 'function') {
+			await onProgress({ type: 'downloaded', downloadedNoteIds: updatedNotes.map(n => n.id) });
+		}
+
 		return {
 			success: true,
 			uploadedCount: successfulUploadedCount,
@@ -919,7 +934,7 @@ async function uploadImage({image, credentials, nostrPrivateKey, nostrRelays}) {
 	await Promise.all(promises);
 }
 
-async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore}) {
+async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore, onProgress}) {
 	const s3NotesPromise = _GLOBAL.listNotesInS3(credentials, lastSync);
 
 	let nostrNotesPromise;
@@ -951,12 +966,18 @@ async function listNotes({credentials, nostrPrivateKey, nostrRelays, lastSync, g
 		ipfsNotesPromise = Promise.resolve([]);
 	}
 
+	// Fire per-provider progress as each list settles, so the UI can light icons progressively
+	const nameAndNotif = (name, p) => p.then(
+		(r) => { if (typeof onProgress === 'function') onProgress({ type: 'provider-listed', provider: name }); return r; },
+		(e) => { if (typeof onProgress === 'function') onProgress({ type: 'provider-listed', provider: name, failed: true }); throw e; }
+	);
+
 	const [s3Res, nostrRes, gitRes, gdriveRes, ipfsRes] = await Promise.allSettled([
-		promiseTimeout(s3NotesPromise),
-		promiseTimeout(nostrNotesPromise),
-		promiseTimeout(gitNotesPromise),
-		promiseTimeout(gdriveNotesPromise),
-		promiseTimeout(ipfsNotesPromise)
+		promiseTimeout(nameAndNotif('s3', s3NotesPromise)),
+		promiseTimeout(nameAndNotif('nostr', nostrNotesPromise)),
+		promiseTimeout(nameAndNotif('git', gitNotesPromise)),
+		promiseTimeout(nameAndNotif('gdrive', gdriveNotesPromise)),
+		promiseTimeout(nameAndNotif('ipfs', ipfsNotesPromise))
 	]);
 
 	const s3Notes = s3Res.status === 'fulfilled' ? s3Res.value : [];
