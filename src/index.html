@@ -335,8 +335,7 @@
 						<input id="access-key" x-model="accessKeyId" class="col-span-3 border p-1" autocomplete="off" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="secret-key" class="text-right">Secret Key</label>
-						<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border p-1" autocomplete="new-password" />
+						<label for="secret-key" class="text-right">Secret Key</label>							<input id="secret-key" type="password" x-model="secretAccessKey" class="col-span-3 border p-1" autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 				</fieldset>
 
@@ -354,19 +353,35 @@
 						<input id="git-username" x-model="gitUsername" class="col-span-3 border p-1" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="git-token" class="text-right text-sm">Token</label>
-						<input id="git-token" type="password" x-model="gitToken" class="col-span-3 border p-1" autocomplete="new-password" />
+						<label for="git-token" class="text-right text-sm">Token</label>							<input id="git-token" type="password" x-model="gitToken" class="col-span-3 border p-1" autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="git-cors-proxy" class="text-right text-sm">CORS Proxy</label>
 						<input id="git-cors-proxy" x-model="gitCorsProxy" class="col-span-3 border p-1" />
-					</div>
-				</fieldset>
+					</div>					</fieldset>
 
-				<fieldset class="hidden col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
-					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="nostr-private-key" class="text-right">Nostr Key</label>
-						<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border p-1" placeholder="nsec..." autocomplete="new-password" />
+					<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
+						<legend class="font-bold text-sm mb-1">GitHub Gist Sharing</legend>
+						<div class="grid grid-cols-4 items-center gap-2">
+							<label for="github-gist-token" class="text-right text-sm">Gist Token</label>
+							<input id="github-gist-token" type="password" x-model="githubGistToken" class="col-span-3 border p-1" placeholder="ghp_... (needs gist scope)" autocomplete="off" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
+						</div>
+						<div class="grid grid-cols-4 items-center gap-2">
+							<label for="gist-public" class="text-right text-sm">Public Gist</label>
+							<div class="col-span-3 flex items-center gap-2">
+								<input id="gist-public" type="checkbox" x-model="gistPublic" class="h-4 w-4" />
+								<span class="text-xs text-gray-500" x-text="gistPublic ? 'Anyone can see this gist' : 'Only you can see this gist'"></span>
+							</div>
+						</div>
+						<div class="grid grid-cols-4 items-center gap-2">
+							<label for="gist-description" class="text-right text-sm">Description</label>
+							<input id="gist-description" x-model="gistDescription" class="col-span-3 border p-1" placeholder="Default gist description" autocomplete="off" />
+						</div>
+					</fieldset>
+
+					<fieldset class="hidden col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
+						<div class="grid grid-cols-4 items-center gap-2">
+							<label for="nostr-private-key" class="text-right">Nostr Key</label>							<input id="nostr-private-key" type="password" x-model="nostrPrivateKey" class="col-span-3 border p-1" placeholder="nsec..." autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="nostr-relays" class="text-right">Nostr Relays</label>
@@ -376,16 +391,14 @@
 
 				<fieldset class="hidden col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="pinata-jwt" class="text-right">Pinata JWT</label>
-						<input id="pinata-jwt" type="password" x-model="pinataJwt" class="col-span-3 border p-1" placeholder="JWT Token..." autocomplete="new-password" />
+						<label for="pinata-jwt" class="text-right">Pinata JWT</label>							<input id="pinata-jwt" type="password" x-model="pinataJwt" class="col-span-3 border p-1" placeholder="JWT Token..." autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="pinata-api-key" class="text-right">Pinata API Key</label>
 						<input id="pinata-api-key" x-model="pinataApiKey" class="col-span-3 border p-1" placeholder="API Key..." />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="pinata-secret-key" class="text-right">Pinata Secret</label>
-						<input id="pinata-secret-key" type="password" x-model="pinataSecretApiKey" class="col-span-3 border p-1" placeholder="Secret API Key..." autocomplete="new-password" />
+						<label for="pinata-secret-key" class="text-right">Pinata Secret</label>							<input id="pinata-secret-key" type="password" x-model="pinataSecretApiKey" class="col-span-3 border p-1" placeholder="Secret API Key..." autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ipfs-gateway" class="text-right">IPFS Gateway</label>
@@ -407,8 +420,7 @@
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm">
 					<div class="grid grid-cols-4 items-center gap-2">
-						<label for="ai-api-key" class="text-right">AI API Key</label>
-						<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border p-1" autocomplete="new-password" />
+						<label for="ai-api-key" class="text-right">AI API Key</label>							<input id="ai-api-key" type="password" x-model="aiApiKey" class="col-span-3 border p-1" autocomplete="new-password" @mouseenter="$el.type='text'" @mouseleave="$el.type='password'" />
 					</div>
 					<div class="grid grid-cols-4 items-center gap-2">
 						<label for="ai-api-route" class="text-right">AI Endpoint</label>

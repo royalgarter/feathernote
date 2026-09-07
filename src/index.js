@@ -26,6 +26,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	gitCorsProxy: '',
 	gitEmail: '',
 
+	// --- GitHub Gist Settings ---
+	githubGistToken: '',
+	gistPublic: false,
+	gistDescription: '',
+
 	// --- Auth Data ---
 	user: null,
 	isGsiLoaded: false,
@@ -1935,6 +1940,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						className: "fa fa-share-square-o",
 						title: "Share",
 					},{
+						name: "gist",
+						action: function(editor){
+							Alpine.$data(document.querySelector('body'))?.shareToGist();
+						},
+						className: "fa fa-github",
+						title: "Share to GitHub Gist",
+					},{
 						name: "Encrypt",
 						action: function(editor){
 							Alpine.$data(document.querySelector('body'))?.toggleNoteEncryption();
@@ -2562,6 +2574,79 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
+	async createGist(content, title, isPublic, description) {
+		if (!this.githubGistToken) {
+			this.showToast({ variant: 'error', title: 'GitHub Token Required', description: 'Please set a GitHub Personal Access Token (with gist scope) in Settings.' });
+			return null;
+		}
+
+		const filename = (title || 'untitled').replace(/[^a-zA-Z0-9-_ ]/g, '').replace(/\s+/g, '-').substring(0, 50) + '.md';
+
+		try {
+			const response = await fetch('https://api.github.com/gists', {
+				method: 'POST',
+				headers: {
+					'Authorization': `token ${this.githubGistToken}`,
+					'Content-Type': 'application/json',
+					'Accept': 'application/vnd.github.v3+json',
+				},
+				body: JSON.stringify({
+					description: description || title || 'Shared from FeatherNote',
+					public: isPublic,
+					files: {
+						[filename]: { content }
+					}
+				}),
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err.message || `GitHub API error: ${response.status}`);
+			}
+
+			const gist = await response.json();
+			return gist.html_url;
+		} catch (error) {
+			console.error('Gist creation error:', error);
+			this.showToast({
+				variant: 'error',
+				title: 'Gist Failed',
+				description: error.message || 'Could not create GitHub Gist.'
+			});
+			return null;
+		}
+	},
+
+	async shareToGist() {
+		const content = window.easyMDEInstance?.value();
+		if (!content || !content.trim()) {
+			this.showToast({ variant: 'error', title: 'Cannot Share', description: 'You cannot share an empty note.' });
+			return;
+		}
+
+		if (!this.githubGistToken) {
+			this.showToast({ variant: 'error', title: 'GitHub Token Required', description: 'Please set a GitHub Personal Access Token (with gist scope) in Settings.' });
+			return;
+		}
+
+		const description = prompt('Gist description (optional):', this.gistDescription || this.noteEditorTitle);
+		if (description === null) return; // User cancelled
+
+		const isPublic = this.gistPublic;
+		this.showToast({ title: 'Publishing to GitHub Gist...', description: isPublic ? 'Creating public gist...' : 'Creating private gist...' });
+
+		const gistUrl = await this.createGist(content, this.noteEditorTitle, isPublic, description || this.noteEditorTitle);
+		if (gistUrl) {
+			this.showToast({
+				title: isPublic ? 'Public Gist Created' : 'Private Gist Created',
+				description: 'A shareable link has been created and copied to your clipboard.'
+			});
+			navigator.clipboard.writeText(gistUrl);
+			this.showToast({ title: 'Gist URL copied to clipboard', description: gistUrl });
+			window.open(gistUrl, '_blank');
+		}
+	},
+
 	async shareNote() {
 		const content = window.easyMDEInstance?.value();
 		if (!content || !content.trim()) {
@@ -2674,6 +2759,33 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 		}
 		if (published) return published; // Stop execution if S3 was attempted
+
+		// GitHub Gist publishing
+		if (this.githubGistToken) {
+			try {
+				const isPublic = this.gistPublic;
+				this.showToast({ title: 'Publishing to GitHub Gist...', description: isPublic ? 'Creating public gist...' : 'Creating private gist...' });
+				const gistUrl = await this.createGist(content, this.noteEditorTitle, isPublic, this.gistDescription);
+				if (gistUrl) {
+					published = true;
+					this.showToast({
+						title: isPublic ? 'Public Gist Created' : 'Private Gist Created',
+						description: 'A shareable link has been created and copied to your clipboard.'
+					});
+					navigator.clipboard.writeText(gistUrl);
+					this.showToast({ title: 'Gist URL copied to clipboard', description: gistUrl });
+					window.open(gistUrl, '_blank');
+				}
+			} catch (error) {
+				console.error('Gist publish error:', error);
+				this.showToast({
+					variant: 'error',
+					title: 'Gist Publish Failed',
+					description: error.message
+				});
+			}
+		}
+		if (published) return published; // Stop execution if Gist was attempted
 
 		// Fallback using server storage
 		try {
@@ -2924,6 +3036,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.gitToken = decrypted.gitToken || '';
 		this.gitCorsProxy = decrypted.gitCorsProxy || '';
 		this.gitEmail = decrypted.gitEmail || '';
+
+		this.githubGistToken = decrypted.githubGistToken || '';
+		this.gistPublic = decrypted.gistPublic !== undefined ? !!decrypted.gistPublic : false;
+		this.gistDescription = decrypted.gistDescription || '';
 	},
 
 	async handleSave(isAutoSave = false) {
@@ -2964,13 +3080,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			gitBranch: this.gitBranch,
 			gitUsername: this.gitUsername,
 			gitToken: this.gitToken,
-			gitCorsProxy: this.gitCorsProxy,
-			gitEmail: this.gitEmail
-		};
+		gitCorsProxy: this.gitCorsProxy,
+		gitEmail: this.gitEmail,
+		githubGistToken: this.githubGistToken,
+		gistPublic: this.gistPublic,
+		gistDescription: this.gistDescription
+	};
 
 		if (this.secretAccessKey) {
 			// Only update the secret key if a new one is entered
 			settingsToStore.secretAccessKey = this.secretAccessKey;
+		}
+		if (this.githubGistToken) {
+			settingsToStore.githubGistToken = this.githubGistToken;
 		}
 
 		const encryptedSettings = await encryptSettings(settingsToStore, this.userId, this.nostrPrivateKey);
