@@ -57,6 +57,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	// --- Note Editor Data ---
 	easyMDEIniting: false,
 	editorAutosaveIntervalId: null,
+	liveSyncEnabled: localStorage.getItem('feathernote-live-sync') !== 'false',
+	liveSyncIntervalId: null,
+	liveSyncInFlight: false,
 	noteEditorVisible: false,
 	noteEditorNoteId: null,
 	noteEditorTitle: '',
@@ -203,6 +206,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// this.$watch('syncSelection', (value) => { localStorage.setItem('feathernote-sync-selection', value); });
 
 		this.nostrRelays = localStorage.getItem('feathernote-nostr-relays') || 'wss://relay.damus.io';
+
+		this.$watch('liveSyncEnabled', (value) => { localStorage.setItem('feathernote-live-sync', value); });
 
 		this.$nextTick(() => {
 			this.processSharedContent();
@@ -1427,6 +1432,47 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return false;
 	},
 
+	async checkActiveNoteForRemoteUpdate() {
+		// Live sync for the currently open note: poll S3 (download-only) so multiple
+		// devices editing the same note stay near-realtime and never autosave stale content.
+		if (!this.liveSyncEnabled) return;
+		if (!this.editingNoteId || !this.noteEditorNoteId || this.noteEditorNoteId === 'new') return;
+		if (document.visibilityState !== 'visible') return;
+		if (!navigator.onLine) return;
+		if (this.isSyncing || this.liveSyncInFlight) return;
+
+		this.liveSyncInFlight = true;
+		try {
+			const id = this.noteEditorNoteId;
+			const localNote = await this.getNote(id);
+			if (!localNote) return;
+
+			const userId = this.user ? this.user.id : null;
+			const storedData = await getEncryptedSettingsDB();
+			const encryptedSettings = storedData ? storedData.encryptedSettings : null;
+			if (!encryptedSettings || !userId) return;
+
+			const credentials = await decryptSettings(encryptedSettings, userId);
+			if (!credentials?.secretAccessKey) return; // S3-first: no fallback to other providers here
+
+			const remoteMeta = await _GLOBAL.getNoteMetadataFromS3(localNote, credentials);
+			if (!remoteMeta?.lastModified) return;
+
+			if (new Date(remoteMeta.lastModified) <= new Date(localNote.updatedAt)) return;
+
+			const remoteNote = await _GLOBAL.downloadNoteFromS3(localNote, credentials);
+			if (!remoteNote?.content) return;
+
+			console.log(`Live sync: remote update found for note ${id}, merging...`);
+			await this.mergeRemoteNote(remoteNote);
+		} catch (error) {
+			// Silent by design: poll failures (network, S3 errors) shouldn't bother the user.
+			console.warn('Live note sync check failed:', error?.message || error);
+		} finally {
+			this.liveSyncInFlight = false;
+		}
+	},
+
 	async syncNotes(isSilent = false, iterator = 0, notes = null, force = false) {
 		if (this.isSyncing) {
 			return;
@@ -2379,6 +2425,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.autosaveCurrentNote();
 		}, 60 * 1000);
 
+		// Start the 10s live-sync poll (S3-only, download-only) for this note
+		if (!this.liveSyncIntervalId) {
+			this.liveSyncIntervalId = setInterval(() => {
+				this.checkActiveNoteForRemoteUpdate();
+			}, 10 * 1000);
+		}
+
 		// Perform remote sync check in the background
 		try {
 			const userId = this.user ? this.user.id : null;
@@ -2845,6 +2898,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (this.editorAutosaveIntervalId) {
 			clearInterval(this.editorAutosaveIntervalId);
 			this.editorAutosaveIntervalId = null;
+		}
+		if (this.liveSyncIntervalId) {
+			clearInterval(this.liveSyncIntervalId);
+			this.liveSyncIntervalId = null;
 		}
 		window.easyMDEInstance?.toTextArea?.();
 		window.easyMDEInstance = null;

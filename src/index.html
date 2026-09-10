@@ -311,6 +311,11 @@
 						<p class="text-sm">Biometric Lock</p>
 						<button @click="toggleBiometric()" class="cursor-pointer border px-2 py-1" x-text="biometricEnabled ? 'Disable' : 'Enable'"></button>
 					</div>
+					<!-- Live Note Sync -->
+					<div class="flex items-center py-1 justify-between">
+						<p class="text-sm" title="While editing, poll S3 every 10s for newer versions of the open note and merge them in automatically">Live Note Sync (10s, S3)</p>
+						<input id="live-sync-enabled" type="checkbox" x-model="liveSyncEnabled" class="h-4 w-4 cursor-pointer" />
+					</div>
 				</div>
 
 				<fieldset class="col-span-2 lg:col-span-1 grid gap-2 border-t pt-4 text-sm" >
