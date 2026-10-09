@@ -2128,7 +2128,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 							cm.replaceRange("", from, to);
 						},
-						className: "fa fa-minus-square-o",
+						className: "fa fa-strikethrough",
 						title: "Delete Current Line",
 					}, "|",
 					"preview", "side-by-side", "fullscreen", "|",
@@ -2168,6 +2168,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			window.easyMDEInstance.uniqueId = id;
 
 			const cm = window.easyMDEInstance.codemirror;
+
+			// Fix for mobile: when select all + backspace is pressed, clear the editor
+			// Mobile browsers don't always properly handle backspace when all text is selected
+			cm?.on('keydown', (cmInstance, event) => {
+				if (event.key === 'Backspace' || event.key === 'Delete') {
+					const selection = cmInstance.getSelection();
+					const docLength = cmInstance.getValue().length;
+					// If all content is selected (or most of it), clear the editor
+					if (selection && docLength > 0 && selection.length >= (docLength - 1)) {
+						event.preventDefault();
+						cmInstance.setValue('');
+						cmInstance.setCursor({line: 0, ch: 0});
+						return false; // Prevent default backspace behavior
+					}
+				}
+				return true;
+			});
+
 			cm?.on('paste', (cmInstance, event) => {
 				const items = (event.clipboardData || event.originalEvent.clipboardData).items;
 				let textItem = null;
@@ -2756,7 +2774,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			if (credentials && credentials.s3Bucket) {
 				try {
 					let shareHtml = marked.parse(content);
-					const encryptShare = confirm("Do you want to encrypt this shared S3 link with a password?");
+					const encryptShare = !(confirm("Do you want to encrypt this shared S3 link publish without a password?"));
 					if (encryptShare) {
 						const sharePassword = prompt("Enter a password for the viewer of this link (do not forget it!):");
 						if (!sharePassword) {

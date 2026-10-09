@@ -159,6 +159,24 @@
 	color: var(--color-yellow-300);
 }
 
+.EasyMDEContainer .editor-toolbar {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+}
+
+@media (max-width: 768px) {
+	.EasyMDEContainer .editor-toolbar {
+		background-color: white;
+	}
+}
+
+@media (max-width: 768px) {
+	.dark .EasyMDEContainer .editor-toolbar {
+		background-color: #1a202c;
+	}
+}
+
 .EasyMDEContainer .editor-preview {
 	/*padding-left: 40px;*/
 	font-family: monospace;
