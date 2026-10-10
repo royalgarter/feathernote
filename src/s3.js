@@ -41,6 +41,19 @@ const getS3ObjectKey = (noteId, creds) => {
 	return (noteId?.includes?.('images/') || noteId?.includes?.('.html')) ? `${path}${noteId}` : `${path}${noteId}.json` ;
 };
 
+const getNoteIdFromKey = (key, prefix) => {
+	const stripped = key.startsWith(prefix) ? key.slice(prefix.length) : key;
+	return stripped.replace(/\\.json$/, '');
+};
+
+const topLevelDatePathForNote = (note) => {
+	const d = new Date(note.updatedAt || note.createdAt || Date.now());
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${y}/${m}/${day}/${note.id}.json`;
+};
+
 const uploadNoteToS3 = async (note, creds) => {
 	if (!creds?.secretAccessKey) return;
 
@@ -84,7 +97,6 @@ const listNotesInS3 = async (creds) => {
 	let allNoteMetadata = [];
 	let continuationToken = undefined;
 
-	// 1. Fetch from S3
 	do {
 		const params = {
 			Bucket: creds.bucket,
@@ -115,6 +127,50 @@ const listNotesInS3 = async (creds) => {
 	} while (continuationToken);
 
 	return allNoteMetadata;
+};
+
+const listLatestS3NoteMetadatas = async (creds, limit = 10) => {
+	if (!creds?.secretAccessKey) return [];
+	const s3 = await getS3Client(creds);
+	const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+	const seen = new Set();
+	const latest = [];
+
+	do {
+		const params = {
+			Bucket: creds.bucket,
+			Prefix: prefix,
+			ContinuationToken: undefined,
+			MaxKeys: Math.max(limit, 100)
+		};
+
+		try {
+			const data = await s3.listObjectsV2(params).promise();
+			const candidates = (data.Contents || [])
+				.filter(item => item.Key && !item.Key.endsWith('/') && !item.Key.includes('/images/') && item.Key.includes('.json') && !item.Key.endsWith('deleted-notes.json'))
+				.map(item => ({
+					id: getNoteIdFromKey(item.Key, prefix),
+					path: item.Key.replace(prefix, ''),
+					updatedAt: item.LastModified,
+					source: 's3'
+				}));
+
+		for (const c of candidates) {
+			if (seen.has(c.id)) continue;
+			seen.add(c.id);
+			latest.push(c);
+		}
+
+		latest.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+		if (latest.length > limit) latest.length = limit;
+
+		continuationToken = data.NextContinuationToken;
+		if (!continuationToken || latest.length >= limit) break;
+	} catch (err) {
+			console.error('S3 latest list error:', err);
+			throw new Error(`Failed to list latest notes in S3: ${err.code || err.message}`);
+		}
+	return latest;
 };
 
 const downloadNoteFromS3 = async (noteOrId, creds) => {
@@ -149,6 +205,47 @@ const downloadNoteFromS3 = async (noteOrId, creds) => {
 		throw err;
 	}
 	throw new Error('Downloaded note has no body');
+};
+
+const downloadLatestNotesFromS3 = async (metadatas, creds) => {
+	if (!creds?.secretAccessKey || !metadatas?.length) return [];
+	const s3 = await getS3Client(creds);
+	const prefix = creds.subfolder ? `${creds.subfolder.replace(/\/$/, '')}/` : '';
+
+	const getKeyForMeta = (meta) => {
+		if (meta.path && !meta.path.endsWith('.json')) return `${prefix}${meta.path}`;
+		if (meta.path) return `${prefix}${meta.path}`;
+		return `${prefix}${topLevelDatePathForNote(meta)}`;
+	};
+
+	const promises = metadatas.map(async (meta) => {
+		const key = getKeyForMeta(meta);
+		try {
+			const data = await s3.getObject({ Bucket: creds.bucket, Key: key }).promise();
+			if (!data?.Body) return null;
+			const note = YAML.parse((new TextDecoder()).decode(data.Body));
+			if (note && note.id) return note;
+			return null;
+		} catch (err) {
+			const fallbackKey = `${prefix}${topLevelDatePathForNote(meta)}`;
+			if (key !== fallbackKey) {
+				try {
+					const data = await s3.getObject({ Bucket: creds.bucket, Key: fallbackKey }).promise();
+					if (!data?.Body) return null;
+					const note = YAML.parse((new TextDecoder()).decode(data.Body));
+					if (note && note.id) return note;
+				} catch (fallbackErr) {
+					return null;
+				}
+			}
+			return null;
+		}
+	});
+
+	const results = await Promise.allSettled(promises);
+	return results
+		.filter((r) => r.status === 'fulfilled' && r.value != null)
+		.map((r) => r.value);
 };
 
 const getNoteMetadataFromS3 = async (noteOrId, creds) => {
@@ -457,3 +554,5 @@ _GLOBAL.deleteImageFromS3 = deleteImageFromS3;
 _GLOBAL.uploadDeletedNotesToS3 = uploadDeletedNotesToS3;
 _GLOBAL.downloadDeletedNotesFromS3 = downloadDeletedNotesFromS3;
 _GLOBAL.getPresignedUrl = getPresignedUrl;
+_GLOBAL.listLatestS3NoteMetadatas = listLatestS3NoteMetadatas;
+_GLOBAL.downloadLatestNotesFromS3 = downloadLatestNotesFromS3;

@@ -45,6 +45,8 @@ const promiseTimeout = (p, ms=20e3) => Promise.race([
 	new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
 ]);
 
+const MAX_FAST_SYNC_NOTES = 10;
+
 const pad = (num) => num.toString().padStart(2, '0');
 
 const loadScript = (src, id) => {
@@ -478,6 +480,29 @@ async function syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, 
 	return { finalIdArray, hasChanged };
 }
 
+async function fetchLatestS3FastSync({ credentials, limit = MAX_FAST_SYNC_NOTES, onProgress }) {
+	if (!credentials?.secretAccessKey) return { notes: [], metas: [] };
+	try {
+		if (typeof onProgress === 'function') {
+			await onProgress({ type: 'fast-s3-listing' });
+		}
+		const metas = await promiseTimeout(_GLOBAL.listLatestS3NoteMetadatas?.(credentials, limit), 30000);
+		if (!metas?.length) return { notes: [], metas: [] };
+
+		const notes = await promiseTimeout(_GLOBAL.downloadLatestNotesFromS3?.(metas, credentials), 30000);
+		if (typeof onProgress === 'function') {
+			await onProgress({ type: 'fast-s3-downloaded', noteIds: notes.map((n) => n.id) });
+		}
+		return { notes, metas };
+	} catch (error) {
+		console.warn('S3 fast sync failed:', error?.message || error);
+		return { notes: [], metas: [] };
+	}
+}
+
+// Expose fast sync from helpers so app layer can call it before the full sync.
+_GLOBAL.fetchLatestS3FastSync = fetchLatestS3FastSync;
+
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials, onProgress}) {
 	try {
 		// Initialize Git if configured
@@ -500,6 +525,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		const { finalIdArray: effectiveDeletedNoteIds, hasChanged: deletedListChanged } = await syncDeletedNoteIds({deletedNoteIds, credentials, gitCredentials, gdriveStore});
 
 		// --- Step 1: Get remote state FIRST ---
+		// Fast S3-only path is handled by the caller for app-open priority.
 		const { mergedNotes: remoteNoteMetadata, s3Ids, gitIds, nostrIds, gdriveIds, ipfsIds, s3Map, gitMap, nostrMap, gdriveMap, ipfsMap, listingSucceeded, failedProviders } = await listNotes({credentials: ipfsCredentials, nostrPrivateKey, nostrRelays, lastSync, gitCredentials, gdriveStore, onProgress});
 		const remoteMetaMap = new Map(remoteNoteMetadata.map(m => [m.id, m]));
 

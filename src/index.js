@@ -324,14 +324,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}) : null;
 
 		this.loadNotesFromCacheAndFetch();
-		this.loadSettingsFromStorage().then(_ => {
+		this.loadSettingsFromStorage().then(() => {
 			// Initialize IPFS index file if Direct IPFS is enabled
 			if (this.useDirectIpfs && typeof window.ensureIndexFile === 'function') {
 				window.ensureIndexFile().catch(err => console.error('IPFS index initialization failed:', err));
 			}
+
+			// S3-first fast open-app sync: top N latest notes as soon as settings are ready.
+			if (typeof this.runFastS3StartupSync === 'function') {
+				this.runFastS3StartupSync();
+			}
 		})
 
-		// Kick off the first sync as soon as the browser is idle (faster than fixed 3s delay),
+		// Kick off the first full sync as soon as the browser is idle (faster than fixed 3s delay),
 		// with a fallback so it can't be starved. Guarded so the periodic interval doesn't double-fire.
 		let _startupSyncRan = false;
 		const runStartupSync = () => {
@@ -346,13 +351,25 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		this.syncIntervalId = setInterval(() => {
+			this.runFastS3StartupSync();
 			this.syncNotes(false, 0, null, true);
 		}, 60e3);
 
 		window.addEventListener('online', () => {
 			this.showToast({ title: 'Online', description: 'Connection restored. Syncing...', quiet: true });
+			this.runFastS3StartupSync();
 			this.syncNotes(true);
 		});
+
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') {
+				this.runFastS3StartupSync();
+			}
+		});
+		window.addEventListener('focus', () => {
+			this.runFastS3StartupSync();
+		});
+
 
 		this.$watch('searchTag', () => this.generateSuggestions());
 
@@ -1052,7 +1069,49 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		// Fetch latest notes from DB regardless of cache
-		this.fetchNotes();
+		await this.fetchNotes();
+	},
+
+	async fetchLatestS3FastSync() {
+		const storedData = await getEncryptedSettingsDB();
+		if (!storedData?.encryptedSettings) return { notes: [], metas: [] };
+
+		const userId = this.user?.id || null;
+		const creds = await decryptSettings(storedData.encryptedSettings, userId);
+		if (!creds?.secretAccessKey) return { notes: [], metas: [] };
+
+		return fetchLatestS3FastSync({ credentials: creds, limit: MAX_FAST_SYNC_NOTES });
+	},
+
+	async runFastS3StartupSync() {
+		if (!navigator.onLine) return;
+		if (this.isFastS3Running) return;
+		this.isFastS3Running = true;
+
+		try {
+			const fastResult = await this.fetchLatestS3FastSync();
+			if (!fastResult?.notes?.length) return;
+
+			const incoming = fastResult.notes.filter((remote) => {
+				const local = this.getNote(remote.id);
+				if (!local) return true;
+				return new Date(remote.updatedAt) > new Date(local.updatedAt);
+			});
+
+			if (!incoming.length) return;
+
+			for (const note of incoming) {
+				await this.mergeRemoteNote(note);
+				await new Promise((resolve) => setTimeout(resolve, 0));
+			}
+
+			await this.fetchNotes();
+			await this.updateNotesCache();
+		} catch (error) {
+			console.warn('Fast S3 startup sync failed:', error?.message || error);
+		} finally {
+			this.isFastS3Running = false;
+		}
 	},
 
 	async updateNotesCache() {
@@ -1489,6 +1548,18 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		
 		let effectiveNotes = notes;
 		let effectiveDeletedIds = this.deletedNoteIds;
+
+		// Merge fast S3 startup results into this sync if they arrived after app open.
+		if (this.fastS3Notes && this.fastS3Notes.length) {
+			const existingIds = new Set(effectiveNotes?.map((n) => n.id) || []);
+			const freshFromFastPath = this.fastS3Notes.filter((n) => !existingIds.has(n.id));
+			if (freshFromFastPath.length) {
+				effectiveNotes = effectiveNotes
+					? [...effectiveNotes, ...freshFromFastPath]
+					: [...freshFromFastPath];
+			}
+			this.fastS3Notes = [];
+		}
 
 		// Optimization 1: When editing, only sync the edited note
 		if (this.editingNoteId) {
@@ -3077,7 +3148,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		const encryptedSettings = storedData.encryptedSettings;
 
-		decrypted = await decryptSettings(encryptedSettings, this.userId).catch(error => {
+		const decrypted = await decryptSettings(encryptedSettings, this.userId).catch(error => {
 			this.showToast({ title: 'Settings Decryption Error', description: error.message });
 		});
 		if (!decrypted) return;
@@ -3126,8 +3197,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const existingEncrypted = storedData ? storedData.encryptedSettings : null;
 		let existingSettings = {};
 		if (existingEncrypted) {
-			const decrypted = await decryptSettings(existingEncrypted, this.userId);
-			if(decrypted) existingSettings = decrypted;
+			const existingDecrypted = await decryptSettings(existingEncrypted, this.userId);
+			if(existingDecrypted) existingSettings = existingDecrypted;
 		}
 
 		const settingsToStore = {
@@ -3155,11 +3226,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			gitBranch: this.gitBranch,
 			gitUsername: this.gitUsername,
 			gitToken: this.gitToken,
-		gitCorsProxy: this.gitCorsProxy,
-		gitEmail: this.gitEmail,
-		githubGistToken: this.githubGistToken,
-		gistPublic: this.gistPublic,
-		gistDescription: this.gistDescription
+			gitCorsProxy: this.gitCorsProxy,
+			gitEmail: this.gitEmail,
+			githubGistToken: this.githubGistToken,
+			gistPublic: this.gistPublic,
+			gistDescription: this.gistDescription
 	};
 
 		if (this.secretAccessKey) {
