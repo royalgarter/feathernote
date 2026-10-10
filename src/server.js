@@ -1,4 +1,4 @@
-require('dotenv').config();
+try { require('dotenv').config(); } catch (e) { /* dotenv optional on Deno Deploy */ }
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -6,7 +6,11 @@ const crypto = require('crypto');
 const { TextEncoder } = require('util');
 const multer = require('multer');
 const { marked } = require('marked');
-const openKv = (process.env.PUBLISH_USE_DENOKV === 'true') ? require('@deno/kv').openKv : null;
+let openKv = null; // lazy-loaded only when Deno KV publish is enabled
+const _getOpenKv = () => {
+	if (!openKv) openKv = require('@deno/kv').openKv;
+	return openKv;
+};
 
 // --- YAML Fallback for Server ---
 const YAML = {
@@ -104,34 +108,37 @@ const generateHtmlPage = (title, bodyContent) => {
 	`;
 };
 
-// Create a directory for published notes if it doesn't exist
-const publishedNotesDir = path.join(__dirname, 'published_notes');
-if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir);
+// Published notes persist to Deno Deploy's writable /tmp dir; falls back to in-memory.
+const os = require('os');
+const publishedNotesDir = process.env.DENO_DEPLOYMENT_ID ? path.join(os.tmpdir(), 'published_notes') : path.join(__dirname, 'published_notes');
+try { if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir, { recursive: true }); } catch (e) { console.warn('published_notes dir init skipped:', e.message); }
 
 try {
 	const filePath = path.join(publishedNotesDir, `uptime.json`);
 	fs.writeFileSync(filePath, JSON.stringify({date: new Date()}));
-} catch (ex) {console.log(ex)}
+} catch (ex) { console.warn('uptime write skipped:', ex.message); }
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
-// --- Firebase Admin SDK Init ---
-const admin = require('firebase-admin');
+// --- Firebase Admin SDK Init (lazy: only loads when configured, never crashes boot) ---
+let admin = null;
 let isFirebaseInitialized = false;
 
 try {
 	if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+		admin = require('firebase-admin');
 		const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 		admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 		isFirebaseInitialized = true;
 		console.log('Firebase Admin initialized via env var.');
 	} else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+		admin = require('firebase-admin');
 		admin.initializeApp();
 		isFirebaseInitialized = true;
 		console.log('Firebase Admin initialized via GOOGLE_APPLICATION_CREDENTIALS.');
 	}
 } catch (e) {
-	console.warn('Firebase Admin init failed:', e.message);
+	console.warn('Firebase Admin init skipped:', e.message);
 }
 
 // --- Scheduled Tasks Management (CFKV Persistence) ---
@@ -276,16 +283,16 @@ app.post('/api/publish', async (req, res) => {
 			if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
 				throw new Error('Deno KV environment variables are not set.');
 			}
-			const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+			const kv = await _getOpenKv()(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
 			await kv.set(['published_notes', noteId], noteData);
 		} else {
 			// Fallback to filesystem for large notes or if Deno KV is not configured
-			const filePath = path.join(publishedNotesDir, `${noteId}.json`);
-			if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir);
-			fs.writeFile(filePath, noteString, error => {
-				console.log(error);
-				PUBLISHED[noteId] = noteData;
-			});
+			PUBLISHED[noteId] = noteData;
+			try {
+				const filePath = path.join(publishedNotesDir, `${noteId}.json`);
+				if (!fs.existsSync(publishedNotesDir)) fs.mkdirSync(publishedNotesDir, { recursive: true });
+				fs.writeFile(filePath, noteString, error => { if (error) console.warn('publish write skipped:', error.message); });
+			} catch (e) { console.warn('publish write skipped:', e.message); }
 		}
 		res.json({ url: `/publish/${noteId}` });
 	} catch (err) {
@@ -317,7 +324,7 @@ app.get('/publish/:noteId', async (req, res) => {
 			if (!process.env.PUBLISH_DENO_KV_URL || !process.env.PUBLISH_DENO_KV_ACCESS_TOKEN) {
 				throw new Error('Deno KV environment variables are not set.');
 			}
-			const kv = await openKv(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
+			const kv = await _getOpenKv()(process.env.PUBLISH_DENO_KV_URL, { accessToken: process.env.PUBLISH_DENO_KV_ACCESS_TOKEN });
 			const result = await kv.get(['published_notes', noteId]);
 			if (result.value) {
 				note = result.value;
@@ -402,27 +409,30 @@ app.get('/api/version', (req, res) => {
 });
 
 let appVersion;
-let HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'});
+let HTML_INDEX = null;
+try { HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding: 'utf8'}); } catch (e) { console.warn('index.html preload skipped:', e.message); }
 (async () => {
-	appVersion = await getAppVersion();
-	await loadScheduledTasks();
+	try { appVersion = await getAppVersion(); } catch (e) { console.warn('version hash skipped:', e.message); appVersion = 'unknown'; }
+	try { await loadScheduledTasks(); } catch (e) { console.warn('scheduled tasks skipped:', e.message); }
 
 	if (process.argv[2] === '--version') {
 		console.log(appVersion);
 		process.exit(0);
 	}
 
-	const readmePath = path.join(__dirname, '..', 'README.md');
-	const readmeMarkdown = fs.readFileSync(readmePath, 'utf8');
-	const introMarkdown = readmeMarkdown.split('## Philosophy')[0];
-	const welcomeHtml = marked.parse(introMarkdown);
+	try {
+		const readmePath = path.join(__dirname, '..', 'README.md');
+		const readmeMarkdown = fs.readFileSync(readmePath, 'utf8');
+		const introMarkdown = readmeMarkdown.split('## Philosophy')[0];
+		const welcomeHtml = marked.parse(introMarkdown);
 
-	HTML_INDEX = (HTML_INDEX || '')
+		HTML_INDEX = (HTML_INDEX || '')
 					.replaceAll?.('___VERSION___', appVersion)
-					.replaceAll?.('___GOOGLE_CLIENT_ID___', process.env.GOOGLE_CLIENT_ID)
+					.replaceAll?.('___GOOGLE_CLIENT_ID___', process.env.GOOGLE_CLIENT_ID || '')
 					.replace('<!--WELCOME_CONTENT-->', welcomeHtml);
+	} catch (e) { console.warn('welcome content skipped:', e.message); }
 
-	app.listen(port, () => {
+	app.listen(port, '0.0.0.0', () => {
 		console.log(`Server openned: http://localhost:${port}`);
 		console.log()
 		console.log(`Versioning url: http://localhost:${port}/?v=${appVersion}`);
