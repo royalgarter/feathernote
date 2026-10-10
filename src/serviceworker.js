@@ -222,6 +222,12 @@ const scheduledNotifications = new Map();
 self.addEventListener('message', (event) => {
 	if (!event.data) return;
 
+	if (event.data.action === 'SHARE_RECEIVED') {
+		// Forward share notifications to any open window so the app can refresh its Shared Inbox.
+		// (The SW already saved to IndexedDB; this just tells the UI to reload.)
+		return;
+	}
+
 	if (event.data.action === 'SCHEDULE_NOTIFICATION') {
 		const { id, title, content, delay, url } = event.data;
 
@@ -494,6 +500,17 @@ async function handleShareTarget(request, url) {
 
 	const openUrl = '/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : '');
 	const safeSummary = summaryItem.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+	// Notify any already-open app windows that a share was received — they should refresh their
+	// Shared Inbox note so the newly appended item appears immediately without a reload.
+	try {
+		const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+		for (const client of clients) {
+			client.postMessage({ action: 'SHARE_RECEIVED', noteId: noteIdToRedirect, summary: summaryItem });
+		}
+	} catch (notifyErr) {
+		console.warn('SW: Could not notify open clients about share:', notifyErr);
+	}
 
 	const html = `<!DOCTYPE html>
 <html lang="en">

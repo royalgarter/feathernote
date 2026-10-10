@@ -209,51 +209,20 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		this.$watch('liveSyncEnabled', (value) => { localStorage.setItem('feathernote-live-sync', value); });
 
-		this.$nextTick(() => {
-			this.processSharedContent();
-		});
+		// --- Lightning-fast init: show cached UI immediately, load everything else in parallel ---
 
+		// Version fetch (fire and forget, doesn't block UI)
 		fetch('/api/version').then(res => res.json()).then(data => {
 			this.appVersion = data.version;
 		});
 
-		// Notifications Init
+		// Notifications Init (synchronous, fast)
 		this.initNotifications();
 
-		// Register Service Worker
-		if ('serviceWorker' in navigator) {
-			navigator.serviceWorker.register('/serviceworker.js')
-				.then(async registration => {
-					console.log('Service Worker registered with scope:', registration.scope);
-					
-					// Periodic Sync registration
-					if ('periodicSync' in registration) {
-						try {
-							// Request permission (usually granted if app is installed and has engagement)
-							const status = await navigator.permissions.query({
-								name: 'periodic-background-sync',
-							});
-							if (status.state === 'granted') {
-								await registration.periodicSync.register('sync-notes', {
-									minInterval: 12 * 60 * 60 * 1000, // 12 hours
-								});
-								console.log('Periodic Sync registered');
-							}
-						} catch (e) {
-							console.log('Periodic Sync could not be registered:', e);
-						}
-					}
-				})
-				.catch(error => {
-					console.error('Service Worker registration failed:', error);
-				});
-		}
-
-		// Biometric Lock Init
+		// Biometric Lock Init (synchronous reads)
 		this.biometricEnabled = localStorage.getItem('feathernote-biometric-enabled') === 'true';
 		if (this.biometricEnabled) {
 			this.isLocked = true;
-			// Automatically try to unlock if visibility is already true
 			if (document.visibilityState === 'visible') {
 				this.unlockApp();
 			}
@@ -268,73 +237,89 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 		});
 
-		// Auth Init
+		// Auth Init (synchronous read)
 		const storedUser = localStorage.getItem('feathernote-user');
 		if (storedUser) {
 			this.user = JSON.parse(storedUser);
 		}
 
-		// Only append GSI script if it's not already in the DOM
-		if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
-			const script = document.createElement('script');
-			script.src = 'https://accounts.google.com/gsi/client';
-			script.async = true;
-			script.defer = true;
-			script.onload = () => {
-				this.isGsiLoaded = true;
-				if (typeof gisLoaded === 'function') {
-					gisLoaded();
-				}
-			};
-			document.body.appendChild(script);
-		}
-
-		// Load GAPI script
-		if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
-			const script = document.createElement('script');
-			script.src = 'https://apis.google.com/js/api.js';
-			script.async = true;
-			script.defer = true;
-			script.onload = () => {
-				if (typeof gapiLoaded === 'function') {
-					gapiLoaded();
-				}
-			};
-			document.body.appendChild(script);
-		}
-
-		// Note Manager Init
+		// Note Manager Init (synchronous)
 		const lastSync = localStorage.getItem('feathernote-lastSync');
-		if (lastSync) {
-			this.lastSync = lastSync;
-		}
+		if (lastSync) this.lastSync = lastSync;
 
 		const deletedNoteIds = localStorage.getItem('feathernote-deleted-note-ids');
 		if (deletedNoteIds) {
-			try {
-				this.deletedNoteIds = JSON.parse(deletedNoteIds);
-			} catch (e) {
-				this.deletedNoteIds = [];
-			}
+			try { this.deletedNoteIds = JSON.parse(deletedNoteIds); } catch (e) { this.deletedNoteIds = []; }
 		}
 
+		// MiniSearch init (synchronous, cheap)
 		this.miniSearch = window.MiniSearch ? new MiniSearch({
-			fields: ['title', 'content', 'tags'], // Fields to search!
-			storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags'] // Fields to return
+			fields: ['title', 'content', 'tags'],
+			storeFields: ['id', 'title', 'content', 'createdAt', 'updatedAt', 'reminder', 'tags']
 		}) : null;
 
-		this.loadNotesFromCacheAndFetch();
-		this.loadSettingsFromStorage().then(() => {
-			// Initialize IPFS index file if Direct IPFS is enabled
-			if (this.useDirectIpfs && typeof window.ensureIndexFile === 'function') {
-				window.ensureIndexFile().catch(err => console.error('IPFS index initialization failed:', err));
-			}
+		// Process shared content from URL params FIRST (before any async work) — fastest path
+		this.processSharedContent();
 
-			// S3-first fast open-app sync: top N latest notes as soon as settings are ready.
+		// Register Service Worker (async, non-blocking)
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/serviceworker.js')
+				.then(async registration => {
+					console.log('Service Worker registered with scope:', registration.scope);
+					if ('periodicSync' in registration) {
+						try {
+							const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+							if (status.state === 'granted') {
+								await registration.periodicSync.register('sync-notes', { minInterval: 12 * 60 * 60 * 1000 });
+								console.log('Periodic Sync registered');
+							}
+						} catch (e) {
+							console.log('Periodic Sync could not be registered:', e);
+						}
+					}
+				})
+				.catch(error => console.error('Service Worker registration failed:', error));
+		}
+
+		// Google scripts (deferred, non-blocking — injected in parallel with data loading)
+		if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+			const gsi = document.createElement('script');
+			gsi.src = 'https://accounts.google.com/gsi/client';
+			gsi.async = true;
+			gsi.defer = true;
+			gsi.onload = () => { this.isGsiLoaded = true; if (typeof gisLoaded === 'function') gisLoaded(); };
+			document.body.appendChild(gsi);
+		}
+		if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
+			const gapi = document.createElement('script');
+			gapi.src = 'https://apis.google.com/js/api.js';
+			gapi.async = true;
+			gapi.defer = true;
+			gapi.onload = () => { if (typeof gapiLoaded === 'function') gapiLoaded(); };
+			document.body.appendChild(gapi);
+		}
+
+		// --- Parallel data loading: cache + settings + notes all in parallel ---
+		const loadPromises = [];
+
+		// 1. Load notes cache immediately (sync from localStorage, fast)
+		loadPromises.push(this.loadNotesFromCacheAndFetch());
+
+		// 2. Load settings in parallel
+		loadPromises.push(this.loadSettingsFromStorage().then(() => {
+			if (this.useDirectIpfs && typeof window.ensureIndexFile === 'function') {
+				window.ensureIndexFile().catch(err => console.error('IPFS index init failed:', err));
+			}
 			if (typeof this.runFastS3StartupSync === 'function') {
 				this.runFastS3StartupSync();
 			}
-		})
+		}));
+
+		// 3. Listen for SW share notifications (so PWA shares update the UI live)
+		this.listenForShareNotifications();
+
+		// Wait for both to start, but don't block the UI on completion
+		Promise.all(loadPromises).catch(err => console.warn('Parallel init error:', err));
 
 		// Kick off the first full sync as soon as the browser is idle (faster than fixed 3s delay),
 		// with a fallback so it can't be starved. Guarded so the periodic interval doesn't double-fire.
@@ -1053,22 +1038,27 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async loadNotesFromCacheAndFetch() {
-		// this.loading = true;
+		// Show cached notes immediately for instant UI — don't wait for DB
 		try {
 			const cachedNotes = localStorage.getItem('feathernote-notes-cache');
 			if (cachedNotes) {
-				this.notes = YAML.parse(cachedNotes);
-				// this.miniSearch?.removeAll();
-				// this.miniSearch?.addAll(this.notes);
-				// this.loading = false; // Stop loading indicator early
+				const parsed = YAML.parse(cachedNotes);
+				if (Array.isArray(parsed) && parsed.length > 0) {
+					this.notes = parsed;
+					// Re-index cache notes into MiniSearch immediately so search works
+					if (this.miniSearch) {
+						this.miniSearch.removeAll();
+						this.miniSearch.addAll(parsed);
+						this._indexedNoteSig = new Map(parsed.map(n => [n.id, (n.title||'')+(n.content||'')]));
+					}
+				}
 			}
 		} catch (error) {
 			console.error('Error loading notes from cache:', error);
-			// If cache is corrupt, clear it
 			localStorage.removeItem('feathernote-notes-cache');
 		}
 
-		// Fetch latest notes from DB regardless of cache
+		// Fetch latest from DB in background — UI already showing cached data
 		await this.fetchNotes();
 	},
 
@@ -1128,18 +1118,23 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.loading = true;
 		try {
 			const notesFromDB = await getNotesDB();
-			this.notes = notesFromDB.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
-			this.updateAppBadge();
+			const sorted = notesFromDB.sort((a, b) => (b.priority || 0) - (a.priority || 0) || new Date(b.updatedAt) - new Date(a.updatedAt));
 
-			const uniqueNotes = Array.from(new Map(this.notes.map(note => [note.id, note])).values());
-			if (uniqueNotes.length < this.notes.length) {
-				console.warn('Duplicate note IDs found in database. De-duplicating for search index and in-memory array.');
-				this.notes = uniqueNotes;
+			// Deduplicate
+			const seen = new Set();
+			const uniqueNotes = [];
+			for (const note of sorted) {
+				if (!seen.has(note.id)) {
+					seen.add(note.id);
+					uniqueNotes.push(note);
+				}
 			}
 
-			// Defer indexing to avoid blocking the main thread
-			setTimeout(() => {
-				if (!this.miniSearch) return;
+			this.notes = uniqueNotes;
+			this.updateAppBadge();
+
+			// Rebuild MiniSearch index efficiently — only add/update notes that changed
+			if (this.miniSearch) {
 				this._indexedNoteSig = this._indexedNoteSig || new Map();
 				const currentIds = new Set();
 				for (const note of this.notes) {
@@ -1156,7 +1151,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						this._indexedNoteSig.delete(id);
 					}
 				}
-			}, 100);
+			}
 
 			this.updateNotesCache();
 		} catch (error) {
@@ -1164,7 +1159,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.showToast({ variant: 'error', title: 'Error', description: 'Could not load notes.' });
 		} finally {
 			this.loading = false;
-			this.scheduleAllFutureReminders();
+			// Defer reminder scheduling to avoid blocking the fetch completion
+			setTimeout(() => this.scheduleAllFutureReminders(), 0);
 		}
 	},
 
@@ -1872,6 +1868,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			} catch (error) {
 				console.error('Failed to process shared content', error);
 				this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
+			}
+		});
+	}
+
+	/** When the service worker handles a PWA share, it saves to the Shared Inbox in IndexedDB
+	 * and then posts a SHARE_RECEIVED message to all open clients. Listen for it so the app
+	 * refreshes the Shared Inbox note immediately without requiring a manual reload.
+	 */
+	listenForShareNotifications() {
+		if (!('serviceWorker' in navigator)) return;
+		navigator.serviceWorker.addEventListener('message', async (event) => {
+			if (event.data && event.data.action === 'SHARE_RECEIVED') {
+				console.log('App: Share received from SW, refreshing Shared Inbox...');
+				await this.fetchNotes();
+				this.showToast({ title: 'Shared Content Imported', description: 'Item added to Shared Inbox.' });
 			}
 		});
 	},
