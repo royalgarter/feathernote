@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util";
 import { ensureDirs, PATHS } from "./config.ts";
 import { initFromSettingsExport, loadCredentials, saveCredentials } from "./settings.ts";
-import { listLocalNotes, readNote, writeNote, createNote, deleteNote, generateUniqueId } from "./notes.ts";
+import { listLocalNotes, readNote, writeNote, createNote, deleteNote, generateUniqueId, normalizeLocalNotes } from "./notes.ts";
 import { editWithEditor } from "./editor.ts";
 import { syncNotes, listRemoteNotes, type RemoteNoteMeta } from "./s3sync.ts";
 import { Credentials } from "./settings.ts";
@@ -238,6 +238,11 @@ async function cmdSync() {
     return 0;
   }
 
+  const normalized = await normalizeLocalNotes();
+  if (normalized > 0) {
+    console.log(`Normalized ${normalized} local note file(s) to plain text.`);
+  }
+
   const localNotes = await listLocalNotes();
   console.log(`Syncing ${localNotes.length} local notes with S3...`);
 
@@ -251,6 +256,11 @@ async function cmdSync() {
   if (result.error) {
     console.error("Error:", result.error);
     return 1;
+  }
+
+  const after = await normalizeLocalNotes();
+  if (after > 0) {
+    console.log(`Normalized ${after} downloaded note file(s) to plain text.`);
   }
 
   return 0;
@@ -311,7 +321,8 @@ Settings:
 Credentials are stored in ~/.feathernote/credentials.json (decrypted).
 
 Notes are stored as Markdown files in ~/.feathernote/notes/<id>.md
-with YAML frontmatter matching the PWA Git provider format.
+with YAML frontmatter and the note body as plain editable text.
+On S3, note bodies are stored base64-encoded (synced automatically).
 `);
   return 0;
 }

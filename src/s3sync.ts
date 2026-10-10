@@ -1,6 +1,7 @@
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { NoteFile, noteToFile, fileToNote, generateUniqueId } from "./notes.ts";
+import { NoteFile, noteToFile, noteToS3File, fileToNote, generateUniqueId } from "./notes.ts";
 import { Credentials } from "./settings.ts";
+import { PATHS } from "./config.ts";
 
 export interface RemoteNoteMeta {
   id: string;
@@ -18,7 +19,7 @@ export interface SyncResult {
 
 function getS3Client(creds: Credentials): S3Client {
   return new S3Client({
-    region: creds.s3Region || "us-east-1",
+    region: creds.s3Region || (creds.s3Endpoint ? "auto" : "us-east-1"),
     endpoint: creds.s3Endpoint || undefined,
     credentials: creds.accessKeyId && creds.secretAccessKey
       ? { accessKeyId: creds.accessKeyId, secretAccessKey: creds.secretAccessKey }
@@ -28,8 +29,8 @@ function getS3Client(creds: Credentials): S3Client {
 }
 
 function getNoteKey(noteId: string, creds: Credentials): string {
-  const path = creds.s3Subfolder ? `${creds.s3Subfolder.replace(/\/$/, "")}/` : "";
-  return `${path}${noteId}.json`;
+  const sub = creds.s3Subfolder ? `${creds.s3Subfolder.replace(/\/$/, "")}/` : "";
+  return `${sub}${noteId}.json`;
 }
 
 export async function listRemoteNotes(creds: Credentials): Promise<RemoteNoteMeta[]> {
@@ -78,7 +79,8 @@ export async function downloadNote(meta: RemoteNoteMeta, creds: Credentials): Pr
   if (!creds.accessKeyId || !creds.secretAccessKey || !creds.s3Bucket) return null;
 
   const client = getS3Client(creds);
-  const key = getNoteKey(meta.id, creds);
+  const prefix = creds.s3Subfolder ? `${creds.s3Subfolder.replace(/\/$/, "")}/` : "";
+  const key = `${prefix}${meta.path}.json`;
 
   try {
     const cmd = new GetObjectCommand({ Bucket: creds.s3Bucket, Key: key });
@@ -97,12 +99,21 @@ export async function downloadNote(meta: RemoteNoteMeta, creds: Credentials): Pr
   }
 }
 
+function getPwaNoteKey(note: NoteFile, creds: Credentials): string {
+  const d = new Date(note.createdAt || note.updatedAt || Date.now());
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const sub = creds.s3Subfolder ? `${creds.s3Subfolder.replace(/\/$/, "")}/` : "";
+  return `${sub}${y}/${m}/${day}/${note.id}.json`;
+}
+
 export async function uploadNote(note: NoteFile, creds: Credentials): Promise<boolean> {
   if (!creds.accessKeyId || !creds.secretAccessKey || !creds.s3Bucket) return false;
 
   const client = getS3Client(creds);
-  const key = getNoteKey(note.id, creds);
-  const body = noteToFile(note);
+  const key = getPwaNoteKey(note, creds);
+  const body = noteToS3File(note);
 
   try {
     const cmd = new PutObjectCommand({
@@ -123,7 +134,8 @@ export async function deleteNoteFromS3(noteId: string, creds: Credentials): Prom
   if (!creds.accessKeyId || !creds.secretAccessKey || !creds.s3Bucket) return false;
 
   const client = getS3Client(creds);
-  const key = getNoteKey(noteId, creds);
+  const sub = creds.s3Subfolder ? `${creds.s3Subfolder.replace(/\/$/, "")}/` : "";
+  const key = `${sub}${noteId}.json`;
 
   try {
     const cmd = new DeleteObjectCommand({ Bucket: creds.s3Bucket, Key: key });
@@ -179,27 +191,28 @@ export async function syncNotes(
     }
   }
 
-  // 3. Determine downloads (remote newer than local)
+  // 3. Determine downloads (remote newer than local) — batched parallel
   const localMap = new Map(localNotes.map((n) => [n.id, n]));
-  for (const remote of remoteMetas) {
+  const toDownload = remoteMetas.filter((remote) => {
     const local = localMap.get(remote.id);
-    if (!local) {
-      // New on remote, download it
-      const note = await downloadNote(remote, creds);
-      if (note) {
-        const saved = await saveRemoteNote(note);
-        if (saved) result.downloaded.push(note.id);
-      }
-    } else {
-      const remoteDate = new Date(remote.updatedAt);
-      const localDate = new Date(local.updatedAt);
-      if (remoteDate > localDate) {
+    if (!local) return true;
+    return new Date(remote.updatedAt) > new Date(local.updatedAt);
+  });
+
+  const BATCH = 10;
+  for (let i = 0; i < toDownload.length; i += BATCH) {
+    const batch = toDownload.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async (remote) => {
         const note = await downloadNote(remote, creds);
         if (note) {
           const saved = await saveRemoteNote(note);
           if (saved) result.downloaded.push(note.id);
         }
-      }
+      }),
+    );
+    for (const r of results) {
+      if (r.status === "rejected") console.error("Download failed:", r.reason);
     }
   }
 
@@ -221,7 +234,7 @@ export async function syncNotes(
 async function saveRemoteNote(note: NoteFile): Promise<boolean> {
   try {
     await Deno.writeTextFile(
-      `${Deno.env.get("HOME") || "."}/.feathernote/notes/${note.id}.md`,
+      `${PATHS.notes}/${note.id}.md`,
       noteToFile(note),
     );
     return true;
