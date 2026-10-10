@@ -76,7 +76,7 @@ const getAppVersion = async () => {
 };
 
 const app = express();
-const port = process.env.PORT || 7347;
+const port = process.env.PORT || process.env.DENO_DEPLOY_PORT || 8000;
 const upload = multer();
 const DENO_KV_SIZE_LIMIT = 65536;
 
