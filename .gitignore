@@ -48,3 +48,4 @@ firestore-debug.log
 src/published_notes/*.json
 /deno.lock
 /test-backspace-fix.html
+/settings.json
