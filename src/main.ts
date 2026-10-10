@@ -1,4 +1,4 @@
-import { parseArgs } from "jsr:@std/cli@^1.0.0/parse-args";
+import { parseArgs } from "node:util";
 import { ensureDirs, PATHS } from "./config.ts";
 import { initFromSettingsExport, loadCredentials, saveCredentials } from "./settings.ts";
 import { listLocalNotes, readNote, writeNote, createNote, deleteNote, generateUniqueId } from "./notes.ts";
@@ -6,26 +6,61 @@ import { editWithEditor } from "./editor.ts";
 import { syncNotes, listRemoteNotes, type RemoteNoteMeta } from "./s3sync.ts";
 import { Credentials } from "./settings.ts";
 
+const USER_ID_GUIDE = `
+That didn't unlock — no worries, this just means your settings were
+saved while you were signed in with Google, so I need your User ID
+to unlock them (it's just a long number, not your password).
+
+To find it (takes about 20 seconds):
+  1. On the device where FeatherNote already works, open FeatherNote
+     in your browser and check you're signed in — you should see
+     your profile picture at the top.
+  2. Click the gear (Settings) at the top, then click "Export".
+  3. You'll see a box labelled "Your User ID (needed for the CLI)".
+     Click Copy next to it.
+  4. Come back here and paste it when asked.
+`;
+
 async function cmdInit(args: string[]) {
   ensureDirs();
 
-  // userId is optional: pass as first arg after 'init', or via FEAUTHUSER_ID env
-  const userId = args[0] && !args[0].startsWith("-")
-    ? args[0]
-    : Deno.env.get("FEATHERNOTE_USER_ID") || "anonymous";
+  // userId from --user-id/-u flag, positional arg, or FEATHERNOTE_USER_ID env
+  let flagUserId: string | undefined;
+  let noPrompt = false;
+  const positionals: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if ((args[i] === "--user-id" || args[i] === "-u") && args[i + 1]) {
+      flagUserId = args[++i];
+    } else if (args[i].startsWith("--user-id=")) {
+      flagUserId = args[i].slice("--user-id=".length);
+    } else if (args[i] === "--no-prompt") {
+      noPrompt = true;
+    } else if (!args[i].startsWith("-")) {
+      positionals.push(args[i]);
+    }
+  }
+  let userId = flagUserId
+    || (positionals[0] ? positionals[0] : undefined)
+    || Deno.env.get("FEATHERNOTE_USER_ID")
+    || "anonymous";
 
   // Check for exported settings string via env var or file
   let encryptedString = Deno.env.get("FEATHERNOTE_SETTINGS");
+  let source = "FEATHERNOTE_SETTINGS env var";
   if (!encryptedString) {
     // Check if settings-export.txt / settings.json exists
-    const candidates = [
-      "./settings-export.txt",
-      "./settings.json",
-      `${PATHS.base}/settings-export.txt`,
+    const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "~";
+    const candidates: Array<[string, string]> = [
+      ["./settings-export.txt", "./settings-export.txt"],
+      ["./settings.json", "./settings.json"],
+      [`${PATHS.base}/settings-export.txt`, `${PATHS.base}/settings-export.txt`],
+      [`${PATHS.base}/settings.json`, `${PATHS.base}/settings.json`],
+      [`${home}/settings.json`, "~/settings.json"],
     ];
-    for (const c of candidates) {
+    for (const [path, label] of candidates) {
       try {
-        encryptedString = await Deno.readTextFile(c);
+        encryptedString = await Deno.readTextFile(path);
+        source = label;
         break;
       } catch {}
     }
@@ -33,44 +68,67 @@ async function cmdInit(args: string[]) {
 
   if (!encryptedString) {
     console.log("Usage:");
-    console.log("  FEATHERNOTE_SETTINGS='<encrypted-json>' feathernote init [userId]");
-    console.log("  OR place settings-export.txt / settings.json in current dir");
+    console.log("  FEATHERNOTE_SETTINGS='<encrypted-json>' feathernote init [--user-id <id>]");
+    console.log("  OR place settings-export.txt / settings.json in current dir,");
+    console.log("     ~/.feathernote/, or ~/ and run: feathernote init");
     console.log("");
     console.log("The encrypted string is the exported settings from the PWA");
-    console.log("(copy from Settings > Export in the web app).");
+    console.log("(Settings > Export in the web app).");
     console.log("");
-    console.log("If your PWA uses a Google user ID, pass it as the first arg or set");
-    console.log("FEATHERNOTE_USER_ID so decryption uses the same identity.");
+    console.log("If your PWA uses Google sign-in, also pass your User ID:");
+    console.log("  feathernote init --user-id <id>");
+    console.log("or set FEATHERNOTE_USER_ID. Find it in the PWA under");
+    console.log("Settings > Export > Your User ID.");
     return 1;
   }
 
-  const trimmed = encryptedString.trim();
+  let trimmed = encryptedString.trim();
 
   // Also accept a file path if it looks like a path
-  let source = "FEATHERNOTE_SETTINGS env var";
-  if (trimmed.startsWith("./") || trimmed.startsWith("/")) {
+  if (trimmed.startsWith("./") || trimmed.startsWith("/") || trimmed.startsWith("~")) {
+    const expanded = trimmed.startsWith("~")
+      ? trimmed.replace(/^~(?=\/|$)/, Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "~")
+      : trimmed;
     try {
-      encryptedString = await Deno.readTextFile(trimmed);
-      source = trimmed;
+      trimmed = (await Deno.readTextFile(expanded)).trim();
+      source = trimmed === encryptedString.trim() ? source : expanded;
     } catch {
       console.error(`Cannot read file: ${trimmed}`);
       return 1;
     }
   }
 
-  console.log(`Decrypting settings from ${source} (userId: ${userId})...`);
-  const creds = await initFromSettingsExport(trimmed, userId);
-  if (!creds) {
-    console.error("Failed to decrypt settings. Check userId and encrypted string.");
-    return 1;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Decrypting settings from ${source} (userId: ${userId})...`);
+    const creds = await initFromSettingsExport(trimmed, userId);
+    if (creds) {
+      console.log("Settings decrypted and saved to", PATHS.credentials);
+      console.log(`  S3 Bucket: ${creds.s3Bucket || "none"}`);
+      console.log(`  S3 Region: ${creds.s3Region || "none"}`);
+      console.log(`  Nostr Key: ${creds.nostrPrivateKey ? "set" : "none"}`);
+      console.log(`  Git Repo: ${creds.gitRepoUrl || "none"}`);
+      return 0;
+    }
+
+    if (noPrompt || !Deno.stdin.isTerminal()) {
+      console.error("Failed to decrypt settings: wrong User ID or corrupted export.");
+      console.error("Find your User ID in the PWA under Settings > Export > Your User ID,");
+      console.error("then run: feathernote init --user-id <id>  (or set FEATHERNOTE_USER_ID).");
+      return 1;
+    }
+
+    console.log(USER_ID_GUIDE);
+    const pasted = prompt("Paste your User ID here (or press Enter to quit):")?.trim();
+    if (!pasted) {
+      console.error("Cancelled. Run again with: feathernote init --user-id <id>");
+      return 1;
+    }
+    userId = pasted;
   }
 
-  console.log("Settings decrypted and saved to", PATHS.credentials);
-  console.log(`  S3 Bucket: ${creds.s3Bucket || "none"}`);
-  console.log(`  S3 Region: ${creds.s3Region || "none"}`);
-  console.log(`  Nostr Key: ${creds.nostrPrivateKey ? "set" : "none"}`);
-  console.log(`  Git Repo: ${creds.gitRepoUrl || "none"}`);
-  return 0;
+  console.error("Still can't unlock after 3 tries. Double-check the User ID in");
+  console.error("Settings > Export > Your User ID and try again.");
+  return 1;
 }
 
 async function cmdList() {
@@ -232,7 +290,7 @@ async function cmdHelp() {
 feathernote — Deno CLI for Feather Note
 
 Usage:
-  feathernote init              Decrypt PWA settings export and save credentials
+  feathernote init [--user-id <id>] [--no-prompt]   Decrypt PWA settings export and save credentials
   feathernote list              List all local notes
   feathernote new [title]       Create a new note, open $EDITOR
   feathernote edit <id>         Open existing note in $EDITOR
@@ -241,9 +299,14 @@ Usage:
 
 Settings:
   The PWA exports an encrypted settings string (Settings > Export).
+  If you signed in with Google, also copy the "Your User ID" shown
+  in that same Export dialog — the CLI needs it to unlock the file.
   Pass it via:
-    FEATHERNOTE_SETTINGS='<encrypted-json>' feathernote init
-  Or save it to settings.json and run: feathernote init
+    feathernote init --user-id <id>
+    FEATHERNOTE_USER_ID=<id> feathernote init
+    FEATHERNOTE_SETTINGS='<encrypted-json>' feathernote init --user-id <id>
+  Or save the export to settings.json and run: feathernote init
+  (if decryption fails you'll be guided to paste the User ID).
 
 Credentials are stored in ~/.feathernote/credentials.json (decrypted).
 
@@ -262,11 +325,12 @@ async function main() {
 
   const command = args[0];
 
-  // Simple arg parsing
-  const parsed = parseArgs(args.slice(1), {
-    string: ["title"],
-    boolean: false,
-  }) as { title?: string; [key: string]: unknown };
+  // Simple arg parsing (tolerant: unknown flags passed to subcommands)
+  const parsed = parseArgs({
+    args: args.slice(1),
+    allowPositionals: true,
+    strict: false,
+  }) as { positionals: string[]; values: Record<string, unknown> };
 
   let exitCode = 0;
 

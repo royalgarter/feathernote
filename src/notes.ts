@@ -1,4 +1,4 @@
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { parse as yamlParse, stringify as yamlStringify } from "npm:yaml@2.6.1";
 import { PATHS } from "./config.ts";
 
 export interface NoteFile {

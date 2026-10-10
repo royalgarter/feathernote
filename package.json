@@ -2,10 +2,12 @@
   "name": "feathernote",
   "version": "0.2.0",
   "private": true,
-  "type": "commonjs",
+  "exports": "./src/main.ts",
   "scripts": {
     "start": "node src/server.js",
-    "version": "node src/server.js --version"
+    "version": "node src/server.js --version",
+    "deno:run": "deno run --allow-read --allow-write --allow-env --allow-net --allow-sys --allow-run src/main.ts",
+    "deno:dev": "deno run --allow-read --allow-write --allow-env --allow-net --allow-sys --allow-run --watch src/main.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1148.0",
@@ -16,5 +18,12 @@
     "firebase-admin": "^13.6.0",
     "marked": "13.0.0",
     "multer": "2.0.2"
+  },
+  "imports": {
+    "yaml": "npm:yaml@2.6.1"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window"]
   }
 }

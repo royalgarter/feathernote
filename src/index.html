@@ -464,6 +464,11 @@
 				<div x-show="showExportModal" class="w-full col-span-2 lg:col-span-1 bg-white p-4 border" style="display: none;">
 					<p class="text-sm mb-2">Copy this settings string:</p>
 					<textarea readonly x-model="exportString" class="w-full border p-2 mb-2" rows="5"></textarea>
+					<p class="text-sm mb-1">Your User ID (needed to unlock these settings in the CLI on your computer — it is a long number, not your password):</p>
+					<div class="flex gap-2 mb-2">
+						<input readonly x-model="exportUserId" class="w-full border p-2" />
+						<button @click="copyExportUserIdToClipboard()" class="cursor-pointer border px-4 py-2">Copy</button>
+					</div>
 					<div class="flex justify-end gap-2">
 						<button @click="showExportModal = false" class="cursor-pointer border px-4 py-2">Close</button>
 					</div>

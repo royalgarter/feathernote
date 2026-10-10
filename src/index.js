@@ -1870,7 +1870,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				this.showToast({ variant: 'error', title: 'Error', description: 'Could not import shared content.' });
 			}
 		});
-	}
+	},
 
 	/** When the service worker handles a PWA share, it saves to the Shared Inbox in IndexedDB
 	 * and then posts a SHARE_RECEIVED message to all open clients. Listen for it so the app
@@ -3125,6 +3125,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	isManualSyncing: false,
 	isSavingSettings: false,
 	exportString: '',
+	exportUserId: '',
 	importString: '',
 	showImportModal: false,
 	showExportModal: false,
@@ -3272,6 +3273,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	async handleExport() {
+		this.exportUserId = this.userId || 'anonymous';
 		const storedData = await getEncryptedSettingsDB();
 		const encryptedString = storedData ? storedData.encryptedSettings : null;
 		if (encryptedString) {
@@ -3288,6 +3290,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 		this.showExportModal = true; // Ensure the modal opens
 		setTimeout(_ => document.querySelector('[x-model="exportString"]').scrollIntoView(), 0.5e3);
+	},
+
+	copyExportUserIdToClipboard() {
+		navigator.clipboard.writeText(this.exportUserId);
+		this.showToast({ title: 'Copied!', description: 'User ID copied to clipboard.' });
 	},
 
 	copyExportStringToClipboard() {

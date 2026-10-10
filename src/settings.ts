@@ -1,5 +1,5 @@
 import { PATHS } from "./config.ts";
-import { parse as yamlParse } from "yaml";
+import { parse as yamlParse } from "npm:yaml@2.6.1";
 
 // --- Base64 helpers (Deno-compatible) ---
 function bufferToBase64(buffer: ArrayBuffer): string {
@@ -117,7 +117,6 @@ export async function decryptSettings(
 
     return credentials as Credentials;
   } catch (error) {
-    console.error("Decryption failed:", error);
     return null;
   }
 }

@@ -34,10 +34,24 @@ Reuse the exact `decryptSettings` flow from `src/helpers.js`:
 - Decrypt `content`, parse JSON → credentials object
 - CLI stores decrypted creds locally in `~/.feathernote/credentials.json`
 
+## Finding your User ID (Google sign-in)
+The PWA encrypts settings with your Google User ID (`sub`) as the key.
+`feathernote init` accepts it via `--user-id <id>`, positional arg, or
+`FEATHERNOTE_USER_ID`. If decryption fails, the CLI prints a step-by-step
+guide and prompts for it (up to 3 tries; `--no-prompt` disables prompting
+for scripts). The PWA shows the ID in Settings > Export > Your User ID
+[26-10-10].
+
 ## Dependencies
 - `yaml` npm package for YAML parse/stringify (same as PWA's js-yaml)
 - Deno std lib for FS, path, env
 - AWS SDK v3 (`@aws-sdk/client-s3`) for S3 operations (deno-compatible via npm:)
+
+## Installation
+
+```bash
+deno install --global --allow-read --allow-write --allow-env --allow-net --allow-sys --allow-run src/main.ts
+```
 
 ## Out of scope for v1
 - Nostr, IPFS, GDrive, Git sync (S3 only)

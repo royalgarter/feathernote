@@ -170,6 +170,7 @@ const listLatestS3NoteMetadatas = async (creds, limit = 10) => {
 			console.error('S3 latest list error:', err);
 			throw new Error(`Failed to list latest notes in S3: ${err.code || err.message}`);
 		}
+	} while (continuationToken);
 	return latest;
 };
 
