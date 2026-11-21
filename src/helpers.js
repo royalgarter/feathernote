@@ -590,6 +590,9 @@ function getShareHostTag(url) {
 
 const INBOX_URL_RE = /https?:\/\/[^\s)\]]+/;
 
+/** Inbox item = any list line ("- [ ] x", "* x", "- x") or any line with a link; headings/blank lines are not. */
+const isInboxItemLine = (line) => /^\s*[-*+]\s+\S/.test(line) || (INBOX_URL_RE.test(line) && !/^\s*#/.test(line));
+
 /** Identity of an inbox line: its first URL (ignoring "www." and trailing "/"), else its text without the checkbox. */
 const _inboxItemKey = (line) => {
 	const url = line.match(INBOX_URL_RE)?.[0];
@@ -642,7 +645,26 @@ async function _resolveInboxLine(line) {
 	return hostTag && !rewritten.includes(hostTag.trim()) ? rewritten + hostTag : rewritten;
 }
 
+const IMAGE_URL_RE = /^(data:image\/[\w.+-]+;base64,[\w+/=]+|https?:\/\/\S+\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?)$/i;
+
+/** Image src from non-bitmap clipboard items: <img src> in text/html, or an image URL / data URL in text/plain. */
+async function _findClipboardImageSource(clipboardItems) {
+	for (const item of clipboardItems) {
+		if (item.types.includes('text/html')) {
+			const html = await (await item.getType('text/html')).text();
+			const src = new DOMParser().parseFromString(html, 'text/html').querySelector('img[src]')?.getAttribute('src');
+			if (src && /^(data:image\/|https?:\/\/)/i.test(src)) return src;
+		}
+		if (item.types.includes('text/plain')) {
+			const text = (await (await item.getType('text/plain')).text()).trim();
+			if (IMAGE_URL_RE.test(text)) return text;
+		}
+	}
+	return '';
+}
+
 _GLOBAL.resolveShareUrl = resolveShareUrl;
+_GLOBAL.isInboxItemLine = isInboxItemLine;
 _GLOBAL.dedupeInboxLines = dedupeInboxLines;
 _GLOBAL.prependInboxLine = prependInboxLine;
 _GLOBAL.getRootHostname = getRootHostname;

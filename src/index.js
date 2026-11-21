@@ -2451,11 +2451,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const cm = window.easyMDEInstance?.codemirror;
 		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
 
-		const taskLines = cm.getValue().split('\n').filter(line => CHECKBOX_PREFIX_RE.test(line));
-		if (!taskLines.length) {
-			this.showToast({ title: 'Nothing to Split', description: 'The Shared Inbox has no task lines.' });
-			return;
-		}
+		const taskLines = cm.getValue().split('\n').filter(isInboxItemLine);
+		// Always open the dialog (it explains an empty inbox): toasts only flash in the status line.
 		// Ask which lines to split: all tasks, or only the unchecked ones (see the Split Inbox modal in index.html).
 		const uncheckedCount = taskLines.filter(line => !_isCheckedLine(line)).length;
 		window.dispatchEvent(new CustomEvent('open-split-modal', { detail: { allCount: taskLines.length, uncheckedCount } }));
@@ -2467,7 +2464,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
 
 		const lines = cm.getValue().split('\n');
-		const isSplitLine = (line) => CHECKBOX_PREFIX_RE.test(line) && !(onlyUnchecked && _isCheckedLine(line));
+		const isSplitLine = (line) => isInboxItemLine(line) && !(onlyUnchecked && _isCheckedLine(line));
 		const selectedLines = lines.filter(isSplitLine);
 		const taskLines = dedupeInboxLines(selectedLines);
 		if (!taskLines.length) {
@@ -2480,7 +2477,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		for (const line of resolvedLines) {
 			const inlineTags = [...line.matchAll(/(?:^|\s)#([\w.-]+)/g)].map(match => match[1].toLowerCase());
-			const body = line.replace(CHECKBOX_PREFIX_RE, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
+			const body = line.replace(CHECKBOX_PREFIX_RE, '').replace(/^\s*[-*+]\s+/, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
 			const title = (body.match(/^\[([^\]]+)\]\(/)?.[1] || body).substring(0, 100) || 'Shared item';
 			await this.addNote(title, line.trim(), null, [...new Set(['shared', ...inlineTags])]);
 		}
@@ -2511,7 +2508,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				this.insertImageBlob(cm, await item.getType(imageType));
 				return;
 			}
-			this.showToast({ variant: 'error', title: 'No Image', description: 'The clipboard does not contain an image.' });
+
+			// Android often puts an image as HTML (<img src>) or a URL instead of bitmap data (e.g. "Copy image" in Chrome).
+			const imageSource = await _findClipboardImageSource(items);
+			if (imageSource?.startsWith('data:image/')) {
+				this.insertImageBlob(cm, await (await fetch(imageSource)).blob());
+				return;
+			}
+			if (imageSource) {
+				cm.replaceSelection(`\n![Image](${imageSource})\n`);
+				return;
+			}
+
+			// Screenshots copied from the Android gallery/screenshot tool are usually not readable by web pages.
+			const foundTypes = [...new Set(items.flatMap(item => item.types))].join(', ') || 'nothing';
+			console.warn('Clipboard has no image, types:', foundTypes);
+			if (confirm(`The clipboard has no image Chrome can read (found: ${foundTypes}).\n\nPick an image file instead?`)) {
+				this.handleInsertImageFromFile(cm);
+			}
 		} catch (err) {
 			console.error("Clipboard read failed", err);
 			this.showToast({ variant: 'error', title: 'Paste Failed', description: 'Clipboard access was denied or unavailable.' });

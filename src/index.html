@@ -258,20 +258,23 @@
 		<!-- Split Shared Inbox Modal -->
 		<div x-data="{ showModal: false, allCount: 0, uncheckedCount: 0 }"
 			 @open-split-modal.window="showModal = true; allCount = $event.detail.allCount; uncheckedCount = $event.detail.uncheckedCount"
+			 @click.self="showModal = false"
 			 x-show="showModal"
 			 class="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
 			 style="display: none;"
 		>
-			<div class="bg-white p-6 border max-w-sm mx-auto"
-				 @click.away="showModal = false"
-			>
+			<!-- Close on backdrop click only: @click.away would close it during the same toolbar click that opens it. -->
+			<div class="bg-white p-6 border max-w-sm mx-auto">
 				<h3 class="text-lg font-bold mb-4">Split Shared Inbox</h3>
-				<p class="text-sm mb-6">
+				<p class="text-sm mb-6" x-show="allCount">
 					Move each line into its own note. Links are resolved and duplicates skipped.
+				</p>
+				<p class="text-sm mb-6" x-show="!allCount">
+					Nothing to split: the Shared Inbox has no list or link lines.
 				</p>
 				<div class="flex flex-wrap justify-end gap-4">
 					<button @click="showModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
-					<button @click="showModal = false; splitSharedInbox(false);" class="cursor-pointer border px-4 py-2" x-text="'All (' + allCount + ')'"></button>
+					<button @click="showModal = false; splitSharedInbox(false);" :disabled="!allCount" class="cursor-pointer border px-4 py-2 disabled:opacity-50" x-text="'All (' + allCount + ')'"></button>
 					<button @click="showModal = false; splitSharedInbox(true);" :disabled="!uncheckedCount" class="cursor-pointer border px-4 py-2 font-bold disabled:opacity-50" x-text="'Unchecked only (' + uncheckedCount + ')'"></button>
 				</div>
 			</div>
