@@ -2065,6 +2065,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				syncSideBySidePreviewScroll: false,
 				previewImagesInEditor: true, // Disable live preview in editor to test compatibility with Service Worker
 				uploadImage: false,
+				// Chrome Android only lets keyboards (Gboard) insert images into contenteditable, not textarea.
+				inputStyle: "contenteditable",
 				toolbar: [
 					{
 						name: "Save",
@@ -2106,6 +2108,21 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 					"bold", "italic", "heading",
 					"quote", "unordered-list", "ordered-list", "|",
 					"link", "image",
+					{
+						name: "paste-image",
+						action: function(editor){
+							Alpine.$data(document.querySelector('body'))?.handlePasteImageFromClipboard(editor.codemirror);
+						},
+						className: "fa fa-clipboard",
+						title: "Paste image from clipboard",
+					},{
+						name: "upload-image",
+						action: function(editor){
+							Alpine.$data(document.querySelector('body'))?.handleInsertImageFromFile(editor.codemirror);
+						},
+						className: "fa fa-picture-o",
+						title: "Insert image from file",
+					},
 					{
 						name: "image",
 						action: async function(editor) {
@@ -2306,35 +2323,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				// Handle images first
 				if (imageItem) {
 					event.preventDefault();
-					const blob = imageItem.getAsFile();
-					if (!blob) return;
-
-					const reader = new FileReader();
-					reader.onload = (e) => {
-						const dataUrl = e.target.result;
-						const imageId = generateUniqueId('img');
-
-						// 1. Insert placeholder with dataURL for immediate feedback
-						const markdown = `\n![Image](${dataUrl})\n`;
-						cm.replaceSelection(markdown);
-
-						// 2. Background: Save to DB and then swap dataURL for local path
-						const imageRecord = { id: imageId, blob: blob, synced: false };
-						addImageDB(imageRecord).then(() => {
-							const cursor = cm.getCursor();
-							const content = cm.getValue();
-							if (content.includes(dataUrl)) {
-								const newContent = content.replace(dataUrl, `/images/${imageId}`);
-								cm.setValue(newContent);
-								cm.setCursor(cursor);
-							}
-							this.saveNote(true);
-						}).catch(err => {
-							console.error("Failed to save image to IndexedDB", err);
-							this.showToast({ variant: 'error', title: 'Image Save Failed', description: 'Could not save the pasted image locally.' });
-						});
-					};
-					reader.readAsDataURL(blob);
+					this.insertImageBlob(cm, imageItem.getAsFile());
 					return;
 				}
 
@@ -2414,6 +2403,65 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			this.noteEditorVisible = true;
 			this.showToast({ variant: 'error', title: 'Error', description: 'EasyMDE is not supported' });
 		}
+	},
+
+	// Insert an image blob into the editor: dataURL placeholder first, then swap to /images/<id> once stored.
+	insertImageBlob(cm, blob) {
+		if (!cm || !blob) return;
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const dataUrl = e.target.result;
+			const imageId = generateUniqueId('img');
+
+			// 1. Insert placeholder with dataURL for immediate feedback
+			cm.replaceSelection(`\n![Image](${dataUrl})\n`);
+
+			// 2. Background: Save to DB and then swap dataURL for local path
+			addImageDB({ id: imageId, blob, synced: false }).then(() => {
+				const cursor = cm.getCursor();
+				const content = cm.getValue();
+				if (content.includes(dataUrl)) {
+					cm.setValue(content.replace(dataUrl, `/images/${imageId}`));
+					cm.setCursor(cursor);
+				}
+				this.saveNote(true);
+			}).catch(err => {
+				console.error("Failed to save image to IndexedDB", err);
+				this.showToast({ variant: 'error', title: 'Image Save Failed', description: 'Could not save the pasted image locally.' });
+			});
+		};
+		reader.readAsDataURL(blob);
+	},
+
+	// Toolbar "Paste image": read clipboard directly, bypassing the keyboard (Gboard "image pasting not supported").
+	async handlePasteImageFromClipboard(cm) {
+		if (!navigator.clipboard?.read) {
+			this.showToast({ variant: 'error', title: 'Paste Not Supported', description: 'This browser cannot read images from the clipboard. Use "Insert image from file" instead.' });
+			return;
+		}
+		try {
+			const items = await navigator.clipboard.read();
+			for (const item of items) {
+				const imageType = item.types.find(type => type.startsWith('image/'));
+				if (!imageType) continue;
+				this.insertImageBlob(cm, await item.getType(imageType));
+				return;
+			}
+			this.showToast({ variant: 'error', title: 'No Image', description: 'The clipboard does not contain an image.' });
+		} catch (err) {
+			console.error("Clipboard read failed", err);
+			this.showToast({ variant: 'error', title: 'Paste Failed', description: 'Clipboard access was denied or unavailable.' });
+		}
+	},
+
+	// Toolbar "Insert image from file": gallery/file picker fallback that works everywhere.
+	handleInsertImageFromFile(cm) {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = 'image/*';
+		input.onchange = () => this.insertImageBlob(cm, input.files?.[0]);
+		input.click();
 	},
 
 	async extractArticle(url) {
