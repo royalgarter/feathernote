@@ -78,15 +78,35 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	scheduledNotifications: {},
 
 	get filteredNotes() {
-		if (!this.searchTag.trim()) {
+		return this._pinSharedInbox(this._searchNotes());
+	},
+
+	// Shared Inbox collects every share, so keep it first in the list.
+	_pinSharedInbox(notes) {
+		const inboxIndex = notes.findIndex(isSharedInboxNote);
+		if (inboxIndex <= 0) return notes;
+		return [notes[inboxIndex], ...notes.slice(0, inboxIndex), ...notes.slice(inboxIndex + 1)];
+	},
+
+	_searchNotes() {
+		const query = this.searchTag.trim();
+		if (!query) {
 			return this.notes;
+		}
+		// "#tag" (one or more) is an exact tag filter; anything else is a fuzzy full-text search.
+		if (TAG_QUERY_RE.test(query)) {
+			const wantedTags = query.split(/\s+/).map(tag => tag.slice(1).toLowerCase());
+			return this.notes.filter(note => {
+				const noteTags = (note.tags || []).map(tag => String(tag).trim().toLowerCase());
+				return wantedTags.every(tag => noteTags.includes(tag));
+			});
 		}
 		// Use minisearch for filtering
 		const searchResults = this.miniSearch ? this.miniSearch.search(this.searchTag, {
 			prefix: true, // Search for prefixes
 			fuzzy: 0.2, // Allow some fuzziness
 			combineWith: 'AND' // All terms must match
-		}) : this.notes.filter(x => x.tags.includes(this.searchTag) || x.title.includes(this.searchTag));
+		}) : this.notes.filter(x => x.tags.includes(query) || x.title.includes(query));
 		// minisearch returns an array of objects with 'id' and other stored fields.
 		// We need to return the original note objects, so map them back.
 		const resultIds = new Set(searchResults.map(result => result.id));
@@ -2864,14 +2884,14 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 							return;
 						}
 
-						const wrappedHtml = `<h1 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb;">${this.noteEditorTitle}</h1><div>${shareHtml}</div>`;
+						const wrappedHtml = `<h1 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb;">${escapeHtml(this.noteEditorTitle)}</h1><div>${shareHtml}</div>`;
 						const encryptedPayload = await _GLOBAL.encrypt(wrappedHtml, sharePassword);
 
 						try {
 							const template = await fetch('/self-decrypting.html').then(r => r.text());
 							shareHtml = template
-								.replace('{{TITLE}}', this.noteEditorTitle)
-								.replace('{{ENCRYPTED_PAYLOAD}}', encryptedPayload);
+								.replaceAll('{{TITLE}}', () => escapeHtml(this.noteEditorTitle))
+								.replace('{{ENCRYPTED_PAYLOAD}}', () => encryptedPayload);
 						} catch (e) {
 							console.error('Failed to load self-decrypting template:', e);
 							this.showToast({ variant: 'error', title: 'Error', description: 'Could not load the encryption template.' });

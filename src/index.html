@@ -203,7 +203,7 @@
 						<div class="mt-4 pt-2 border-t flex flex-col gap-2">
 							<div class="flex flex-wrap gap-1">
 								<template x-for="tag in note.tags.filter(x=>x)" :key="tag">
-									<span @click.stop="searchTag=tag;" class="text-xs hover:underline" x-text="'#'+tag"></span>
+									<span @click.stop="searchTag='#'+tag;" class="text-xs hover:underline" x-text="'#'+tag"></span>
 								</template>
 							</div>
 							<div class="flex justify-between items-center">

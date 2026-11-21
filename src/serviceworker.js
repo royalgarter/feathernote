@@ -384,6 +384,9 @@ async function handlePeriodicSync() {
 async function handleShareTarget(request, url) {
 	let noteIdToRedirect = '';
 	let summaryItem = '';
+	let saveError = null;
+	let isImageShare = false;
+	let fallbackText = ''; // raw shared payload, offered for copying when saving fails
 	try {
 		const data = request.method === 'POST' ? await request.formData() : url.searchParams;
 		const TITLE_SHARED = 'Shared Inbox';
@@ -394,6 +397,8 @@ async function handleShareTarget(request, url) {
 		let imageFile = data.get('image');
 
 		title = title.replace(/\n/g, ' ');
+		fallbackText = [title, sharedUrl, text].filter(Boolean).join('\n');
+		isImageShare = imageFile instanceof File;
 
 		let imageReference = '';
 		if (imageFile instanceof File) {
@@ -496,16 +501,20 @@ async function handleShareTarget(request, url) {
 		}
 	} catch (criticalError) {
 		console.error('A critical error occurred in the /share handler:', criticalError);
+		saveError = criticalError;
 	}
 
 	const openUrl = '/' + (noteIdToRedirect ? `?preview=true#edit_note-${noteIdToRedirect}` : '');
-	const safeSummary = summaryItem.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	const escapeShareHtml = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	const safeSummary = escapeShareHtml(summaryItem);
+	const safeFallback = escapeShareHtml(fallbackText);
+	const heading = saveError ? 'Couldn’t save this share' : (isImageShare ? 'Saved as a new note' : 'Saved to Shared Inbox');
 
 	// Notify any already-open app windows that a share was received — they should refresh their
 	// Shared Inbox note so the newly appended item appears immediately without a reload.
 	try {
 		const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-		for (const client of clients) {
+		for (const client of saveError ? [] : clients) {
 			client.postMessage({ action: 'SHARE_RECEIVED', noteId: noteIdToRedirect, summary: summaryItem });
 		}
 	} catch (notifyErr) {
@@ -601,15 +610,36 @@ async function handleShareTarget(request, url) {
 		.btn-secondary:hover {
 			background-color: #e2e8f0;
 		}
+		.icon.is-error {
+			background-color: #fee2e2;
+			color: #b91c1c;
+		}
+		.fallback {
+			text-align: left;
+			font-size: 0.8125rem;
+			color: #334155;
+			background-color: #f8fafc;
+			border: 1px solid #e2e8f0;
+			border-radius: 8px;
+			padding: 10px 12px;
+			margin: 0 0 16px 0;
+			max-height: 8rem;
+			overflow: auto;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
 	</style>
 </head>
 <body>
 	<div class="card">
-		<div class="icon">✓</div>
-		<h2>Saved to Shared Inbox</h2>
-		<p class="preview">${safeSummary || 'Item appended successfully'}</p>
+		<div class="icon${saveError ? ' is-error' : ''}" aria-hidden="true">${saveError ? '!' : '✓'}</div>
+		<h2 role="${saveError ? 'alert' : 'status'}">${heading}</h2>
+		${saveError ? `<p class="preview">FeatherNote couldn’t write to local storage. Copy the shared content below so it isn’t lost, then try sharing again.</p>
+		<pre class="fallback" id="share-fallback">${safeFallback || '(nothing was received)'}</pre>` : `<p class="preview">${safeSummary || 'Item appended successfully'}</p>`}
 		<div class="actions">
-			<a href="${openUrl}" class="btn btn-primary">Open in FeatherNote</a>
+			${saveError
+				? `<button type="button" class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('share-fallback').textContent).then(() => { this.textContent = 'Copied'; })">Copy shared content</button>`
+				: `<a href="${openUrl}" class="btn btn-primary">Open in FeatherNote</a>`}
 			<button onclick="window.close(); history.back();" class="btn btn-secondary">Close</button>
 		</div>
 	</div>

@@ -5,7 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { TextEncoder } = require('util');
 const multer = require('multer');
-const { marked } = require('marked');
+const { marked, Marked } = require('marked');
 let openKv = null; // lazy-loaded only when Deno KV publish is enabled
 const _getOpenKv = () => {
 	if (!openKv) openKv = require('@deno/kv').openKv;
@@ -81,6 +81,41 @@ const upload = multer();
 const DENO_KV_SIZE_LIMIT = 65536;
 
 
+
+const escapeHtml = (value) => String(value ?? '')
+	.replace(/&/g, '&amp;')
+	.replace(/</g, '&lt;')
+	.replace(/>/g, '&gt;')
+	.replace(/"/g, '&quot;')
+	.replace(/'/g, '&#39;');
+
+const SAFE_URL_SCHEMES = ['http', 'https', 'mailto'];
+
+// Decode entities and strip whitespace/control chars before reading the scheme, as browsers do.
+const isUnsafeUrl = (href) => {
+	const normalized = String(href || '')
+		.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+		.replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+		.replace(/&colon;/gi, ':')
+		.replace(/&[a-z]+;/gi, '') // &Tab;, &NewLine; etc.
+		.replace(/[\s\u0000-\u001f]/g, '');
+	const scheme = normalized.match(/^([a-z][a-z0-9+.-]*):/i);
+	return !!scheme && !SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase());
+};
+
+// Published notes are user-submitted (POST /publish is open), so raw HTML and script URLs are neutralised.
+const safeMarked = new Marked({
+	renderer: {
+		html(token) {
+			return escapeHtml(typeof token === 'string' ? token : token.text);
+		},
+	},
+	walkTokens(token) {
+		if ((token.type === 'link' || token.type === 'image') && isUnsafeUrl(token.href)) {
+			token.href = '#';
+		}
+	},
+});
 
 const generateHtmlPage = (title, bodyContent) => {
 	return `
@@ -348,12 +383,16 @@ app.get('/publish/:noteId', async (req, res) => {
 		}
 
 		if (note.isEncrypted) {
+			// Payload lands inside a JS string literal; only base64 is valid ciphertext.
+			if (!/^[A-Za-z0-9+/=]*$/.test(note.content || '')) {
+				return res.status(400).send('Invalid encrypted payload.');
+			}
 			try {
 				const templatePath = path.join(__dirname, 'self-decrypting.html');
 				const template = fs.readFileSync(templatePath, 'utf8');
 				const selfDecryptingHtml = template
-					.replaceAll('{{TITLE}}', note.title)
-					.replace('{{ENCRYPTED_PAYLOAD}}', note.content);
+					.replaceAll('{{TITLE}}', () => escapeHtml(note.title))
+					.replace('{{ENCRYPTED_PAYLOAD}}', () => note.content);
 				return res.send(selfDecryptingHtml);
 			} catch (e) {
 				console.error('Failed to load self-decrypting template:', e);
@@ -361,8 +400,9 @@ app.get('/publish/:noteId', async (req, res) => {
 			}
 		}
 
-		const htmlContent = marked.parse(note.content);
-		res.send(generateHtmlPage(note.title, `<h1>${note.title}</h1>\n${htmlContent}`));
+		const htmlContent = safeMarked.parse(note.content || '');
+		const safeTitle = escapeHtml(note.title);
+		res.send(generateHtmlPage(safeTitle, `<h1>${safeTitle}</h1>\n${htmlContent}`));
 	} catch (err) {
 		console.error('Failed to retrieve note:', err);
 		res.status(500).send('Failed to retrieve note.');

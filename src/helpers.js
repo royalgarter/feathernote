@@ -503,6 +503,49 @@ async function fetchLatestS3FastSync({ credentials, limit = MAX_FAST_SYNC_NOTES,
 // Expose fast sync from helpers so app layer can call it before the full sync.
 _GLOBAL.fetchLatestS3FastSync = fetchLatestS3FastSync;
 
+const escapeHtml = (value) => String(value ?? '')
+	.replace(/&/g, '&amp;')
+	.replace(/</g, '&lt;')
+	.replace(/>/g, '&gt;')
+	.replace(/"/g, '&quot;')
+	.replace(/'/g, '&#39;');
+
+_GLOBAL.escapeHtml = escapeHtml;
+
+// --- Shared Inbox merge ---
+// The inbox is prepended on every device, so plain last-write-wins drops concurrent shares.
+// See docs/p0-share-fixes.md.
+const SHARED_INBOX_TITLE = 'Shared Inbox';
+const SHARED_INBOX_SYNCED_AT_KEY = 'shared_inbox_synced_at';
+const CHECKBOX_PREFIX_RE = /^(\s*[-*+]\s+)\[( |x|X)\]\s*/;
+
+// Search query made only of #tags, e.g. "#shared" or "#shared #image".
+const TAG_QUERY_RE = /^#[^\s#]+(\s+#[^\s#]+)*$/;
+
+const isSharedInboxNote = (note) => !!note && note.title === SHARED_INBOX_TITLE && !note.isEncrypted;
+
+const _inboxLineKey = (line) => line.replace(CHECKBOX_PREFIX_RE, '$1').trim();
+const _isCheckedLine = (line) => /^\s*[-*+]\s+\[(x|X)\]/.test(line);
+
+/** Line-level union: remote order kept, local-only lines prepended (newest first), checked wins. */
+function mergeSharedInboxContent(localContent, remoteContent) {
+	const remoteLines = (remoteContent || '').split('\n');
+	const localLines = (localContent || '').split('\n');
+	const remoteKeys = new Map(remoteLines.map((line, index) => [_inboxLineKey(line), index]));
+
+	const merged = [...remoteLines];
+	localLines.forEach(line => {
+		const remoteIndex = remoteKeys.get(_inboxLineKey(line));
+		if (remoteIndex !== undefined && _isCheckedLine(line) && !_isCheckedLine(merged[remoteIndex])) {
+			merged[remoteIndex] = line;
+		}
+	});
+	const localOnly = localLines.filter(line => line.trim() && !remoteKeys.has(_inboxLineKey(line)));
+	return [...localOnly, ...merged].join('\n').replace(/\n+$/, '');
+}
+
+_GLOBAL.mergeSharedInboxContent = mergeSharedInboxContent;
+
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials, onProgress}) {
 	try {
 		// Initialize Git if configured
@@ -537,11 +580,20 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 		// --- Step 2: Determine which notes to upload ---
 		const isPartialSync = Array.isArray(notes);
 		const localNotes = notes || await getNotesDB();
+
+		// Shared Inbox: if the remote changed since our last merge, merge it in instead of overwriting it.
+		const inboxSyncedAt = await getMetaDB(SHARED_INBOX_SYNCED_AT_KEY).catch(() => null);
+		const _sameTime = (a, b) => !!a && !!b && new Date(a).getTime() === new Date(b).getTime();
+		const isInboxRemoteChanged = (localNote, remoteMeta) => isSharedInboxNote(localNote) && !!remoteMeta?.updatedAt
+			&& !_sameTime(remoteMeta.updatedAt, localNote.updatedAt)
+			&& !_sameTime(remoteMeta.updatedAt, inboxSyncedAt);
+
 		const notesToUpload = localNotes.filter(localNote => {
 			// Don't upload notes that are slated for deletion.
 			if (effectiveDeletedNoteIds.includes(localNote.id)) return false;
 
 			const remoteMeta = remoteMetaMap.get(localNote.id);
+			if (isInboxRemoteChanged(localNote, remoteMeta)) return false;
 			const localDate = new Date(localNote.updatedAt);
 			const remoteDate = remoteMeta ? new Date(remoteMeta.updatedAt) : null;
 
@@ -577,6 +629,14 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 
 			return false;
 		});
+
+		// Remember which remote version the local inbox already contains. Recording it before the upload
+		// finishes is safe: a failed upload just routes the next sync through the merge path.
+		const localInbox = localNotes.find(isSharedInboxNote);
+		const remoteInboxMeta = localInbox && remoteMetaMap.get(localInbox.id);
+		if (localInbox && (notesToUpload.includes(localInbox) || _sameTime(remoteInboxMeta?.updatedAt, localInbox.updatedAt))) {
+			await setMetaDB(SHARED_INBOX_SYNCED_AT_KEY, localInbox.updatedAt).catch(() => {});
+		}
 
 		// Separate IPFS and non-IPFS uploads to prevent UI blocking
 		const ipfsNotesToUpload = notesToUpload.filter(note => {
@@ -700,7 +760,7 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				// Note exists on both. Download if remote is newer.
 				const remoteDate = new Date(remoteMeta.updatedAt);
 				const localDate = new Date(localNote.updatedAt);
-				if (remoteDate > localDate) {
+				if (remoteDate > localDate || isInboxRemoteChanged(localNote, remoteMeta)) {
 					notesToDownload.push(remoteMeta);
 				}
 			}
@@ -799,6 +859,22 @@ async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrP
 				}
 			}
 		});
+
+		// Merge the Shared Inbox instead of letting the remote copy replace local items.
+		for (const [index, remoteNote] of updatedNotes.entries()) {
+			const localNote = allLocalNotesMap.get(remoteNote.id);
+			if (!isSharedInboxNote(localNote) || !isSharedInboxNote(remoteNote)) continue;
+
+			// Git/Nostr return the listing object itself, so read the remote timestamp before changing anything.
+			const remoteUpdatedAt = remoteMetaMap.get(remoteNote.id)?.updatedAt || remoteNote.updatedAt;
+			const mergedContent = mergeSharedInboxContent(localNote.content, remoteNote.content);
+			if (mergedContent !== localNote.content || mergedContent !== remoteNote.content) {
+				// Newer than both sides, so the next sync uploads the merged inbox.
+				const mergedAt = Math.max(Date.now(), new Date(localNote.updatedAt).getTime() + 1, new Date(remoteUpdatedAt).getTime() + 1);
+				updatedNotes[index] = { ...remoteNote, content: mergedContent, updatedAt: new Date(mergedAt).toISOString() };
+			}
+			await setMetaDB(SHARED_INBOX_SYNCED_AT_KEY, remoteUpdatedAt).catch(() => {});
+		}
 
 		// Signal download completion so the UI can mark notes synced progressively
 		if (typeof onProgress === 'function') {
