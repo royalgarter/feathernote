@@ -2451,41 +2451,44 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		const cm = window.easyMDEInstance?.codemirror;
 		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
 
-		const taskLines = cm.getValue().split('\n').filter(isInboxItemLine);
+		const items = parseInboxItems(cm.getValue().split('\n'));
 		// Always open the dialog (it explains an empty inbox): toasts only flash in the status line.
-		// Ask which lines to split: all tasks, or only the unchecked ones (see the Split Inbox modal in index.html).
-		const uncheckedCount = taskLines.filter(line => !_isCheckedLine(line)).length;
-		window.dispatchEvent(new CustomEvent('open-split-modal', { detail: { allCount: taskLines.length, uncheckedCount } }));
+		// Ask which items to split: all, or only the unchecked ones (see the Split Inbox modal in index.html).
+		const uncheckedCount = items.filter(item => !_isCheckedLine(item.lines[0])).length;
+		window.dispatchEvent(new CustomEvent('open-split-modal', { detail: { allCount: items.length, uncheckedCount } }));
 	},
 
-	// Split the chosen task lines into notes; with onlyUnchecked, checked lines stay in the inbox.
+	// Split the chosen inbox items (multi-line) into notes; with onlyUnchecked, checked items stay in the inbox.
 	async splitSharedInbox(onlyUnchecked) {
 		const cm = window.easyMDEInstance?.codemirror;
 		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
 
 		const lines = cm.getValue().split('\n');
-		const isSplitLine = (line) => isInboxItemLine(line) && !(onlyUnchecked && _isCheckedLine(line));
-		const selectedLines = lines.filter(isSplitLine);
-		const taskLines = dedupeInboxLines(selectedLines);
-		if (!taskLines.length) {
-			this.showToast({ title: 'Nothing to Split', description: 'No matching task lines.' });
+		const selectedItems = parseInboxItems(lines).filter(item => !(onlyUnchecked && _isCheckedLine(item.lines[0])));
+		const items = dedupeInboxItems(selectedItems.map(item => ({ ...item, lines: [...item.lines] })));
+		if (!items.length) {
+			this.showToast({ title: 'Nothing to Split', description: 'No matching inbox items.' });
 			return;
 		}
 
-		this.showToast({ title: 'Splitting Inbox', description: `Resolving ${taskLines.length} link(s)...` });
-		const resolvedLines = dedupeInboxLines(await _mapInBatches(taskLines, SPLIT_RESOLVE_CONCURRENCY, _resolveInboxLine));
+		this.showToast({ title: 'Splitting Inbox', description: `Resolving ${items.length} link(s)...` });
+		const resolvedFirstLines = await _mapInBatches(items.map(item => item.lines[0]), SPLIT_RESOLVE_CONCURRENCY, _resolveInboxLine);
+		const resolvedItems = dedupeInboxItems(items.map((item, index) => ({ ...item, lines: [resolvedFirstLines[index], ...item.lines.slice(1)] })));
 
-		for (const line of resolvedLines) {
-			const inlineTags = [...line.matchAll(/(?:^|\s)#([\w.-]+)/g)].map(match => match[1].toLowerCase());
-			const body = line.replace(CHECKBOX_PREFIX_RE, '').replace(/^\s*[-*+]\s+/, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
+		for (const item of resolvedItems) {
+			const firstLine = item.lines[0];
+			const inlineTags = [...firstLine.matchAll(/(?:^|\s)#([\w.-]+)/g)].map(match => match[1].toLowerCase());
+			const body = firstLine.replace(CHECKBOX_PREFIX_RE, '').replace(/^\s*[-*+]\s+/, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
 			const title = (body.match(/^\[([^\]]+)\]\(/)?.[1] || body).substring(0, 100) || 'Shared item';
-			await this.addNote(title, line.trim(), null, [...new Set(['shared', ...inlineTags])]);
+			await this.addNote(title, item.lines.join('\n').trim(), null, [...new Set(['shared', ...inlineTags])]);
 		}
 
-		cm.setValue(lines.filter(line => !isSplitLine(line)).join('\n').trim());
+		// Remove every line of the split items (duplicates included); keep the rest, collapsing blank runs.
+		const removedLineIndexes = new Set(selectedItems.flatMap(item => Array.from({ length: item.end - item.start + 1 }, (_, offset) => item.start + offset)));
+		cm.setValue(lines.filter((line, index) => !removedLineIndexes.has(index)).join('\n').replace(/\n{3,}/g, '\n\n').trim());
 		await this.saveNote(true);
-		const skipped = selectedLines.length - resolvedLines.length;
-		this.showToast({ title: 'Inbox Split', description: `Created ${resolvedLines.length} note(s)${skipped ? `, ${skipped} duplicate(s) skipped` : ''}.` });
+		const skipped = selectedItems.length - resolvedItems.length;
+		this.showToast({ title: 'Inbox Split', description: `Created ${resolvedItems.length} note(s)${skipped ? `, ${skipped} duplicate(s) skipped` : ''}.` });
 	},
 
 	// Split button lives in the shared EasyMDE toolbar; only show it on the Shared Inbox.

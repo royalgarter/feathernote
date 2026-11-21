@@ -590,8 +590,54 @@ function getShareHostTag(url) {
 
 const INBOX_URL_RE = /https?:\/\/[^\s)\]]+/;
 
-/** Inbox item = any list line ("- [ ] x", "* x", "- x") or any line with a link; headings/blank lines are not. */
+/** DEPRECATED: single-line item check, replaced by parseInboxItems (items can span several lines).
 const isInboxItemLine = (line) => /^\s*[-*+]\s+\S/.test(line) || (INBOX_URL_RE.test(line) && !/^\s*#/.test(line));
+*/
+
+const BARE_URL_LINE_RE = /^https?:\/\/\S+$/;
+
+/**
+ * Group inbox lines into items. An item starts at a top-level checkbox line, a top-level bullet with a link,
+ * or a bare URL line after a blank line; every following line (paragraphs, code fences, link-less sub-bullets)
+ * belongs to it until the next item starts. Returns [{ start, end, lines }] with trailing blank lines dropped.
+ */
+function parseInboxItems(lines) {
+	const items = [];
+	let current = null;
+	let inFence = false;
+	lines.forEach((line, index) => {
+		const isFence = /^\s*```/.test(line);
+		const isPreviousBlank = index === 0 || !lines[index - 1].trim();
+		const startsItem = !inFence && (
+			/^[-*+]\s+\[( |x|X)\]/.test(line)
+			|| (/^[-*+]\s+\S/.test(line) && (INBOX_URL_RE.test(line) || !current))
+			|| (BARE_URL_LINE_RE.test(line.trim()) && !/^\s/.test(line) && (isPreviousBlank || !current))
+		);
+		if (isFence) inFence = !inFence;
+		if (startsItem) {
+			current = { start: index, end: index, lines: [line] };
+			items.push(current);
+		} else if (current && (line.trim() || inFence)) {
+			current.lines.push(...lines.slice(current.end + 1, index + 1));
+			current.end = index;
+		}
+	});
+	return items;
+}
+
+/** Drop items whose first line repeats an earlier item (same rule as dedupeInboxLines); a checked copy checks the kept one. */
+function dedupeInboxItems(items) {
+	const keptByKey = new Map();
+	return items.filter(item => {
+		const key = _inboxItemKey(item.lines[0]);
+		const kept = keptByKey.get(key);
+		if (!kept) return keptByKey.set(key, item) && true;
+		if (_isCheckedLine(item.lines[0]) && !_isCheckedLine(kept.lines[0])) {
+			kept.lines[0] = kept.lines[0].replace(/\[ \]/, '[x]');
+		}
+		return false;
+	});
+}
 
 /** Identity of an inbox line: its first URL (ignoring "www." and trailing "/"), else its text without the checkbox. */
 const _inboxItemKey = (line) => {
@@ -664,7 +710,8 @@ async function _findClipboardImageSource(clipboardItems) {
 }
 
 _GLOBAL.resolveShareUrl = resolveShareUrl;
-_GLOBAL.isInboxItemLine = isInboxItemLine;
+_GLOBAL.parseInboxItems = parseInboxItems;
+_GLOBAL.dedupeInboxItems = dedupeInboxItems;
 _GLOBAL.dedupeInboxLines = dedupeInboxLines;
 _GLOBAL.prependInboxLine = prependInboxLine;
 _GLOBAL.getRootHostname = getRootHostname;

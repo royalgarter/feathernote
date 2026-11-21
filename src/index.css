@@ -293,3 +293,8 @@
 .editor-toolbar button.split-inbox.hidden {
 	display: none;
 }
+
+/* tailwind-lite has no .inset-0: without it the fixed overlays (split/delete modals, settings, loading screen) fall to their static position, off-screen on mobile */
+.inset-0 {
+	inset: 0;
+}
