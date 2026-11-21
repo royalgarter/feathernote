@@ -3,6 +3,8 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const net = require('net');
+const dns = require('dns').promises;
 const { TextEncoder } = require('util');
 const multer = require('multer');
 const { marked, Marked } = require('marked');
@@ -267,25 +269,91 @@ app.post('/api/schedule-notification', async (req, res) => {
 	res.json({ success: true });
 });
 
+// SSRF guard for /api/proxy and /api/resolve-url: every hop is followed manually and must resolve only to public IPs.
+// TODO: DNS rebinding between our lookup and fetch's own lookup is still possible; pin the IP via a custom dispatcher if needed.
+const RESOLVE_URL_MAX_HOPS = 5;
+const RESOLVE_URL_TIMEOUT_MS = 4000;
+
+const _isPrivateIPv4 = (ip) => {
+	const [a, b] = ip.split('.').map(Number);
+	return a === 0 || a === 10 || a === 127 || a >= 224
+		|| (a === 100 && b >= 64 && b <= 127)
+		|| (a === 169 && b === 254)
+		|| (a === 172 && b >= 16 && b <= 31)
+		|| (a === 192 && (b === 168 || b === 0))
+		|| (a === 198 && (b === 18 || b === 19));
+};
+
+const _isPrivateAddress = (ip) => {
+	if (net.isIPv4(ip)) return _isPrivateIPv4(ip);
+	const lower = ip.toLowerCase();
+	const mappedIPv4 = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
+	if (mappedIPv4) return _isPrivateIPv4(mappedIPv4);
+	return lower === '::' || lower === '::1' || lower.startsWith('::ffff:')
+		|| /^f[cd]/.test(lower) || /^fe[89ab]/.test(lower) || lower.startsWith('ff');
+};
+
+/** True when the URL is http(s) and its host resolves only to public addresses. */
+const _isPublicHttpUrl = async (url) => {
+	let parsed;
+	try {
+		parsed = new URL(url);
+	} catch (e) {
+		return false;
+	}
+	if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+	const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+	if (net.isIP(hostname)) return !_isPrivateAddress(hostname);
+	try {
+		const addresses = await dns.lookup(hostname, { all: true });
+		return addresses.length > 0 && addresses.every(({ address }) => !_isPrivateAddress(address));
+	} catch (e) {
+		return false;
+	}
+};
+
+/** fetch() that follows redirects manually, refusing any hop to a non-public address. Returns the final response. */
+const _fetchPublic = async (startUrl, method = 'GET') => {
+	let currentUrl = startUrl;
+	for (let hop = 0; hop <= RESOLVE_URL_MAX_HOPS; hop++) {
+		if (!await _isPublicHttpUrl(currentUrl)) throw new Error('Blocked non-public URL');
+		const response = await fetch(currentUrl, {
+			method,
+			redirect: 'manual',
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' },
+			signal: AbortSignal.timeout(RESOLVE_URL_TIMEOUT_MS),
+		});
+		const location = response.headers.get('location');
+		if (response.status < 300 || response.status >= 400 || !location) return { response, url: currentUrl };
+		response.body?.cancel();
+		currentUrl = new URL(location, currentUrl).href;
+	}
+	throw new Error('Too many redirects');
+};
+
+const _resolveFinalUrl = async (startUrl, method) => {
+	const { response, url } = await _fetchPublic(startUrl, method);
+	response.body?.cancel();
+	return url;
+};
+
 app.get('/api/proxy', async (req, res) => {
-	const urlToFetch = decodeURIComponent(req.query.url);
-	if (!urlToFetch) {
-		return res.status(400).json({ error: 'URL parameter is required.' });
+	const urlToFetch = req.query.url;
+	if (typeof urlToFetch !== 'string' || !await _isPublicHttpUrl(urlToFetch)) {
+		return res.status(400).json({ error: 'A public http(s) url parameter is required.' });
 	}
 
 	try {
-		// Use the built-in fetch in modern Node.js
-		const response = await fetch(urlToFetch, {
-			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' } // Set a user-agent
-		});
+		const { response, url: finalUrl } = await _fetchPublic(urlToFetch);
 
 		if (!response.ok) {
 			// Forward the status and statusText from the target server
+			response.body?.cancel();
 			return res.status(response.status).send(response.statusText);
 		}
 
 		const html = await response.text();
-		res.setHeader('X-Final-Url', response.url);
+		res.setHeader('X-Final-Url', finalUrl);
 		res.send(html);
 	} catch (error) {
 		console.error(`Proxy error for ${urlToFetch}:`, error);
@@ -294,28 +362,16 @@ app.get('/api/proxy', async (req, res) => {
 });
 
 // Follow redirects and return the final URL, used to tag shares by their real hostname.
-// TODO: like /api/proxy, this fetches arbitrary URLs server-side (SSRF); restrict to public hosts if exposed.
 app.get('/api/resolve-url', async (req, res) => {
 	const url = req.query.url;
-	if (!/^https?:\/\//i.test(url || '')) {
-		return res.status(400).json({ error: 'A http(s) url parameter is required.' });
+	if (typeof url !== 'string' || !await _isPublicHttpUrl(url)) {
+		return res.status(400).json({ error: 'A public http(s) url parameter is required.' });
 	}
-
-	const fetchFinalUrl = async (method) => {
-		const response = await fetch(url, {
-			method,
-			redirect: 'follow',
-			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' },
-			signal: AbortSignal.timeout(4000),
-		});
-		response.body?.cancel();
-		return response.url;
-	};
 
 	try {
 		// Some servers reject HEAD, so retry with GET (body is discarded).
-		const finalUrl = await fetchFinalUrl('HEAD').catch(() => fetchFinalUrl('GET'));
-		res.json({ url: finalUrl || url });
+		const finalUrl = await _resolveFinalUrl(url, 'HEAD').catch(() => _resolveFinalUrl(url, 'GET'));
+		res.json({ url: finalUrl });
 	} catch (error) {
 		res.json({ url });
 	}
