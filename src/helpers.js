@@ -1496,6 +1496,16 @@ function generateUniqueId(title) {
 	].join('').trim().replace(/$-/, '');
 }
 
+// One shared formatter: toLocaleString(options) builds a new Intl formatter per call (slow across 100 note cards).
+const NOTE_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
+	hour12: false,
+	year: 'numeric',
+	month: 'short',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+});
+
 const easyMDEqueryPreviewCheckbox = '.EasyMDEContainer .editor-preview input';
 
 const PREVIEW_DEBOUNCE_THRESHOLD = 5000; // Note chars above which previewRender is debounced

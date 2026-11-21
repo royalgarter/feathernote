@@ -114,6 +114,7 @@
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
 			<div id="search" class="flex justify-between items-center px-4 pt-6 pb-2 gap-4">
+				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 border">Compose</button>
 				<div class="relative w-full max-w-xs">
 					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border py-2 px-4" :placeholder="'Search ' + (notes.length || '') + ' notes...'"/>
 					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border max-h-60 overflow-y-auto">
@@ -124,7 +125,6 @@
 						</template>
 					</div>
 				</div>
-				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 border">Compose</button>
 			</div>
 		</template>
 
@@ -175,8 +175,9 @@
 		</template>
 
 		<!-- Notes List View -->
-		<template x-if="editingNoteId === null">
-			<div id="notes-list" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+		<!-- x-show (not x-if): keeps the cards mounted, so closing the editor does not rebuild 100 cards. -->
+		<!-- DEPRECATED: <template x-if="editingNoteId === null"> -->
+			<div id="notes-list" x-show="editingNoteId === null" class="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer"
 						:style="{ 'border-color': getNoteColor(note) }"
@@ -225,7 +226,7 @@
 				<span x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
 				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Next</button>
 			</div>
-		</template>
+		<!-- DEPRECATED: </template> -->
 
 		<!-- Loading State -->
 		<template x-if="!notes.length && loading">

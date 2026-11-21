@@ -420,14 +420,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	// --- App Methods ---
 	formatDate(isoString) {
 		// return new Date(isoString).toLocaleString();
-		return new Date(isoString).toLocaleString({}, {
-			hour12: false,
-			year: 'numeric',
-			month: 'short',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit',
-		})
+		return NOTE_DATE_FORMAT.format(new Date(isoString));
 	},
 	getNotePreview(note) {
 		if (!note) return '<!-- EMPTY -->';

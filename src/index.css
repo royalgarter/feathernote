@@ -298,3 +298,9 @@
 .inset-0 {
 	inset: 0;
 }
+
+/* Skip layout/paint of off-screen note cards: showing the list after closing the editor lays out only what is visible */
+#notes-list > div {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 180px;
+}
