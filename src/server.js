@@ -293,6 +293,34 @@ app.get('/api/proxy', async (req, res) => {
 	}
 });
 
+// Follow redirects and return the final URL, used to tag shares by their real hostname.
+// TODO: like /api/proxy, this fetches arbitrary URLs server-side (SSRF); restrict to public hosts if exposed.
+app.get('/api/resolve-url', async (req, res) => {
+	const url = req.query.url;
+	if (!/^https?:\/\//i.test(url || '')) {
+		return res.status(400).json({ error: 'A http(s) url parameter is required.' });
+	}
+
+	const fetchFinalUrl = async (method) => {
+		const response = await fetch(url, {
+			method,
+			redirect: 'follow',
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' },
+			signal: AbortSignal.timeout(4000),
+		});
+		response.body?.cancel();
+		return response.url;
+	};
+
+	try {
+		// Some servers reject HEAD, so retry with GET (body is discarded).
+		const finalUrl = await fetchFinalUrl('HEAD').catch(() => fetchFinalUrl('GET'));
+		res.json({ url: finalUrl || url });
+	} catch (error) {
+		res.json({ url });
+	}
+});
+
 // --- Share/Publish Endpoints ---
 const PUBLISHED = {};
 app.post('/api/publish', async (req, res) => {

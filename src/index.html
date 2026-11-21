@@ -144,6 +144,7 @@
 				</div>
 				<div class="mb-4">
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border p-2" :readonly="noteEditorTitle == 'Shared Inbox'" placeholder="Note Title" />
+					<button x-show="noteEditorTitle == 'Shared Inbox'" @click="handleSplitSharedInbox()" class="mt-2 border px-3 py-1 cursor-pointer" title="Move each task line into its own note">Split into notes</button>
 				</div>
 				<div class="mb-4">
 					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full border p-4">

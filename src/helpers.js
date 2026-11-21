@@ -546,6 +546,46 @@ function mergeSharedInboxContent(localContent, remoteContent) {
 
 _GLOBAL.mergeSharedInboxContent = mergeSharedInboxContent;
 
+// Labels that sit under a 2-letter country TLD (co.uk, com.vn). Heuristic, not the full Public Suffix List.
+const SECOND_LEVEL_LABELS = ['co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne', 'go'];
+const RESOLVE_URL_TIMEOUT_MS = 4000;
+
+/** Root hostname of a URL: "https://m.youtube.com/x" → "youtube.com", "news.bbc.co.uk" → "bbc.co.uk". */
+function getRootHostname(url) {
+	let hostname;
+	try {
+		hostname = new URL(url).hostname.toLowerCase().replace(/\.$/, '');
+	} catch (e) {
+		return '';
+	}
+	if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return hostname; // IP address
+
+	const labels = hostname.split('.');
+	const isCountrySecondLevel = labels.length > 2 && labels.at(-1).length === 2 && SECOND_LEVEL_LABELS.includes(labels.at(-2));
+	return labels.slice(isCountrySecondLevel ? -3 : -2).join('.');
+}
+
+/** Follow redirects via the server (cross-origin redirects are invisible to the browser). Falls back to the input URL. */
+async function resolveFinalUrl(url) {
+	try {
+		const response = await fetch(`/api/resolve-url?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(RESOLVE_URL_TIMEOUT_MS) });
+		if (!response.ok) return url;
+		return (await response.json()).url || url;
+	} catch (e) {
+		return url;
+	}
+}
+
+/** Inline "#host" tag for a shared URL, using the root hostname after redirects. Empty when there is no URL. */
+async function getShareHostTag(url) {
+	if (!url) return '';
+	const rootHostname = getRootHostname(await resolveFinalUrl(url)) || getRootHostname(url);
+	return rootHostname ? ` #${rootHostname}` : '';
+}
+
+_GLOBAL.getRootHostname = getRootHostname;
+_GLOBAL.getShareHostTag = getShareHostTag;
+
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials, onProgress}) {
 	try {
 		// Initialize Git if configured

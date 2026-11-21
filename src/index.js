@@ -1837,6 +1837,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 
 			if (newItem !== '- [ ] ') {
+				newItem += await getShareHostTag(sharedUrl || sharedText?.match(/https?:\/\/[^\s]+/)?.[0]);
 				let inboxNoteId = await getMetaDB('shared_inbox_id');
 				let inboxNote = inboxNoteId ? await getNoteDB(inboxNoteId) : null;
 				if (!inboxNote) {
@@ -2432,6 +2433,31 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 		};
 		reader.readAsDataURL(blob);
+	},
+
+	// Shared Inbox: move every task line into its own note, tagged "shared" + its inline #tags (e.g. #youtube.com).
+	async handleSplitSharedInbox() {
+		const cm = window.easyMDEInstance?.codemirror;
+		if (!cm) return;
+
+		const lines = cm.getValue().split('\n');
+		const taskLines = lines.filter(line => CHECKBOX_PREFIX_RE.test(line));
+		if (!taskLines.length) {
+			this.showToast({ title: 'Nothing to Split', description: 'The Shared Inbox has no task lines.' });
+			return;
+		}
+		if (!confirm(`Split ${taskLines.length} item(s) into separate notes?`)) return;
+
+		for (const line of taskLines) {
+			const inlineTags = [...line.matchAll(/(?:^|\s)#([\w.-]+)/g)].map(match => match[1].toLowerCase());
+			const body = line.replace(CHECKBOX_PREFIX_RE, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
+			const title = (body.match(/^\[([^\]]+)\]\(/)?.[1] || body).substring(0, 100) || 'Shared item';
+			await this.addNote(title, line.trim(), null, [...new Set(['shared', ...inlineTags])]);
+		}
+
+		cm.setValue(lines.filter(line => !CHECKBOX_PREFIX_RE.test(line)).join('\n').trim());
+		await this.saveNote(true);
+		this.showToast({ title: 'Inbox Split', description: `Created ${taskLines.length} note(s).` });
 	},
 
 	// Toolbar "Paste image": read clipboard directly, bypassing the keyboard (Gboard "image pasting not supported").

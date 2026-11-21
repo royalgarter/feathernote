@@ -473,7 +473,7 @@ async function handleShareTarget(request, url) {
 				let targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
 				if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED);
 
-				const finalContent = newItem;
+				const finalContent = newItem + await getShareHostTag(sharedUrl);
 				if (targetNote) {
 					if (targetNote.content) {
 						targetNote.content = finalContent + '\n' + targetNote.content;
