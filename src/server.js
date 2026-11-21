@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const net = require('net');
+const http = require('http');
+const https = require('https');
 const dns = require('dns').promises;
 const { TextEncoder } = require('util');
 const multer = require('multer');
@@ -270,9 +272,10 @@ app.post('/api/schedule-notification', async (req, res) => {
 });
 
 // SSRF guard for /api/proxy and /api/resolve-url: every hop is followed manually and must resolve only to public IPs.
-// TODO: DNS rebinding between our lookup and fetch's own lookup is still possible; pin the IP via a custom dispatcher if needed.
+// The check runs inside the socket's own DNS lookup, so the validated IP is the one connected to (no DNS rebinding window).
 const RESOLVE_URL_MAX_HOPS = 5;
 const RESOLVE_URL_TIMEOUT_MS = 4000;
+const PROXY_MAX_BYTES = 5 * 1024 * 1024;
 
 const _isPrivateIPv4 = (ip) => {
 	const [a, b] = ip.split('.').map(Number);
@@ -312,20 +315,53 @@ const _isPublicHttpUrl = async (url) => {
 	}
 };
 
-/** fetch() that follows redirects manually, refusing any hop to a non-public address. Returns the final response. */
+/** dns.lookup replacement for http(s).request: resolves once and refuses private addresses. */
+const _publicOnlyLookup = (hostname, options, callback) => {
+	dns.lookup(hostname, { all: true, family: options.family || 0 }).then(addresses => {
+		if (!addresses.length || addresses.some(({ address }) => _isPrivateAddress(address))) {
+			return callback(new Error(`Blocked non-public address for ${hostname}`));
+		}
+		if (options.all) return callback(null, addresses);
+		callback(null, addresses[0].address, addresses[0].family);
+	}).catch(callback);
+};
+
+/** One request (no redirect following) whose connection is pinned to a validated public IP. */
+const _requestPublic = (url, method) => new Promise((resolve, reject) => {
+	const client = url.startsWith('https:') ? https : http;
+	const req = client.request(url, {
+		method,
+		lookup: _publicOnlyLookup,
+		headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' },
+		timeout: RESOLVE_URL_TIMEOUT_MS,
+	}, resolve);
+	req.on('timeout', () => req.destroy(new Error('Request timed out')));
+	req.on('error', reject);
+	req.end();
+});
+
+/** Read a response body as text, refusing bodies larger than maxBytes. */
+const _readBody = (response, maxBytes) => new Promise((resolve, reject) => {
+	const chunks = [];
+	let size = 0;
+	response.on('data', chunk => {
+		size += chunk.length;
+		if (size > maxBytes) return response.destroy(new Error('Response too large'));
+		chunks.push(chunk);
+	});
+	response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+	response.on('error', reject);
+});
+
+/** Follow redirects manually, refusing any hop to a non-public address. Returns the final (unread) response. */
 const _fetchPublic = async (startUrl, method = 'GET') => {
 	let currentUrl = startUrl;
 	for (let hop = 0; hop <= RESOLVE_URL_MAX_HOPS; hop++) {
 		if (!await _isPublicHttpUrl(currentUrl)) throw new Error('Blocked non-public URL');
-		const response = await fetch(currentUrl, {
-			method,
-			redirect: 'manual',
-			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' },
-			signal: AbortSignal.timeout(RESOLVE_URL_TIMEOUT_MS),
-		});
-		const location = response.headers.get('location');
-		if (response.status < 300 || response.status >= 400 || !location) return { response, url: currentUrl };
-		response.body?.cancel();
+		const response = await _requestPublic(currentUrl, method);
+		const location = response.headers.location;
+		if (response.statusCode < 300 || response.statusCode >= 400 || !location) return { response, url: currentUrl };
+		response.resume();
 		currentUrl = new URL(location, currentUrl).href;
 	}
 	throw new Error('Too many redirects');
@@ -333,7 +369,7 @@ const _fetchPublic = async (startUrl, method = 'GET') => {
 
 const _resolveFinalUrl = async (startUrl, method) => {
 	const { response, url } = await _fetchPublic(startUrl, method);
-	response.body?.cancel();
+	response.destroy();
 	return url;
 };
 
@@ -346,13 +382,13 @@ app.get('/api/proxy', async (req, res) => {
 	try {
 		const { response, url: finalUrl } = await _fetchPublic(urlToFetch);
 
-		if (!response.ok) {
+		if (response.statusCode < 200 || response.statusCode >= 300) {
 			// Forward the status and statusText from the target server
-			response.body?.cancel();
-			return res.status(response.status).send(response.statusText);
+			response.resume();
+			return res.status(response.statusCode).send(response.statusMessage);
 		}
 
-		const html = await response.text();
+		const html = await _readBody(response, PROXY_MAX_BYTES);
 		res.setHeader('X-Final-Url', finalUrl);
 		res.send(html);
 	} catch (error) {
