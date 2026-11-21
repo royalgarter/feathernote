@@ -176,7 +176,22 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 
-	// Default strategy for same-origin requests (e.g., /, index.html, index.js, etc.)
+	// Page loads: Network-First, falling back to cache offline. The HTML carries the ?v=<version> script URLs,
+	// so a cache-first page would keep loading old scripts after every deploy (CACHE_NAME never changes).
+	if (event.request.mode === 'navigate') {
+		event.respondWith(
+			fetch(event.request).then((networkResponse) => {
+				if (networkResponse && networkResponse.status === 200) {
+					const responseToCache = networkResponse.clone();
+					caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+				}
+				return networkResponse;
+			}).catch(() => caches.match(event.request).then((cachedResponse) => cachedResponse || caches.match('/')))
+		);
+		return;
+	}
+
+	// Default strategy for same-origin requests (e.g., index.js?v=..., icons, etc.)
 	// Use Cache-First falling back to Network.
 	event.respondWith(
 		caches.match(event.request).then((cachedResponse) => {
