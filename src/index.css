@@ -289,3 +289,7 @@
 .cm-s-easymde .cm-header-6 {
 	font-size: 1rem;
 }
+/* Split Shared Inbox toolbar button: only visible on the Shared Inbox (see updateSplitInboxButton) */
+.editor-toolbar button.split-inbox.hidden {
+	display: none;
+}

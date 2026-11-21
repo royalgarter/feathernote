@@ -7,8 +7,18 @@
 - Root hostname = registrable domain heuristic (`getRootHostname` in `helpers.js`): last 2 labels,
   or 3 for `co.uk`-style country second-level domains. Not the full Public Suffix List.
 
+## Redirects / shorteners
+- `/api/resolve-url` follows HTTP redirects **and** `<meta http-equiv="refresh">` pages (t.co-style shorteners),
+  every hop SSRF-checked. Uses GET (HEAD is rejected by some hosts and hides meta refresh).
+- Shares store the resolved URL (tracking params stripped via `removeTrackingParams`), not the short link.
+
+## De-duplication
+- `prependInboxLine` puts a new share on top and drops older copies. Identity = first URL
+  (case, `www.`, trailing `/` ignored), else the line text. A checked copy keeps the kept line checked.
+- Split re-resolves every link first, then dedupes again (two short links → same page = one note).
+
 ## Split button
-- "Split into notes" button under the title, visible only on the Shared Inbox.
+- Scissors button in the EasyMDE toolbar, shown only on the Shared Inbox (`updateSplitInboxButton`).
 - Each task line (`- [ ]` / `- [x]`) becomes a note: title = link text (or line text), content = the line,
   tags = `shared` + inline `#tags`. Task lines are removed from the inbox; other lines stay.
 

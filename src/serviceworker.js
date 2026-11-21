@@ -428,6 +428,9 @@ async function handleShareTarget(request, url) {
 			}
 		}
 
+		// Follow shorteners/redirects so the inbox stores (and dedupes on) the real destination.
+		if (sharedUrl) sharedUrl = await resolveShareUrl(sharedUrl);
+
 		let newItem = '- [ ] ';
 		if (title && sharedUrl) {
 			newItem += `[${title}](${sharedUrl})`;
@@ -473,13 +476,9 @@ async function handleShareTarget(request, url) {
 				let targetNote = targetNoteId ? await getNoteDB(targetNoteId) : null;
 				if (!targetNote) targetNote = await getNoteByTitleDB(TITLE_SHARED);
 
-				const finalContent = newItem + await getShareHostTag(sharedUrl);
+				const finalContent = newItem + getShareHostTag(sharedUrl);
 				if (targetNote) {
-					if (targetNote.content) {
-						targetNote.content = finalContent + '\n' + targetNote.content;
-					} else {
-						targetNote.content = finalContent;
-					}
+					targetNote.content = prependInboxLine(targetNote.content, finalContent);
 					targetNote.updatedAt = new Date().toISOString();
 					await updateNoteDB(targetNote);
 					noteIdToRedirect = targetNote.id;

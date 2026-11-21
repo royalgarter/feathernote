@@ -1810,11 +1810,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		// 1. Check for URL parameters (fallback if SW not active or for bookmarklet)
 		const params = new URLSearchParams(window.location.search);
 		const sharedTitle = params.get('title');
-		const sharedUrl = params.get('url');
+		const rawSharedUrl = params.get('url') || params.get('text')?.match(/https?:\/\/[^\s]+/)?.[0];
 		const sharedText = params.get('text');
 
-		if (sharedTitle || sharedUrl || sharedText) {
+		if (params.get('title') || rawSharedUrl || sharedText) {
 			const TITLE_SHARED = 'Shared Inbox';
+			// Follow shorteners/redirects so the inbox stores (and dedupes on) the real destination.
+			const sharedUrl = await resolveShareUrl(rawSharedUrl);
 			let newItem = '- [ ] ';
 			if (sharedTitle && sharedUrl) {
 				newItem += `[${sharedTitle}](${sharedUrl})`;
@@ -1837,7 +1839,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 
 			if (newItem !== '- [ ] ') {
-				newItem += await getShareHostTag(sharedUrl || sharedText?.match(/https?:\/\/[^\s]+/)?.[0]);
+				newItem += getShareHostTag(sharedUrl);
 				let inboxNoteId = await getMetaDB('shared_inbox_id');
 				let inboxNote = inboxNoteId ? await getNoteDB(inboxNoteId) : null;
 				if (!inboxNote) {
@@ -1845,7 +1847,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				}
 
 				if (inboxNote) {
-					inboxNote.content = newItem + '\n' + (inboxNote.content || '');
+					inboxNote.content = prependInboxLine(inboxNote.content, newItem);
 					inboxNote.updatedAt = new Date().toISOString();
 					await this.updateNote(inboxNote.id, { content: inboxNote.content }, true);
 					if (inboxNote.id !== inboxNoteId) {
@@ -2104,6 +2106,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 						},
 						className: "fa fa-unlock-alt",
 						title: "Encrypt / Decrypt Note",
+					},{
+						name: "split-inbox",
+						action: function(editor){
+							Alpine.$data(document.querySelector('body'))?.handleSplitSharedInbox();
+						},
+						className: "fa fa-scissors split-inbox hidden",
+						title: "Split Shared Inbox into notes",
 					},
 					"|",
 					"bold", "italic", "heading",
@@ -2395,6 +2404,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 			this.$nextTick(() => {
 				this.updatePadlockIcon();
+				this.updateSplitInboxButton();
 			});
 
 			this.noteEditorVisible = false;
@@ -2436,28 +2446,55 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	// Shared Inbox: move every task line into its own note, tagged "shared" + its inline #tags (e.g. #youtube.com).
+	// Duplicates are dropped, and links are re-resolved (shorteners → destination) before splitting.
 	async handleSplitSharedInbox() {
 		const cm = window.easyMDEInstance?.codemirror;
-		if (!cm) return;
+		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
 
-		const lines = cm.getValue().split('\n');
-		const taskLines = lines.filter(line => CHECKBOX_PREFIX_RE.test(line));
+		const taskLines = cm.getValue().split('\n').filter(line => CHECKBOX_PREFIX_RE.test(line));
 		if (!taskLines.length) {
 			this.showToast({ title: 'Nothing to Split', description: 'The Shared Inbox has no task lines.' });
 			return;
 		}
-		if (!confirm(`Split ${taskLines.length} item(s) into separate notes?`)) return;
+		// Ask which lines to split: all tasks, or only the unchecked ones (see the Split Inbox modal in index.html).
+		const uncheckedCount = taskLines.filter(line => !_isCheckedLine(line)).length;
+		window.dispatchEvent(new CustomEvent('open-split-modal', { detail: { allCount: taskLines.length, uncheckedCount } }));
+	},
 
-		for (const line of taskLines) {
+	// Split the chosen task lines into notes; with onlyUnchecked, checked lines stay in the inbox.
+	async splitSharedInbox(onlyUnchecked) {
+		const cm = window.easyMDEInstance?.codemirror;
+		if (!cm || !isSharedInboxNote({ title: this.noteEditorTitle })) return;
+
+		const lines = cm.getValue().split('\n');
+		const isSplitLine = (line) => CHECKBOX_PREFIX_RE.test(line) && !(onlyUnchecked && _isCheckedLine(line));
+		const selectedLines = lines.filter(isSplitLine);
+		const taskLines = dedupeInboxLines(selectedLines);
+		if (!taskLines.length) {
+			this.showToast({ title: 'Nothing to Split', description: 'No matching task lines.' });
+			return;
+		}
+
+		this.showToast({ title: 'Splitting Inbox', description: `Resolving ${taskLines.length} link(s)...` });
+		const resolvedLines = dedupeInboxLines(await _mapInBatches(taskLines, SPLIT_RESOLVE_CONCURRENCY, _resolveInboxLine));
+
+		for (const line of resolvedLines) {
 			const inlineTags = [...line.matchAll(/(?:^|\s)#([\w.-]+)/g)].map(match => match[1].toLowerCase());
 			const body = line.replace(CHECKBOX_PREFIX_RE, '').replace(/(?:^|\s)#[\w.-]+/g, '').trim();
 			const title = (body.match(/^\[([^\]]+)\]\(/)?.[1] || body).substring(0, 100) || 'Shared item';
 			await this.addNote(title, line.trim(), null, [...new Set(['shared', ...inlineTags])]);
 		}
 
-		cm.setValue(lines.filter(line => !CHECKBOX_PREFIX_RE.test(line)).join('\n').trim());
+		cm.setValue(lines.filter(line => !isSplitLine(line)).join('\n').trim());
 		await this.saveNote(true);
-		this.showToast({ title: 'Inbox Split', description: `Created ${taskLines.length} note(s).` });
+		const skipped = selectedLines.length - resolvedLines.length;
+		this.showToast({ title: 'Inbox Split', description: `Created ${resolvedLines.length} note(s)${skipped ? `, ${skipped} duplicate(s) skipped` : ''}.` });
+	},
+
+	// Split button lives in the shared EasyMDE toolbar; only show it on the Shared Inbox.
+	updateSplitInboxButton() {
+		document.querySelector('.EasyMDEContainer .editor-toolbar button.split-inbox')
+			?.classList.toggle('hidden', !isSharedInboxNote({ title: this.noteEditorTitle }));
 	},
 
 	// Toolbar "Paste image": read clipboard directly, bypassing the keyboard (Gboard "image pasting not supported").
@@ -2593,6 +2630,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		this.editingNoteId = new Date().toString().substr(0, 21);
 		this.noteEditorNoteId = null;
 		this.noteEditorTitle = '';
+		this.updateSplitInboxButton();
 		this.noteEditorContent = '';
 		this.noteEditorReminder = '';
 		this.noteEditorTags = '';
@@ -2697,6 +2735,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			}
 
 			this.noteEditorTitle = note.title;
+			this.$nextTick(() => this.updateSplitInboxButton());
 			this.noteEditorContent = finalContent;
 			this.noteEditorBaseContent = finalContent; // Capture base content for merge
 			this.noteEditorReminder = note.reminder || '';

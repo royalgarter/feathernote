@@ -144,7 +144,8 @@
 				</div>
 				<div class="mb-4">
 					<input type="text" id="note-title" x-model="noteEditorTitle" class="block w-full border p-2" :readonly="noteEditorTitle == 'Shared Inbox'" placeholder="Note Title" />
-					<button x-show="noteEditorTitle == 'Shared Inbox'" @click="handleSplitSharedInbox()" class="mt-2 border px-3 py-1 cursor-pointer" title="Move each task line into its own note">Split into notes</button>
+					<!-- DEPRECATED: moved into the EasyMDE toolbar (scissors icon, see updateSplitInboxButton) -->
+					<!-- <button x-show="noteEditorTitle == 'Shared Inbox'" @click="handleSplitSharedInbox()" class="mt-2 border px-3 py-1 cursor-pointer" title="Move each task line into its own note">Split into notes</button> -->
 				</div>
 				<div class="mb-4">
 					<div x-show="!noteEditorVisible && easyMDEIniting" class="w-full border p-4">
@@ -251,6 +252,27 @@
 				<div class="flex justify-end gap-4">
 					<button @click="showModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
 					<button @click="deleteNote(noteToDelete.id); showModal = false;" class="cursor-pointer border px-4 py-2 font-bold">Delete</button>
+				</div>
+			</div>
+		</div>
+		<!-- Split Shared Inbox Modal -->
+		<div x-data="{ showModal: false, allCount: 0, uncheckedCount: 0 }"
+			 @open-split-modal.window="showModal = true; allCount = $event.detail.allCount; uncheckedCount = $event.detail.uncheckedCount"
+			 x-show="showModal"
+			 class="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center"
+			 style="display: none;"
+		>
+			<div class="bg-white p-6 border max-w-sm mx-auto"
+				 @click.away="showModal = false"
+			>
+				<h3 class="text-lg font-bold mb-4">Split Shared Inbox</h3>
+				<p class="text-sm mb-6">
+					Move each line into its own note. Links are resolved and duplicates skipped.
+				</p>
+				<div class="flex flex-wrap justify-end gap-4">
+					<button @click="showModal = false" class="cursor-pointer border px-4 py-2">Cancel</button>
+					<button @click="showModal = false; splitSharedInbox(false);" class="cursor-pointer border px-4 py-2" x-text="'All (' + allCount + ')'"></button>
+					<button @click="showModal = false; splitSharedInbox(true);" :disabled="!uncheckedCount" class="cursor-pointer border px-4 py-2 font-bold disabled:opacity-50" x-text="'Unchecked only (' + uncheckedCount + ')'"></button>
 				</div>
 			</div>
 		</div>

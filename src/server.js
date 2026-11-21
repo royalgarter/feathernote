@@ -367,10 +367,46 @@ const _fetchPublic = async (startUrl, method = 'GET') => {
 	throw new Error('Too many redirects');
 };
 
-const _resolveFinalUrl = async (startUrl, method) => {
-	const { response, url } = await _fetchPublic(startUrl, method);
-	response.destroy();
-	return url;
+const META_REFRESH_SCAN_BYTES = 64 * 1024;
+
+/** Read at most maxBytes of a response as text, then drop the rest (unlike _readBody, never fails on size). */
+const _readHead = (response, maxBytes) => new Promise((resolve) => {
+	const chunks = [];
+	let size = 0;
+	const finish = () => {
+		response.destroy();
+		resolve(Buffer.concat(chunks).toString('utf8'));
+	};
+	response.on('data', chunk => {
+		chunks.push(chunk);
+		size += chunk.length;
+		if (size >= maxBytes) finish();
+	});
+	response.on('end', finish);
+	response.on('error', finish);
+});
+
+/** URL from <meta http-equiv="refresh" content="0; url=..."> (used by t.co, lnkd.in and other shorteners). */
+const _getMetaRefreshUrl = (html) => {
+	for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+		if (!/http-equiv\s*=\s*["']?refresh/i.test(tag)) continue;
+		const target = tag.match(/content\s*=\s*["']?\s*\d*\s*;?\s*url\s*=\s*['"]?([^"'>\s]+)/i)?.[1];
+		if (target) return target.replace(/&amp;/g, '&');
+	}
+	return '';
+};
+
+/** Final destination URL: HTTP redirects plus HTML meta-refresh redirects, every hop SSRF-checked. */
+const _resolveFinalUrl = async (startUrl) => {
+	let currentUrl = startUrl;
+	for (let hop = 0; hop <= RESOLVE_URL_MAX_HOPS; hop++) {
+		const { response, url } = await _fetchPublic(currentUrl, 'GET');
+		const isHtml = /text\/html/i.test(response.headers['content-type'] || '');
+		const refreshUrl = isHtml ? _getMetaRefreshUrl(await _readHead(response, META_REFRESH_SCAN_BYTES)) : (response.destroy(), '');
+		if (!refreshUrl) return url;
+		currentUrl = new URL(refreshUrl, url).href;
+	}
+	return currentUrl;
 };
 
 app.get('/api/proxy', async (req, res) => {
@@ -405,8 +441,8 @@ app.get('/api/resolve-url', async (req, res) => {
 	}
 
 	try {
-		// Some servers reject HEAD, so retry with GET (body is discarded).
-		const finalUrl = await _resolveFinalUrl(url, 'HEAD').catch(() => _resolveFinalUrl(url, 'GET'));
+		// GET (not HEAD): some servers reject HEAD, and meta-refresh shorteners need the HTML.
+		const finalUrl = await _resolveFinalUrl(url);
 		res.json({ url: finalUrl });
 	} catch (error) {
 		res.json({ url });

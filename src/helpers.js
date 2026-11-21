@@ -576,13 +576,75 @@ async function resolveFinalUrl(url) {
 	}
 }
 
-/** Inline "#host" tag for a shared URL, using the root hostname after redirects. Empty when there is no URL. */
-async function getShareHostTag(url) {
+/** Final destination of a shared link: redirects (incl. shorteners) followed, tracking params removed. */
+async function resolveShareUrl(url) {
 	if (!url) return '';
-	const rootHostname = getRootHostname(await resolveFinalUrl(url)) || getRootHostname(url);
+	return removeTrackingParams(await resolveFinalUrl(url));
+}
+
+/** Inline "#host" tag for an (already resolved) URL. Empty when there is no URL. */
+function getShareHostTag(url) {
+	const rootHostname = url ? getRootHostname(url) : '';
 	return rootHostname ? ` #${rootHostname}` : '';
 }
 
+const INBOX_URL_RE = /https?:\/\/[^\s)\]]+/;
+
+/** Identity of an inbox line: its first URL (ignoring "www." and trailing "/"), else its text without the checkbox. */
+const _inboxItemKey = (line) => {
+	const url = line.match(INBOX_URL_RE)?.[0];
+	if (!url) return _inboxLineKey(line).toLowerCase();
+	return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '');
+};
+
+/** Drop repeated inbox items, keeping the first (newest) one; a checked duplicate marks the kept one checked. Blank lines kept. */
+function dedupeInboxLines(lines) {
+	const keptIndexByKey = new Map();
+	const result = [];
+	lines.forEach(line => {
+		if (!line.trim()) return result.push(line);
+		const key = _inboxItemKey(line);
+		const keptIndex = keptIndexByKey.get(key);
+		if (keptIndex === undefined) {
+			keptIndexByKey.set(key, result.length);
+			return result.push(line);
+		}
+		if (_isCheckedLine(line) && !_isCheckedLine(result[keptIndex])) {
+			result[keptIndex] = result[keptIndex].replace(/\[ \]/, '[x]');
+		}
+	});
+	return result;
+}
+
+/** Put a new item on top of the inbox and remove any older copy of it. */
+function prependInboxLine(content, line) {
+	return dedupeInboxLines([line, ...(content || '').split('\n')]).join('\n').replace(/\n+$/, '');
+}
+
+const SPLIT_RESOLVE_CONCURRENCY = 6;
+
+/** Map with at most `limit` promises in flight, preserving order. */
+async function _mapInBatches(items, limit, mapper) {
+	const results = [];
+	for (let i = 0; i < items.length; i += limit) {
+		results.push(...await Promise.all(items.slice(i, i + limit).map(mapper)));
+	}
+	return results;
+}
+
+/** Rewrite an inbox line's first URL to its resolved destination and make sure it carries the #host tag. */
+async function _resolveInboxLine(line) {
+	const url = line.match(INBOX_URL_RE)?.[0];
+	if (!url) return line;
+	const resolvedUrl = await resolveShareUrl(url);
+	const hostTag = getShareHostTag(resolvedUrl);
+	const rewritten = line.split(url).join(resolvedUrl);
+	return hostTag && !rewritten.includes(hostTag.trim()) ? rewritten + hostTag : rewritten;
+}
+
+_GLOBAL.resolveShareUrl = resolveShareUrl;
+_GLOBAL.dedupeInboxLines = dedupeInboxLines;
+_GLOBAL.prependInboxLine = prependInboxLine;
 _GLOBAL.getRootHostname = getRootHostname;
 _GLOBAL.getShareHostTag = getShareHostTag;
 
