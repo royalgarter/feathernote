@@ -6,8 +6,8 @@ const NOTES_LIST_SNAPSHOT = { page: [], totalPages: 0 };
 const FILTER_MEMO = { key: null, result: [] };
 const SEARCH_DEBOUNCE_MS = 250;
 const TAG_HASH_PREFIX = '#tag=';
-const BODY_WIDTH_OPTIONS = [{ value: 'full', label: 'Full' }, { value: '4xl', label: '4xl' }, { value: '2xl', label: '2xl' }];
-const BODY_WIDTH_CLASSES = { full: 'max-w-full', '4xl': 'md:max-w-4xl', '2xl': 'md:max-w-2xl' }; // caps apply on desktop only
+const BODY_WIDTH_OPTIONS = [{ value: 'full', label: 'Full' }, { value: '6xl', label: '6xl' }, { value: '2xl', label: '2xl' }];
+const BODY_WIDTH_CLASSES = { full: 'max-w-full', '6xl': 'md:max-w-6xl', '2xl': 'md:max-w-2xl' }; // caps apply on desktop only
 const ALL_TAGS_MEMO = { notes: null, length: -1, result: [] };
 let _searchDebounceTimer = null;
 

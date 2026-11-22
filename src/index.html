@@ -52,7 +52,9 @@
 	</div>
 	<!-- AppShellHeader -->
 	<header class="sticky top-0 w-full border-b bg-white z-20">
-		<div class="container flex h-16 items-center justify-between py-2 w-full mx-auto px-4">
+		<!-- DEPRECATED: 'container' replaced by bodyWidth setting (matches main) -->
+		<div class="flex h-16 items-center justify-between py-2 w-full mx-auto px-4"
+			:class="editingNoteId === null ? BODY_WIDTH_CLASSES[bodyWidth] : ''">
 			<a href="#" class="flex items-center gap-2">
 				<!-- FeatherIcon Placeholder -->
 				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 1115 1115">
@@ -347,8 +349,8 @@
 					</div>
 					<!-- Body Width (desktop only) -->
 					<div class="flex items-center py-1 justify-between gap-2">
-						<p class="text-sm">Body Width <span class="text-xs">(desktop)</span></p>
-						<div class="flex" role="group" aria-label="Body width">
+						<p class="text-sm">Body &amp; Header Width <span class="text-xs">(desktop)</span></p>
+						<div class="flex" role="group" aria-label="Body and header width">
 							<template x-for="opt in BODY_WIDTH_OPTIONS" :key="opt.value">
 								<button type="button" @click="setBodyWidth(opt.value)" :aria-pressed="bodyWidth === opt.value" :class="bodyWidth === opt.value ? 'font-bold underline' : ''" class="cursor-pointer border px-2 py-1 text-sm" x-text="opt.label"></button>
 							</template>
