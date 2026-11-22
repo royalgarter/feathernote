@@ -39,16 +39,16 @@ const urlsToCache = [
 	'/libs/lightning-fs.min.js',
 	'/libs/http.min.js',
 	'/libs/js-yaml.min.js',
-	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css',
-	'https://maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0',
+	'/libs/font-awesome/font-awesome.min.css',
+	'/libs/font-awesome/fontawesome-webfont.woff2?v=4.7.0',
+	'/libs/alpine-3.17.5.min.js',
+	'/libs/tailwind-lite-2.0.1.css',
+	'/libs/minisearch-7.1.2.min.js',
+	'/libs/readability-0.6.0.min.js',
+	'/libs/nostr-tools-2.16.2.bundle.min.js',
 	'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4',
-	'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
-	'https://cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css',
-	'https://cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js',
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css',
 	'https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js',
-	'https://cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js',
-	'https://cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js',
 	// 'https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css',
 	// 'https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.min.js',
 	'https://cdn.jsdelivr.net/npm/marked-katex-extension@5.1.5/lib/index.umd.min.js',
@@ -61,12 +61,32 @@ const urlsToCache = [
 	'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js',
 ];
 
+// Same-origin files are required: without them the app cannot start offline, so a failure fails the install.
+// CDN files are best effort: one unreachable CDN must not block the whole offline cache.
+const isSameOrigin = (url) => url.startsWith('/');
+
+// A versioned URL (/index.js?v=hash) supersedes older versions of the same path, so drop those from the cache.
+const putVersioned = async (cache, request, response) => {
+	await cache.put(request, response);
+	const url = new URL(request.url);
+	if (!url.search || url.origin !== self.location.origin) return;
+	const keys = await cache.keys();
+	await Promise.all(keys
+		.filter((key) => {
+			const other = new URL(key.url);
+			return other.origin === url.origin && other.pathname === url.pathname && other.search !== url.search;
+		})
+		.map((key) => cache.delete(key)));
+};
+
 self.addEventListener('install', (event) => {
 	self.skipWaiting(); // Force activation of new service worker
 	event.waitUntil(
-		caches.open(CACHE_NAME).then((cache) => {
+		caches.open(CACHE_NAME).then(async (cache) => {
 			console.log('Opened cache');
-			return cache.addAll(urlsToCache);
+			await cache.addAll(urlsToCache.filter(isSameOrigin));
+			const optional = await Promise.allSettled(urlsToCache.filter((url) => !isSameOrigin(url)).map((url) => cache.add(url)));
+			optional.forEach((result, i) => result.status === 'rejected' && console.warn('SW: optional precache failed', result.reason));
 		})
 	);
 });
@@ -183,10 +203,10 @@ self.addEventListener('fetch', (event) => {
 			fetch(event.request).then((networkResponse) => {
 				if (networkResponse && networkResponse.status === 200) {
 					const responseToCache = networkResponse.clone();
-					caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+					caches.open(CACHE_NAME).then((cache) => putVersioned(cache, event.request, responseToCache));
 				}
 				return networkResponse;
-			}).catch(() => caches.match(event.request).then((cachedResponse) => cachedResponse || caches.match('/')))
+			}).catch(() => caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => cachedResponse || caches.match('/')))
 		);
 		return;
 	}
@@ -205,11 +225,12 @@ self.addEventListener('fetch', (event) => {
 					event.request.method === 'GET'
 				) {
 					const responseToCache = networkResponse.clone();
-					caches.open(CACHE_NAME).then((cache) => {
-						cache.put(event.request, responseToCache);
-					});
+					caches.open(CACHE_NAME).then((cache) => putVersioned(cache, event.request, responseToCache));
 				}
 				return networkResponse;
+			}).catch(() => {
+				// Offline with an uncached ?v=hash URL (e.g. first visit before the SW took control): serve any version of the file
+				return caches.match(event.request, { ignoreSearch: true }).then((fallback) => fallback || Response.error());
 			});
 		})
 	);

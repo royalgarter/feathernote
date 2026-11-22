@@ -77,6 +77,36 @@ const loadStyle = (href, id) => {
 	});
 };
 
+// --- Lazy provider loading ---
+// Git and Google Drive code loads on first use. The service worker importScripts them up front, so these are no-ops there.
+const _assetVersion = () => (typeof document === 'undefined' ? '' : document.querySelector('meta[name="VERSION"]')?.content || '');
+const _loadOnce = (load) => {
+	let promise = null;
+	return () => promise ||= load().catch((error) => {
+		promise = null; // allow a retry after a network failure
+		throw error;
+	});
+};
+
+const ensureGit = _loadOnce(async () => {
+	if (typeof document === 'undefined' || typeof _GLOBAL.initGit === 'function') return;
+	await Promise.all([
+		loadScript('/libs/isomorphic-git.min.js', 'isomorphic-git-js'),
+		loadScript('/libs/lightning-fs.min.js', 'lightning-fs-js'),
+		loadScript('/libs/http.min.js', 'git-http-js'),
+	]);
+	await loadScript('/git.js?v=' + _assetVersion(), 'git-js');
+});
+
+const ensureGDrive = _loadOnce(async () => {
+	if (typeof document === 'undefined' || typeof _GLOBAL.gapiLoaded === 'function') return;
+	await loadScript('/gdrive.js?v=' + _assetVersion(), 'gdrive-js');
+	// The GSI onload hook in index.js may have fired before gdrive.js defined gisLoaded.
+	if (_GLOBAL.google?.accounts?.oauth2) _GLOBAL.gisLoaded();
+	await loadScript('https://apis.google.com/js/api.js', 'gapi-js');
+	_GLOBAL.gapiLoaded();
+});
+
 // --- Crypto Helpers ---
 
 // Helper function to convert buffer to base64
@@ -590,6 +620,23 @@ function getShareHostTag(url) {
 
 const INBOX_URL_RE = /https?:\/\/[^\s)\]]+/;
 
+const CONTENT_URL_RE = /(!\[[^\]]*\]\()?(https?:\/\/[^\s)\]>"'`]+)/g;
+
+/** Root hostnames of links in note content (as written, no redirect lookup), deduped. Image embeds are skipped. */
+function getContentHostTags(content) {
+	const hosts = [...String(content || '').matchAll(CONTENT_URL_RE)]
+		.filter(([, imagePrefix]) => !imagePrefix)
+		.map(([, , url]) => getRootHostname(url))
+		.filter(Boolean);
+	return [...new Set(hosts)];
+}
+
+/** Append host tags missing from tags (case-insensitive). */
+function appendContentHostTags(tags, content) {
+	const existing = new Set(tags.map(tag => tag.toLowerCase()));
+	return [...tags, ...getContentHostTags(content).filter(host => !existing.has(host))];
+}
+
 /** DEPRECATED: single-line item check, replaced by parseInboxItems (items can span several lines).
 const isInboxItemLine = (line) => /^\s*[-*+]\s+\S/.test(line) || (INBOX_URL_RE.test(line) && !/^\s*#/.test(line));
 */
@@ -719,6 +766,10 @@ _GLOBAL.getShareHostTag = getShareHostTag;
 
 async function synchronize({notes, deletedNoteIds, isSilent, credentials, nostrPrivateKey, nostrRelays, gdriveStore, lastSync, gitCredentials, onProgress}) {
 	try {
+		// Load lazily-loaded providers that are enabled
+		if (gitCredentials?.repoUrl) await ensureGit();
+		if (gdriveStore?.connected) await ensureGDrive();
+
 		// Initialize Git if configured
 		if (gitCredentials?.repoUrl) {
 			if (typeof _GLOBAL.initGit === 'function') {

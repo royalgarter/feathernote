@@ -1,6 +1,13 @@
 // Last rendered notes page, kept outside Alpine's reactivity: while the editor is open the hidden list
 // reads this snapshot, so autosaves and syncs don't re-filter and re-render it in the background.
+const NOTE_PROVIDER_ORDER = ['s3', 'gdrive', 'git', 'ipfs', 'nostr'];
 const NOTES_LIST_SNAPSHOT = { page: [], totalPages: 0 };
+// Memo for filteredNotes: the getter runs several times per render, and a fuzzy search over every note is the costly part.
+const FILTER_MEMO = { key: null, result: [] };
+const SEARCH_DEBOUNCE_MS = 250;
+const TAG_HASH_PREFIX = '#tag=';
+const ALL_TAGS_MEMO = { notes: null, length: -1, result: [] };
+let _searchDebounceTimer = null;
 
 document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	GOOGLE_CLIENT_ID: document.querySelector('head meta[name="GOOGLE_CLIENT_ID"]').content || '',
@@ -43,6 +50,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		notes: [],
 		noteSyncStatus: {},
 	searchTag: '',
+	appliedQuery: '', // searchTag after debounce; the list filters on this
+	isOffline: !navigator.onLine,
 	suggestions: [], // New property
 	loading: true,
 	miniSearch: null,
@@ -82,7 +91,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	scheduledNotifications: {},
 
 	get filteredNotes() {
-		return this._pinSharedInbox(this._searchNotes());
+		const query = this.appliedQuery.trim();
+		if (!query) return this._pinSharedInbox(this.notes);
+		// Replaced arrays and unshift change identity or length, so this key covers every notes mutation
+		const key = [query, this.notes, this.notes.length, this.miniSearch?.documentCount];
+		if (FILTER_MEMO.key && key.every((part, i) => part === FILTER_MEMO.key[i])) return FILTER_MEMO.result;
+		FILTER_MEMO.key = key;
+		return (FILTER_MEMO.result = this._pinSharedInbox(this._searchNotes()));
 	},
 
 	// Shared Inbox collects every share, so keep it first in the list.
@@ -93,7 +108,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	},
 
 	_searchNotes() {
-		const query = this.searchTag.trim();
+		const query = this.appliedQuery.trim();
 		if (!query) {
 			return this.notes;
 		}
@@ -106,7 +121,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			});
 		}
 		// Use minisearch for filtering
-		const searchResults = this.miniSearch ? this.miniSearch.search(this.searchTag, {
+		const searchResults = this.miniSearch ? this.miniSearch.search(query, {
 			prefix: true, // Search for prefixes
 			fuzzy: 0.2, // Allow some fuzziness
 			combineWith: 'AND' // All terms must match
@@ -128,6 +143,64 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	get totalPages() {
 		if (this.editingNoteId !== null) return NOTES_LIST_SNAPSHOT.totalPages;
 		return (NOTES_LIST_SNAPSHOT.totalPages = Math.ceil(this.filteredNotes.length / this.notesPerPage));
+	},
+
+	// Tags in the current "#a #b" query; empty for free-text searches
+	get activeTags() {
+		const query = this.searchTag.trim();
+		return TAG_QUERY_RE.test(query) ? query.split(/\s+/).map(tag => tag.slice(1).toLowerCase()) : [];
+	},
+
+	// Every tag with its note count, most used first. Recomputed only when the notes array changes.
+	get allTags() {
+		if (ALL_TAGS_MEMO.notes === this.notes && ALL_TAGS_MEMO.length === this.notes.length) return ALL_TAGS_MEMO.result;
+		const counts = new Map();
+		for (const note of this.notes) {
+			for (const raw of new Set((note.tags || []).map(tag => String(tag).trim()).filter(Boolean))) {
+				const tag = raw.toLowerCase();
+				if (/[\s#]/.test(tag)) continue; // the "#tag" query syntax cannot express these
+				counts.set(tag, { tag, label: raw, count: (counts.get(tag)?.count || 0) + 1 });
+			}
+		}
+		Object.assign(ALL_TAGS_MEMO, { notes: this.notes, length: this.notes.length });
+		return (ALL_TAGS_MEMO.result = [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)));
+	},
+
+	isTagActive(tag) {
+		return this.activeTags.includes(tag.toLowerCase());
+	},
+
+	// Tapping a tag adds it to the filter, tapping an active one removes it. Pushes a history entry so Back undoes it.
+	toggleTag(tag) {
+		const wanted = tag.toLowerCase();
+		const tags = this.isTagActive(wanted) ? this.activeTags.filter(t => t !== wanted) : [...this.activeTags, wanted];
+		this._applyTagFilter(tags);
+		window.scrollTo({ top: 0 });
+	},
+
+	clearTags() {
+		this._applyTagFilter([]);
+	},
+
+	_applyTagFilter(tags) {
+		this.searchTag = tags.map(tag => '#' + tag).join(' ');
+		window.location.hash = tags.length ? TAG_HASH_PREFIX + tags.map(encodeURIComponent).join(',') : '';
+	},
+
+	// Hash to restore after the editor closes: the tag filter if one is active
+	_tagHash() {
+		return this.activeTags.length ? TAG_HASH_PREFIX + this.activeTags.map(encodeURIComponent).join(',') : '';
+	},
+
+	// Back/forward or a pasted link: follow #tag=. Editor hashes and free-text searches are left alone.
+	_syncTagsFromHash() {
+		const hash = window.location.hash;
+		if (hash.includes('_note') || hash === '#search') return;
+		if (hash.startsWith(TAG_HASH_PREFIX)) {
+			this.searchTag = hash.slice(TAG_HASH_PREFIX.length).split(',').filter(Boolean).map(tag => '#' + decodeURIComponent(tag)).join(' ');
+		} else if (this.activeTags.length) {
+			this.searchTag = '';
+		}
 	},
 
 	nextPage() {
@@ -195,6 +268,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 	// --- Main App Init ---
 	init() {
+		// One-time cleanup of copies the EasyMDE autosave left in localStorage (frees quota for the notes cache)
+		Object.keys(localStorage).filter((key) => key.startsWith('smde_')).forEach((key) => localStorage.removeItem(key));
+
 		// Expose ipfsRootCid to global scope for IPFS module
 		window.ipfsRootCid = this.ipfsRootCid;
 
@@ -217,6 +293,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			let options = Object.fromEntries(new URLSearchParams(location.search));
 
 			if (noteId) this.editNote(noteId, options);
+		} else if (window.location.hash.startsWith(TAG_HASH_PREFIX)) {
+			this._syncTagsFromHash();
 		} else if (window.location.hash === '#search') {
 			this.$nextTick(() => document.getElementById('searchInput')?.focus());
 		}
@@ -317,14 +395,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			gsi.onload = () => { this.isGsiLoaded = true; if (typeof gisLoaded === 'function') gisLoaded(); };
 			document.body.appendChild(gsi);
 		}
-		if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) {
-			const gapi = document.createElement('script');
-			gapi.src = 'https://apis.google.com/js/api.js';
-			gapi.async = true;
-			gapi.defer = true;
-			gapi.onload = () => { if (typeof gapiLoaded === 'function') gapiLoaded(); };
-			document.body.appendChild(gapi);
-		}
+		// DEPRECATED: gapi now loads with gdrive.js via ensureGDrive()
+		// if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) { ... }
+		// Restore a saved Google Drive session; first-time users load it from the Connect button
+		if (localStorage.getItem('gdrive_access_token')) ensureGDrive().catch((e) => console.warn('Google Drive load failed:', e));
 
 		// --- Parallel data loading: cache + settings + notes all in parallel ---
 		const loadPromises = [];
@@ -368,6 +442,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}, 60e3);
 
 		window.addEventListener('online', () => {
+			this.isOffline = false;
 			this.showToast({ title: 'Online', description: 'Connection restored. Syncing...', quiet: true });
 			this.runFastS3StartupSync();
 			this.syncNotes(true);
@@ -383,7 +458,24 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		});
 
 
-		this.$watch('searchTag', () => this.generateSuggestions());
+		// Tag filters are cheap and exact, so they apply at once; free text waits for a typing pause. Any new filter starts at page 1.
+		this.$watch('searchTag', (value) => {
+			clearTimeout(_searchDebounceTimer);
+			const applyQuery = () => {
+				if (this.appliedQuery === value) return;
+				this.appliedQuery = value;
+				this.currentPage = 1;
+				this.generateSuggestions();
+			};
+			const trimmed = value.trim();
+			if (!trimmed || TAG_QUERY_RE.test(trimmed)) return applyQuery();
+			_searchDebounceTimer = setTimeout(applyQuery, SEARCH_DEBOUNCE_MS);
+		});
+
+		// Offline indicator: shown until the browser reports a connection again
+		window.addEventListener('offline', () => (this.isOffline = true));
+
+		window.addEventListener('hashchange', () => this._syncTagsFromHash());
 
 		// Add the keyboard shortcut listener
 		window.addEventListener('keydown', (event) => {
@@ -522,6 +614,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 			default:
 				return { color: 'text-gray-400', bg: 'bg-gray-100' };
 		}
+	},
+
+	// One status lookup per card render, in display order, with title and classes precomputed for the template
+	getNoteProviderStatuses(note) {
+		const statusByProvider = this.getNoteSyncStatusByProvider(note);
+		return NOTE_PROVIDER_ORDER.filter((provider) => statusByProvider[provider]).map((provider) => {
+			const status = statusByProvider[provider].status || 'idle';
+			const { color, bg } = this.getProviderSyncIconClass(status);
+			return { provider, title: this.getProviderName(provider) + ': ' + status, className: color + ' ' + bg };
+		});
 	},
 
 	getNoteSyncStatusByProvider(note) {
@@ -755,7 +857,8 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 	},
 
-	signInToGoogleDrive() {
+	async signInToGoogleDrive() {
+		await ensureGDrive().catch((e) => console.warn('Google Drive load failed:', e));
 		if (typeof signInToGoogleDrive === 'function') {
 			signInToGoogleDrive();
 		} else {
@@ -1604,7 +1707,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				title: n.title,
 				tags: n.tags
 			}));
-			const stateString = YAML.stringify({ notes: notesState, deleted: this.deletedNoteIds });
+			const stateString = JSON.stringify({ notes: notesState, deleted: this.deletedNoteIds });
 				return await calculateHash(stateString);
 			} catch (e) {
 				console.warn('Hash calculation failed', e);
@@ -2003,8 +2106,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				nativeSpellcheck: false,
 				minHeight: "500px",
 				showIcons: ["code", "table"],
+				// Autosave to IndexedDB is handled by autosaveCurrentNote(); EasyMDE's copy wrote the whole note to localStorage on every pause and never cleaned up
 				autosave: {
-					enabled: true,
+					enabled: false,
 					uniqueId: [id, Date.now()].join('-'),
 					delay: 1000,
 					submit_delay: 5000,
@@ -2832,10 +2936,16 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				finalTitle = 'Note at ' + new Date().toString().substr(0, 21); // Use a more readable format
 			}
 
-			const tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
-
 			let rawContent = window.easyMDEInstance?.value() || this.noteEditorContent;
 			let isEncrypted = this.noteEditorIsEncrypted;
+
+			// Tag the note with the root hostname of each link (from plaintext, before encryption).
+			// Shared Inbox is skipped: its lines already carry inline #host tags.
+			let tags = this.noteEditorTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+			if (!isSharedInboxNote({ title: finalTitle, tags })) {
+				tags = appendContentHostTags(tags, rawContent);
+				this.noteEditorTags = tags.join(', ');
+			}
 
 			if (isEncrypted) {
 				if (!this.currentNotePassword) {
@@ -3157,7 +3267,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		window.easyMDEInstance = null;
 
 		if (window.location.hash.includes('_note')) {
-			window.location.hash = '';
+			window.location.hash = this._tagHash();
 		}
 
 		this.editingNoteId = null;

@@ -304,3 +304,13 @@
 	content-visibility: auto;
 	contain-intrinsic-size: auto 180px;
 }
+
+/* Reduced motion: the only authored motion is the lock overlay fade (x-transition) and smooth scrolling; state still changes, just without the animation */
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+	.transition.duration-300 {
+		transition-duration: 0s;
+	}
+}

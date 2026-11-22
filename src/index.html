@@ -32,7 +32,7 @@
 
 	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 	<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-	<link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin>
+	<!-- DEPRECATED: <link rel="preconnect" href="https://maxcdn.bootstrapcdn.com" crossorigin> (Font Awesome is vendored in /libs) -->
 </head>
 <body id="main-app" class="flex flex-col min-h-screen font-mono" :class="{'dark': darkMode, '': !darkMode}" x-data="mainApp()" x-init="init()">
 	<!-- Biometric Lock Overlay -->
@@ -68,6 +68,8 @@
 				</div>
 			</a>
 			<div class="flex items-center gap-4">
+				<!-- Offline indicator -->
+				<span x-show="isOffline" role="status" class="text-xs font-bold border px-2 py-1" style="display: none;">Offline</span>
 				<!-- SyncStatus -->
 				<div>
 					<template x-if="syncStatusMessage || isSyncing">
@@ -84,7 +86,7 @@
 				<!-- UserProfile -->
 				<div class="cursor-pointer p-1">
 					<template x-if="user">
-						<div @click="signOut()" class="flex items-center gap-2">
+						<button type="button" @click="signOut()" class="flex items-center gap-2 cursor-pointer" aria-label="Sign out">
 							<template x-if="user.picture">
 								<img :src="user.picture" alt="User Picture" class="h-6 w-6" />
 							</template>
@@ -93,14 +95,14 @@
 									<path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
 								</svg>
 							</template>
-						</div>
+						</button>
 					</template>
 					<template x-if="!user">
-						<div @click="signIn()" class="flex items-center gap-2">
+						<button type="button" @click="signIn()" class="flex items-center gap-2 cursor-pointer" aria-label="Sign in">
 							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
 							</svg>
-						</div>
+						</button>
 					</template>
 				</div>
 			</div>
@@ -119,11 +121,29 @@
 					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border py-2 px-4" :placeholder="'Search ' + (notes.length || '') + ' notes...'"/>
 					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border max-h-60 overflow-y-auto">
 						<template x-for="suggestion in suggestions" :key="suggestion.id">
-							<div @click="searchTag = suggestion.suggestion; suggestions = []" class="px-4 py-2 cursor-pointer hover:underline">
+							<button type="button" @click="searchTag = suggestion.suggestion; suggestions = []" class="block w-full text-left px-4 py-2 cursor-pointer hover:underline">
 								<span x-text="suggestion.suggestion"></span>
-							</div>
+							</button>
 						</template>
 					</div>
+				</div>
+			</div>
+		</template>
+
+		<!-- Tag navigation: strip of all tags with counts, chips for the active filter. Gone while editing so note edits don't re-run it. -->
+		<template x-if="editingNoteId === null">
+			<div id="tag-nav" class="px-4 pb-2 flex flex-col gap-2" x-show="allTags.length || activeTags.length">
+				<div x-show="activeTags.length" id="active-filter" class="flex flex-wrap items-center gap-2" role="status">
+					<template x-for="tag in activeTags" :key="tag">
+						<button type="button" @click="toggleTag(tag)" class="cursor-pointer border px-2 py-2 text-sm font-bold" :aria-label="'Remove tag ' + tag" :style="{ background: '#A2D2FF', color: '#1a202c' }" x-text="'#' + tag + ' ×'"></button>
+					</template>
+					<button type="button" x-show="activeTags.length > 1" @click="clearTags()" class="cursor-pointer text-sm underline px-2 py-2">Clear</button>
+					<span x-show="!filteredNotes.length" class="text-sm">No notes have all of these tags.</span>
+				</div>
+				<div class="flex flex-wrap gap-2" role="group" aria-label="Filter by tag">
+					<template x-for="entry in allTags" :key="entry.tag">
+						<button type="button" @click="toggleTag(entry.tag)" class="cursor-pointer border px-2 py-2 text-xs" :aria-pressed="isTagActive(entry.tag)" :class="isTagActive(entry.tag) ? 'font-bold underline' : ''" x-text="entry.label + ' ' + entry.count"></button>
+					</template>
 				</div>
 			</div>
 		</template>
@@ -181,18 +201,19 @@
 				<template x-for="note in paginatedNotes" :key="note.id">
 					<div class="flex flex-col justify-between border p-4 h-full cursor-pointer"
 						:style="{ 'border-color': getNoteColor(note) }"
+						role="article" tabindex="0" :aria-label="note.title"
 						@click="editNote(note.id)"
+						@keydown.enter.self="editNote(note.id)"
+						@keydown.space.self.prevent="editNote(note.id)"
 					>
 						<div class="flex-grow min-w-0">
 							<div class="flex justify-between items-baseline mb-2">
 								<div class="flex gap-1">
 									<span class="text-xs italic mt-0.5" x-text="formatDate(note.updatedAt)"></span>
-									<template x-for="provider in ['s3', 'gdrive', 'git', 'ipfs', 'nostr']" :key="provider">
-										<template x-if="getNoteSyncStatusByProvider(note)[provider]">
-											<span class="rounded-full p-1 flex items-center justify-center" :title="getProviderName(provider) + ': ' + (getNoteSyncStatusByProvider(note)[provider].status || 'idle')" :class="getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').color + ' ' + getProviderSyncIconClass(getNoteSyncStatusByProvider(note)[provider].status || 'idle').bg">
-												<span x-html="getProviderIcon(provider)"></span>
-											</span>
-										</template>
+									<template x-for="p in getNoteProviderStatuses(note)" :key="p.provider">
+										<span class="rounded-full p-1 flex items-center justify-center" :title="p.title" :class="p.className">
+											<span x-html="getProviderIcon(p.provider)"></span>
+										</span>
 									</template>
 								</div>
 								<span class="text-xs font-bold" x-show="note.priority" x-text="'P:' + note.priority"></span>
@@ -206,15 +227,15 @@
 						<div class="mt-4 pt-2 border-t flex flex-col gap-2">
 							<div class="flex flex-wrap gap-1">
 								<template x-for="tag in note.tags.filter(x=>x)" :key="tag">
-									<span @click.stop="searchTag='#'+tag;" class="text-xs hover:underline" x-text="'#'+tag"></span>
+									<button type="button" @click.stop="toggleTag(tag)" class="cursor-pointer text-xs hover:underline" x-text="'#'+tag"></button>
 								</template>
 							</div>
 							<div class="flex justify-between items-center">
 								<div class="flex gap-1">
-									<button @click.stop="increasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Increase Priority">▲</button>
-									<button @click.stop="decreasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Decrease Priority">▼</button>
+									<button @click.stop="increasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Increase Priority" aria-label="Increase priority">▲</button>
+									<button @click.stop="decreasePriority(note.id)" class="cursor-pointer border px-1 text-xs" title="Decrease Priority" aria-label="Decrease priority">▼</button>
 								</div>
-								<button class="cursor-pointer font-bold text-xs underline" @click.stop="deleteNote(note.id); $dispatch('close-delete-modal')">Del</button>
+								<button class="cursor-pointer font-bold text-xs underline" aria-label="Delete note" @click.stop="deleteNote(note.id); $dispatch('close-delete-modal')">Del</button>
 							</div>
 						</div>
 					</div>
@@ -530,30 +551,29 @@
 					<h4 class="text-sm font-bold" x-text="toast.title"></h4>
 					<p class="text-xs" x-text="toast.description"></p>
 				</div>
-				<button @click="dismissToast(toast.id)" class="cursor-pointer border px-1 text-xs">X</button>
+				<button @click="dismissToast(toast.id)" class="cursor-pointer border px-1 text-xs" aria-label="Dismiss notification">X</button>
 			</div>
 		</template>
 	</div>
 </body>
 
-<link rel="preload" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-<noscript><link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" /></noscript>
-<link rel="preload" as="font" href="//maxcdn.bootstrapcdn.com/font-awesome/latest/fonts/fontawesome-webfont.woff2?v=4.7.0" crossorigin />
+<!-- DEPRECATED: Font Awesome from maxcdn "latest"; vendored 4.7.0 below -->
+<link rel="preload" href="/libs/font-awesome/font-awesome.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="/libs/font-awesome/font-awesome.min.css" /></noscript>
+<link rel="preload" as="font" href="/libs/font-awesome/fontawesome-webfont.woff2?v=4.7.0" crossorigin />
 
-<link rel="preload" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-<noscript><link rel="stylesheet" href="//cdn.jsdelivr.net/gh/reallygoodsoftware/tailwind-lite/dist/2.0.1.css" /></noscript>
+<link rel="preload" href="/libs/tailwind-lite-2.0.1.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="/libs/tailwind-lite-2.0.1.css" /></noscript>
 
-<script async defer src="//cdn.jsdelivr.net/npm/@mozilla/readability@0.x.x/Readability.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/npm/nostr-tools@2.16.2/lib/nostr.bundle.min.js"></script>
-<script async defer src="//cdn.jsdelivr.net/npm/minisearch@7.1.2/dist/umd/index.min.js"></script>
+<script async defer src="/libs/readability-0.6.0.min.js"></script>
+<script async defer src="/libs/nostr-tools-2.16.2.bundle.min.js"></script>
+<script async defer src="/libs/minisearch-7.1.2.min.js"></script>
 
 <link rel="preload" href="/index.css?v=___VERSION___" as="style" fetchpriority="high" onload="this.onload=null;this.rel='stylesheet'" />
 <noscript><link rel="stylesheet" href="/index.css?v=___VERSION___"/></noscript>
 
 <script defer src="/libs/diff_match_patch.js"></script>
-<script defer src="/libs/isomorphic-git.min.js"></script>
-<script defer src="/libs/lightning-fs.min.js"></script>
-<script defer src="/libs/http.min.js"></script>
+<!-- DEPRECATED: git libs and git.js/gdrive.js load on demand via ensureGit()/ensureGDrive() in helpers.js -->
 <script defer src="/libs/js-yaml.min.js"></script>
 
 <script>
@@ -561,14 +581,12 @@
 </script>
 <script defer src="/helpers.js?v=___VERSION___"></script>
 <!-- <script type="module" src="/ipfs.js?v=___VERSION___"></script> -->
-<script defer src="/git.js?v=___VERSION___"></script>
 <script defer src="/s3.js?v=___VERSION___"></script>
 <!-- <script defer src="/nostr.js?v=___VERSION___"></script> -->
-<script defer src="/gdrive.js?v=___VERSION___"></script>
 <script defer src="/index.js?v=___VERSION___" fetchpriority="high"></script>
 
 <!-- AlpineJS (should be load after the other required x-data functions are loaded) -->
-<script defer src="//cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="/libs/alpine-3.17.5.min.js"></script>
 <!-- AlpineJS -->
 
 <!-- Excalidraw -->
