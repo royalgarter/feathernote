@@ -1,3 +1,7 @@
+// Last rendered notes page, kept outside Alpine's reactivity: while the editor is open the hidden list
+// reads this snapshot, so autosaves and syncs don't re-filter and re-render it in the background.
+const NOTES_LIST_SNAPSHOT = { page: [], totalPages: 0 };
+
 document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	GOOGLE_CLIENT_ID: document.querySelector('head meta[name="GOOGLE_CLIENT_ID"]').content || '',
 
@@ -113,14 +117,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return this.notes.filter(note => resultIds.has(note.id));
 	},
 
+	// Reads only editingNoteId while editing, so changes to notes don't re-run the list; closing the editor refreshes it once.
 	get paginatedNotes() {
+		if (this.editingNoteId !== null) return NOTES_LIST_SNAPSHOT.page;
 		const start = (this.currentPage - 1) * this.notesPerPage;
 		const end = start + this.notesPerPage;
-		return this.filteredNotes.slice(start, end);
+		return (NOTES_LIST_SNAPSHOT.page = this.filteredNotes.slice(start, end));
 	},
 
 	get totalPages() {
-		return Math.ceil(this.filteredNotes.length / this.notesPerPage);
+		if (this.editingNoteId !== null) return NOTES_LIST_SNAPSHOT.totalPages;
+		return (NOTES_LIST_SNAPSHOT.totalPages = Math.ceil(this.filteredNotes.length / this.notesPerPage));
 	},
 
 	nextPage() {

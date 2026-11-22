@@ -221,7 +221,7 @@
 				</template>
 			</div>
 			<!-- Pagination Controls -->
-			<div class="flex justify-center items-center gap-4 mt-4">
+			<div x-show="editingNoteId === null" class="flex justify-center items-center gap-4 mt-4">
 				<button @click="prevPage()" :disabled="currentPage === 1" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Previous</button>
 				<span x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
 				<button @click="nextPage()" :disabled="currentPage === totalPages" class="cursor-pointer border px-2 py-1 disabled:opacity-50">Next</button>
