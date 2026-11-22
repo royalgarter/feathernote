@@ -110,14 +110,19 @@
 	</header>
 
 	<!-- AppShellContent -->
+	<!-- DEPRECATED: 'max-w-max mx-auto' on main replaced by bodyWidth setting -->
 	<main class="flex-1 w-full"
-		:class="{ 'cursor-wait': isManualSyncing, 'max-w-max mx-auto': editingNoteId === null }"
+		:class="[isManualSyncing ? 'cursor-wait' : '', editingNoteId === null ? 'mx-auto ' + BODY_WIDTH_CLASSES[bodyWidth] : '']"
 	>
 		<!-- Search Box & Add Note -->
 		<template x-if="editingNoteId === null">
-			<div id="search" class="flex justify-between items-center px-4 pt-6 pb-2 gap-4">
-				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-32 border">Compose</button>
-				<div class="relative w-full max-w-xs">
+			<div id="search" class="flex justify-between items-center px-4 pt-6 pb-2 gap-2 md:gap-4">
+				<button @click="createNewNote()" class="cursor-pointer font-bold p-2 w-24 md:w-32 shrink-0 border">Compose</button>
+				<button type="button" x-show="allTags.length" @click="toggleTagsFolded()" :aria-expanded="!tagsFolded" aria-controls="tag-cloud" :aria-label="'Tags (' + allTags.length + ')'" class="cursor-pointer border p-2 flex items-center gap-1 text-sm whitespace-nowrap shrink-0">
+					<i class="fa" :class="tagsFolded ? 'fa-chevron-right' : 'fa-chevron-down'" aria-hidden="true"></i>
+					<span x-text="allTags.length"></span>
+				</button>
+				<div class="relative w-full max-w-xs min-w-0">
 					<input type="text" id="searchInput" x-model="searchTag" @input.debounce.500ms="filteredNotes" @focus="generateSuggestions()" @blur.debounce.300ms="suggestions = []" class="cursor-text w-full border py-2 px-4" :placeholder="'Search ' + (notes.length || '') + ' notes...'"/>
 					<div x-show="suggestions.length > 0" class="absolute z-10 w-full bg-white border max-h-60 overflow-y-auto">
 						<template x-for="suggestion in suggestions" :key="suggestion.id">
@@ -140,10 +145,12 @@
 					<button type="button" x-show="activeTags.length > 1" @click="clearTags()" class="cursor-pointer text-sm underline px-2 py-2">Clear</button>
 					<span x-show="!filteredNotes.length" class="text-sm">No notes have all of these tags.</span>
 				</div>
+				<!-- DEPRECATED: fold toggle moved into the search row
 				<button type="button" @click="toggleTagsFolded()" :aria-expanded="!tagsFolded" aria-controls="tag-cloud" class="cursor-pointer self-start flex items-center gap-2 text-sm py-2 pr-2" style="min-height: 44px;">
 					<i class="fa" :class="tagsFolded ? 'fa-chevron-right' : 'fa-chevron-down'" aria-hidden="true"></i>
 					<span x-text="'Tags (' + allTags.length + ')'"></span>
 				</button>
+				-->
 				<div id="tag-cloud" x-show="!tagsFolded" class="flex flex-wrap gap-2" role="group" aria-label="Filter by tag">
 					<template x-for="entry in allTags" :key="entry.tag">
 						<button type="button" @click="toggleTag(entry.tag)" class="cursor-pointer border px-2 py-2 text-xs" :aria-pressed="isTagActive(entry.tag)" :class="isTagActive(entry.tag) ? 'font-bold underline' : ''" x-text="entry.label + ' ' + entry.count"></button>
@@ -337,6 +344,15 @@
 					<div class="flex items-center py-1 justify-between">
 						<p class="text-sm">Dark Mode</p>
 						<button @click="toggleDarkMode()" class="cursor-pointer border px-2 py-1" x-text="darkMode ? 'Disable' : 'Enable'"></button>
+					</div>
+					<!-- Body Width (desktop only) -->
+					<div class="flex items-center py-1 justify-between gap-2">
+						<p class="text-sm">Body Width <span class="text-xs">(desktop)</span></p>
+						<div class="flex" role="group" aria-label="Body width">
+							<template x-for="opt in BODY_WIDTH_OPTIONS" :key="opt.value">
+								<button type="button" @click="setBodyWidth(opt.value)" :aria-pressed="bodyWidth === opt.value" :class="bodyWidth === opt.value ? 'font-bold underline' : ''" class="cursor-pointer border px-2 py-1 text-sm" x-text="opt.label"></button>
+							</template>
+						</div>
 					</div>
 					<!-- Notification Settings -->
 					<div class="flex items-center py-1 justify-between">

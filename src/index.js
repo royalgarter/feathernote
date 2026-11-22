@@ -6,6 +6,8 @@ const NOTES_LIST_SNAPSHOT = { page: [], totalPages: 0 };
 const FILTER_MEMO = { key: null, result: [] };
 const SEARCH_DEBOUNCE_MS = 250;
 const TAG_HASH_PREFIX = '#tag=';
+const BODY_WIDTH_OPTIONS = [{ value: 'full', label: 'Full' }, { value: '4xl', label: '4xl' }, { value: '2xl', label: '2xl' }];
+const BODY_WIDTH_CLASSES = { full: 'max-w-full', '4xl': 'md:max-w-4xl', '2xl': 'md:max-w-2xl' }; // caps apply on desktop only
 const ALL_TAGS_MEMO = { notes: null, length: -1, result: [] };
 let _searchDebounceTimer = null;
 
@@ -50,6 +52,9 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		notes: [],
 		noteSyncStatus: {},
 	searchTag: '',
+	bodyWidth: BODY_WIDTH_OPTIONS.some(o => o.value === localStorage.getItem('feathernote-body-width')) ? localStorage.getItem('feathernote-body-width') : 'full',
+	BODY_WIDTH_CLASSES,
+	BODY_WIDTH_OPTIONS,
 	tagsFolded: localStorage.getItem('feathernote-tags-folded') === 'true', // tag cloud: unfolded by default
 	appliedQuery: '', // searchTag after debounce; the list filters on this
 	isOffline: !navigator.onLine,
@@ -167,6 +172,10 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		return (ALL_TAGS_MEMO.result = [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)));
 	},
 
+	setBodyWidth(value) {
+		this.bodyWidth = value;
+		localStorage.setItem('feathernote-body-width', value);
+	},
 	toggleTagsFolded() {
 		this.tagsFolded = !this.tagsFolded;
 		localStorage.setItem('feathernote-tags-folded', this.tagsFolded);
