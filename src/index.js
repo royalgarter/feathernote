@@ -50,6 +50,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		notes: [],
 		noteSyncStatus: {},
 	searchTag: '',
+	tagsFolded: localStorage.getItem('feathernote-tags-folded') === 'true', // tag cloud: unfolded by default
 	appliedQuery: '', // searchTag after debounce; the list filters on this
 	isOffline: !navigator.onLine,
 	suggestions: [], // New property
@@ -164,6 +165,11 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 		Object.assign(ALL_TAGS_MEMO, { notes: this.notes, length: this.notes.length });
 		return (ALL_TAGS_MEMO.result = [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)));
+	},
+
+	toggleTagsFolded() {
+		this.tagsFolded = !this.tagsFolded;
+		localStorage.setItem('feathernote-tags-folded', this.tagsFolded);
 	},
 
 	isTagActive(tag) {
@@ -387,14 +393,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		}
 
 		// Google scripts (deferred, non-blocking — injected in parallel with data loading)
-		if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
-			const gsi = document.createElement('script');
-			gsi.src = 'https://accounts.google.com/gsi/client';
-			gsi.async = true;
-			gsi.defer = true;
-			gsi.onload = () => { this.isGsiLoaded = true; if (typeof gisLoaded === 'function') gisLoaded(); };
-			document.body.appendChild(gsi);
-		}
+		this.loadGoogleIdentity();
 		// DEPRECATED: gapi now loads with gdrive.js via ensureGDrive()
 		// if (!document.querySelector('script[src="https://apis.google.com/js/api.js"]')) { ... }
 		// Restore a saved Google Drive session; first-time users load it from the Connect button
@@ -443,6 +442,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 
 		window.addEventListener('online', () => {
 			this.isOffline = false;
+			this.loadGoogleIdentity(); // skipped at startup if the page opened offline
 			this.showToast({ title: 'Online', description: 'Connection restored. Syncing...', quiet: true });
 			this.runFastS3StartupSync();
 			this.syncNotes(true);
@@ -828,6 +828,19 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		} else {
 			console.error("Google Identity Services script not loaded or not ready.");
 		}
+	},
+
+	// Google Identity Services needs the network: skip while offline (no failed request) and retry from the 'online' event
+	loadGoogleIdentity() {
+		if (this.isGsiLoaded || !navigator.onLine) return;
+		if (document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) return;
+		const gsi = document.createElement('script');
+		gsi.src = 'https://accounts.google.com/gsi/client';
+		gsi.async = true;
+		gsi.defer = true;
+		gsi.onload = () => { this.isGsiLoaded = true; if (typeof gisLoaded === 'function') gisLoaded(); };
+		gsi.onerror = () => gsi.remove(); // lets the next 'online' event try again
+		document.body.appendChild(gsi);
 	},
 
 	signIn() {

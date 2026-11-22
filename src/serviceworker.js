@@ -28,6 +28,7 @@ const urlsToCache = [
 	'/favicon.ico',
 	'/favicon.png',
 	'/icons/icons.json',
+	'/icons/ios/128.png',
 	'/icons/ios/180.png',
 	'/icons/ios/192.png',
 	'/icons/ios/32.png',

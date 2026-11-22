@@ -140,7 +140,11 @@
 					<button type="button" x-show="activeTags.length > 1" @click="clearTags()" class="cursor-pointer text-sm underline px-2 py-2">Clear</button>
 					<span x-show="!filteredNotes.length" class="text-sm">No notes have all of these tags.</span>
 				</div>
-				<div class="flex flex-wrap gap-2" role="group" aria-label="Filter by tag">
+				<button type="button" @click="toggleTagsFolded()" :aria-expanded="!tagsFolded" aria-controls="tag-cloud" class="cursor-pointer self-start flex items-center gap-2 text-sm py-2 pr-2" style="min-height: 44px;">
+					<i class="fa" :class="tagsFolded ? 'fa-chevron-right' : 'fa-chevron-down'" aria-hidden="true"></i>
+					<span x-text="'Tags (' + allTags.length + ')'"></span>
+				</button>
+				<div id="tag-cloud" x-show="!tagsFolded" class="flex flex-wrap gap-2" role="group" aria-label="Filter by tag">
 					<template x-for="entry in allTags" :key="entry.tag">
 						<button type="button" @click="toggleTag(entry.tag)" class="cursor-pointer border px-2 py-2 text-xs" :aria-pressed="isTagActive(entry.tag)" :class="isTagActive(entry.tag) ? 'font-bold underline' : ''" x-text="entry.label + ' ' + entry.count"></button>
 					</template>

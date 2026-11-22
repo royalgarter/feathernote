@@ -620,7 +620,8 @@ try { HTML_INDEX = fs.readFileSync(path.join(__dirname, 'index.html'), {encoding
 		const readmePath = path.join(__dirname, '..', 'README.md');
 		const readmeMarkdown = fs.readFileSync(readmePath, 'utf8');
 		const introMarkdown = readmeMarkdown.split('## Philosophy')[0];
-		const welcomeHtml = marked.parse(introMarkdown);
+		// The README links its logo by absolute URL (for GitHub); serve it from this origin so the welcome page works offline
+		const welcomeHtml = marked.parse(introMarkdown).replaceAll('https://feathernote.deno.dev/', '/');
 
 		HTML_INDEX = (HTML_INDEX || '')
 					.replaceAll?.('___VERSION___', appVersion)
