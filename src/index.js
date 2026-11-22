@@ -2119,6 +2119,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 				nativeSpellcheck: false,
 				autoDownloadFontAwesome: false, // Font Awesome is vendored in /libs; the auto-download hit maxcdn and failed offline
 				minHeight: "500px",
+				maxHeight: "70dvh", // bounded height makes CodeMirror scroll inside itself and render only visible lines; unbounded, a 200 KB note rendered every line
 				showIcons: ["code", "table"],
 				// Autosave to IndexedDB is handled by autosaveCurrentNote(); EasyMDE's copy wrote the whole note to localStorage on every pause and never cleaned up
 				autosave: {
