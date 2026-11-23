@@ -139,7 +139,7 @@
 
 		<!-- Tag navigation: strip of all tags with counts, chips for the active filter. Gone while editing so note edits don't re-run it. -->
 		<template x-if="editingNoteId === null">
-			<div id="tag-nav" class="px-4 pb-2 flex flex-col gap-2" x-show="allTags.length || activeTags.length">
+			<div id="tag-nav" class="px-4 pb-2 flex flex-col gap-1" x-show="allTags.length || activeTags.length">
 				<div x-show="activeTags.length" id="active-filter" class="flex flex-wrap items-center gap-2" role="status">
 					<template x-for="tag in activeTags" :key="tag">
 						<button type="button" @click="toggleTag(tag)" class="cursor-pointer border px-2 py-2 text-sm font-bold" :aria-label="'Remove tag ' + tag" :style="{ background: '#A2D2FF', color: '#1a202c' }" x-text="'#' + tag + ' ×'"></button>
@@ -153,9 +153,9 @@
 					<span x-text="'Tags (' + allTags.length + ')'"></span>
 				</button>
 				-->
-				<div id="tag-cloud" x-show="!tagsFolded" class="flex flex-wrap gap-2" role="group" aria-label="Filter by tag">
+				<div id="tag-cloud" x-show="!tagsFolded" class="flex flex-wrap gap-1 max-h-20 sm:max-h-28 overflow-y-auto" role="group" aria-label="Filter by tag">
 					<template x-for="entry in allTags" :key="entry.tag">
-						<button type="button" @click="toggleTag(entry.tag)" class="cursor-pointer border px-2 py-2 text-xs" :aria-pressed="isTagActive(entry.tag)" :class="isTagActive(entry.tag) ? 'font-bold underline' : ''" x-text="entry.label + ' ' + entry.count"></button>
+						<button type="button" @click="toggleTag(entry.tag)" class="cursor-pointer border px-1.5 py-0.5 text-xs leading-tight" :aria-pressed="isTagActive(entry.tag)" :class="isTagActive(entry.tag) ? 'font-bold underline' : ''"><span x-text="entry.label"></span> <span class="opacity-60" x-text="entry.count"></span></button>
 					</template>
 				</div>
 			</div>
