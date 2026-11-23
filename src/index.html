@@ -224,7 +224,7 @@
 								<div class="flex gap-1">
 									<span class="text-xs italic mt-0.5" x-text="formatDate(note.updatedAt)"></span>
 									<template x-for="p in getNoteProviderStatuses(note)" :key="p.provider">
-										<span class="rounded-full p-1 flex items-center justify-center" :title="p.title" :class="p.className">
+										<span class="rounded-full p-0.5 flex items-center justify-center" :title="p.title" :class="p.className">
 											<span x-html="getProviderIcon(p.provider)"></span>
 										</span>
 									</template>

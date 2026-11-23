@@ -555,7 +555,7 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	getNoteSyncIconClass(status) {
 		switch(status) {
 			case 'ok':
-				return { icon: 'check', color: 'text-green-500', bg: 'bg-green-100' };
+				return { icon: 'check', color: 'text-green-400', bg: 'bg-green-50' };
 			case 'syncing':
 				return { icon: 'loader', color: 'text-blue-500', bg: 'bg-blue-100' };
 			case 'partial':
@@ -583,17 +583,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	getProviderIcon(provider) {
 		switch(provider) {
 			case 's3':
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>`;
 			case 'gdrive':
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 14.28L4.36 21H12.2l3.84-6.72H8.2zm14.1-1.74l-3.84-6.72H10.6l3.84 6.72h7.86zm-5.63.87l-3.84-6.72L5 13.41l3.84 6.72 7.83-6.72z" /></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 14.28L4.36 21H12.2l3.84-6.72H8.2zm14.1-1.74l-3.84-6.72H10.6l3.84 6.72h7.86zm-5.63.87l-3.84-6.72L5 13.41l3.84 6.72 7.83-6.72z" /></svg>`;
 			case 'git':
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path><circle cx="6" cy="6" r="3"></circle></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path><circle cx="6" cy="6" r="3"></circle></svg>`;
 			case 'ipfs':
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"></path><path d="M12 22V12"></path><path d="M12 12L2 7"></path><path d="M12 12l10-5"></path></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"></path><path d="M12 22V12"></path><path d="M12 12L2 7"></path><path d="M12 12l10-5"></path></svg>`;
 			case 'nostr':
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>`;
 			default:
-				return `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>`;
+				return `<svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>`;
 		}
 	},
 
@@ -611,17 +611,17 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 	getProviderSyncIconClass(status) {
 		switch(status) {
 			case 'ok':
-				return { color: 'text-green-500', bg: 'bg-green-100' };
+				return { color: 'text-green-400', bg: 'bg-green-50' };
 			case 'syncing':
-				return { color: 'text-blue-500', bg: 'bg-blue-100' };
+				return { color: 'text-blue-400', bg: 'bg-blue-50' };
 			case 'partial':
-				return { color: 'text-yellow-500', bg: 'bg-yellow-100' };
+				return { color: 'text-yellow-400', bg: 'bg-yellow-50' };
 			case 'error':
-				return { color: 'text-red-500', bg: 'bg-red-100' };
+				return { color: 'text-red-400', bg: 'bg-red-50' };
 			case 'idle':
-				return { color: 'text-gray-400', bg: 'bg-gray-100' };
+				return { color: 'text-gray-300', bg: 'bg-gray-50' };
 			default:
-				return { color: 'text-gray-400', bg: 'bg-gray-100' };
+				return { color: 'text-gray-300', bg: 'bg-gray-50' };
 		}
 	},
 
@@ -742,8 +742,13 @@ document.addEventListener('alpine:init', () => { Alpine.data('mainApp', () => ({
 		let items = tags.length ? [...tags] : [title, content, id].join(' ').split(/\W/).slice(0, 9);
 		for (let i=0; i<3; i++) items[i] = items.filter((x, j) => j%3 == i).reduce((a, x) => a + x, '');
 		// let rgba = `rgba(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])}, ${this.darkMode ? '0.5' : '0.6'})`;
-		let rgba = `rgb(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])})`;
-		return rgba;
+		// DEPRECATED: random RGB gave pale/muddy results
+		// let rgba = `rgb(${hashColor(items[2])}, ${hashColor(items[1])}, ${hashColor(items[0])})`;
+		// return rgba;
+
+		/* v4: hash picks hue only; fixed saturation/lightness keeps every note vivid and readable */
+		const hue = (hashColor(items[2]) * 3 + hashColor(items[1]) * 5 + hashColor(items[0]) * 7) % 360;
+		return this.darkMode ? `hsl(${hue}, 70%, 68%)` : `hsl(${hue}, 65%, 40%)`;
 
 		const text = tags?.[0] || title.substr(0, 18);
 		let hash = hashText(text);
